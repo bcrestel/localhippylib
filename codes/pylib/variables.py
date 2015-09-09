@@ -1,0 +1,4 @@
+STATE= 0
+CONTROL = 1
+ADJOINT = 2
+NVAR = 3
