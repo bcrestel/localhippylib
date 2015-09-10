@@ -1,12 +1,10 @@
 import dolfin as dl
-from cgsampler import CGSampler
-from matFreeChol import MatFreeChol
 import numpy as np
 from linalg import MatPtAP, MatMatMult, MatAtB, get_diagonal, estimate_diagonal_inv_coloring, getColoring, to_dense
 from traceEstimator import TraceEstimator
 from assemblePointwiseObservation import assemblePointwiseObservation
 import math
-from expression import code_AnisTensor2D, code_Mollifier
+from expression import code_Mollifier
 
 
 class _RinvM:
@@ -70,7 +68,7 @@ class LaplacianPrior(_Prior):
         self.M = dl.assemble(varfM)
         self.R = dl.assemble(varfL + varfM)
         
-        self.Rsolver = dl.PETScKrylovSolver("cg", "amg")
+        self.Rsolver = dl.PETScKrylovSolver("cg", "petsc_amg")
         self.Rsolver.set_operator(self.R)
         self.Rsolver.parameters["maximum_iterations"] = max_iter
         self.Rsolver.parameters["relative_tolerance"] = rel_tol
@@ -188,7 +186,7 @@ class BiLaplacianPrior(_Prior):
         self.Msolver.parameters["nonzero_initial_guess"] = False
         
         self.A = dl.assemble(gamma*varfL + delta*varfM)        
-        self.Asolver = dl.PETScKrylovSolver("cg", "amg")
+        self.Asolver = dl.PETScKrylovSolver("cg", "petsc_amg")
         self.Asolver.set_operator(self.A)
         self.Asolver.parameters["maximum_iterations"] = max_iter
         self.Asolver.parameters["relative_tolerance"] = rel_tol
@@ -270,7 +268,7 @@ class ConstrainedBiLaplacianPrior(_Prior):
         self.A = dl.assemble(gamma*varfL+delta*varfM)
         PotPo = MatAtB(Po,Po)
         self.A.axpy(pen, PotPo, False);      
-        self.Asolver = dl.PETScKrylovSolver("cg", "amg")
+        self.Asolver = dl.PETScKrylovSolver("cg", "petsc_amg")
         self.Asolver.set_operator(self.A)
         self.Asolver.parameters["maximum_iterations"] = max_iter
         self.Asolver.parameters["relative_tolerance"] = rel_tol
@@ -354,7 +352,7 @@ class MollifiedBiLaplacianPrior(_Prior):
                 
         self.A = dl.assemble(gamma*varfL+delta*varfM + pen*varfmo)
      
-        self.Asolver = dl.PETScKrylovSolver("cg", "amg")
+        self.Asolver = dl.PETScKrylovSolver("cg", "petsc_amg")
         self.Asolver.set_operator(self.A)
         self.Asolver.parameters["maximum_iterations"] = max_iter
         self.Asolver.parameters["relative_tolerance"] = rel_tol

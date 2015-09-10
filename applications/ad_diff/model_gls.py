@@ -43,7 +43,8 @@ class TimeDependentAD:
         self.L = self.M + dt*self.N + stab
         self.Lt = self.M + dt*self.Nt + stab
         
-        boundary_parts = dl.MeshFunction("size_t",mesh, mesh.topology().dim()-1)
+        boundaries = dl.FacetFunction("size_t", mesh)
+        boundaries.set_all(0)
 
         class InsideBoundary(dl.SubDomain):
             def inside(self,x,on_boundary):
@@ -52,9 +53,10 @@ class TimeDependentAD:
                 return on_boundary and x_in and y_in
             
         Gamma_M = InsideBoundary()
-        Gamma_M.mark(boundary_parts,1)
+        Gamma_M.mark(boundaries,1)
+        ds_marked = dl.Measure("ds")[boundaries]
         
-        self.Q = dl.assemble( self.dt*dl.inner(u, v) * dl.ds(1), exterior_facet_domains=boundary_parts )
+        self.Q = dl.assemble( self.dt*dl.inner(u, v) * ds_marked(1) )
 
         self.Prior = Prior
         

@@ -62,8 +62,13 @@ except:
     #check the dolfin version to decide which cpp to include
     if dl.dolfin_version()[2] == "4":
         cpp_sources = ["AssemblePointwiseObservation_v14.cpp"]
+    elif dl.dolfin_version()[2] == "5":
+        cpp_sources = ["AssemblePointwiseObservation_v15.cpp"]
+    elif dl.dolfin_version()[2] == "6":
+        cpp_sources = ["AssemblePointwiseObservation_v16.cpp"]
     else:
-        cpp_sources = ["AssemblePointwiseObservation.cpp"]  
+        raise Exception("Dolfin Version")
+    
     cpp_module = dl.compile_extension_module(
     code=code, source_directory=sdir, sources=cpp_sources,
     include_dirs=[".",  sdir])
