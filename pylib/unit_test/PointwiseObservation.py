@@ -1,6 +1,6 @@
 from dolfin import *
 import sys
-sys.path.append( "../" )
+sys.path.append( "../../" )
 from pylib import *
 import numpy as np
 

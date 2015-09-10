@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy import linalg as sla
 import math
 import sys
-sys.path.append( "../" )
+sys.path.append( "../../" )
 from pylib import *
 
 class Cov:

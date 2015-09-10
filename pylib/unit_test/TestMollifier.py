@@ -6,7 +6,7 @@ Created on Aug 25, 2015
 
 import dolfin as dl
 import sys
-sys.path.append( "../" )
+sys.path.append( "../../" )
 from pylib import *
 import numpy as np
 
