@@ -4,10 +4,9 @@
 
 from dolfin import *
 import sys
-from dolfin.cpp.la import PETScKrylovSolver
 sys.path.append( "../../" )
 import numpy as np
-from pylib import *
+from hippylib import *
 
 nx = 64
 ny = 64

@@ -1,7 +1,7 @@
 import dolfin as dl
 import sys
 sys.path.append( "../../" )
-from pylib import *
+from hippylib import *
 import numpy as np
 import matplotlib.pyplot as plt
 

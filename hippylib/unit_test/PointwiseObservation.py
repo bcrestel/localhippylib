@@ -1,7 +1,7 @@
 from dolfin import *
 import sys
 sys.path.append( "../../" )
-from pylib import *
+from hippylib import *
 import numpy as np
 
 if __name__ == "__main__":

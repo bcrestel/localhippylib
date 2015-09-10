@@ -1,7 +1,7 @@
 from dolfin import *
 import sys
 sys.path.append( "../../" )
-from pylib import *
+from hippylib import *
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -318,8 +318,8 @@ class Poisson:
     def applyR(self, da, out):
         self.Prior.R.mult(da, out)
         
-    def RPreconditioner(self):        
-        return self.Prior.Rprec
+    def Rsolver(self):        
+        return self.Prior.Rsolver
     
     def applyRaa(self, da, out):
         self.Raa.mult(da, out)

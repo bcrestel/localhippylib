@@ -1,13 +1,7 @@
-'''
-Created on Aug 25, 2015
-
-@author: uvilla
-'''
-
 import dolfin as dl
 import sys
 sys.path.append( "../../" )
-from pylib import *
+from hippylib import *
 import numpy as np
 
 cpp_mollifier = '''

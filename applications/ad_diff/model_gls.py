@@ -2,7 +2,7 @@ from dolfin import *
 import numpy as np
 import sys
 sys.path.append( "../../" )
-from pylib import *
+from hippylib import *
 import matplotlib.pyplot as plt
 
 class TimeDependentAD:    

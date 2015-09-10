@@ -4,7 +4,7 @@ from scipy import linalg as sla
 import math
 import sys
 sys.path.append( "../../" )
-from pylib import *
+from hippylib import *
 
 class Cov:
     def __init__(self,n, corrlen):
