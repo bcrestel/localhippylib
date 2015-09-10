@@ -1,0 +1,20 @@
+Inverse Problem PYthon library
+                         version <hippylib_version>
+
+
+ __        ______  _______   _______   __      __  __  __  __       
+/  |      /      |/       \ /       \ /  \    /  |/  |/  |/  |      
+$$ |____  $$$$$$/ $$$$$$$  |$$$$$$$  |$$  \  /$$/ $$ |$$/ $$ |____  
+$$      \   $$ |  $$ |__$$ |$$ |__$$ | $$  \/$$/  $$ |/  |$$      \ 
+$$$$$$$  |  $$ |  $$    $$/ $$    $$/   $$  $$/   $$ |$$ |$$$$$$$  |
+$$ |  $$ |  $$ |  $$$$$$$/  $$$$$$$/     $$$$/    $$ |$$ |$$ |  $$ |
+$$ |  $$ | _$$ |_ $$ |      $$ |          $$ |    $$ |$$ |$$ |__$$ |
+$$ |  $$ |/ $$   |$$ |      $$ |          $$ |    $$ |$$ |$$    $$/ 
+$$/   $$/ $$$$$$/ $$/       $$/           $$/     $$/ $$/ $$$$$$$/  
+                                                                    
+                                                                    
+
+                           <hippylib_website>
+                           
+The only prerequisite for using hIPPYlib is FEniCS (version 1.5).
+Older or newer version of FEniCS are not supported by hIPPYlib.
