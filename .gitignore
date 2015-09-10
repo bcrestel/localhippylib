@@ -1,4 +1,14 @@
 *.pyc
+*~
+*.swp
 notebooks/.ipynb_checkpoints/*
 .project
 .pydevproject
+hippylib/unit_test/results_cg
+applications/ad_diff/data
+applications/ad_diff/hmisfit
+applications/ad_diff/results
+applications/ad_diff/samples
+applications/poisson/hmisfit
+applications/poisson/results
+applications/poisson/samples
