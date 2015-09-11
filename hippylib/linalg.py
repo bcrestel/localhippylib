@@ -1,6 +1,14 @@
-from dolfin import compile_extension_module, Vector
+from dolfin import compile_extension_module, Vector, PETScKrylovSolver
 import os
 import numpy as np
+
+def amg_method():
+    S = PETScKrylovSolver()
+    for pp in S.preconditioners():
+        if pp[0] == 'ml_amg':
+            return 'ml_amg'
+        
+    return 'petsc_amg'
 
 abspath = os.path.dirname( os.path.abspath(__file__) )
 sdir = os.path.join(abspath,"cpp_linalg")
