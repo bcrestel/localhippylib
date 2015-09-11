@@ -1,7 +1,7 @@
 import dolfin as dl
 import sys
 sys.path.append( "../" )
-from pylib import *
+from hippylib import *
 import numpy as np
 
 def u_boundary(x, on_boundary):
@@ -208,7 +208,7 @@ class Poisson:
         """
         A, b = self.assembleA(x, assemble_rhs = True)
         A.init_vector(out, 1)
-        solver = dl.PETScKrylovSolver("cg", "amg")
+        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
         solver.parameters["relative_tolerance"] = tol
         solver.set_operator(A)
         nit = solver.solve(out,b)
@@ -223,7 +223,7 @@ class Poisson:
         At, badj = self.assembleA(x, assemble_adjoint = True,assemble_rhs = True)
         At.init_vector(out, 1)
         
-        solver = dl.PETScKrylovSolver("cg", "amg")
+        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
         solver.parameters["relative_tolerance"] = tol
         solver.set_operator(At)
         nit = solver.solve(out,badj)
@@ -277,7 +277,7 @@ class Poisson:
         """
         Solve the incremental forward problem for a given rhs
         """
-        solver = dl.PETScKrylovSolver("cg", "amg")
+        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
         solver.set_operator(self.A)
         solver.parameters["relative_tolerance"] = tol
         self.A.init_vector(sol,1)
@@ -288,7 +288,7 @@ class Poisson:
         """
         Solve the incremental adjoint problem for a given rhs
         """
-        solver = dl.PETScKrylovSolver("cg", "amg")
+        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
         solver.set_operator(self.At)
         solver.parameters["relative_tolerance"] = tol
         self.At.init_vector(sol,1)

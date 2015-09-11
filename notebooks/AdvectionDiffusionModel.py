@@ -1,9 +1,8 @@
-from dolfin import *
+import dolfin as dl
 import numpy as np
 import sys
 sys.path.append( "../" )
-from pylib import *
-import matplotlib.pyplot as plt
+from hippylib import *
 
 class TimeDependentAD:    
     def __init__(self, mesh, Vh, t_init, t_final, t_1, dt, wind_velocity, true_initial_condition, gls_stab, Prior):
@@ -15,53 +14,54 @@ class TimeDependentAD:
         self.dt = dt
         self.sim_times = np.arange(self.t_init, self.t_final+.5*self.dt, self.dt)
         
-        u = TrialFunction(Vh[STATE])
-        v = TestFunction(Vh[STATE])
+        u = dl.TrialFunction(Vh[STATE])
+        v = dl.TestFunction(Vh[STATE])
         
-        kappa = Constant(.001)
-        dt_expr = Constant(self.dt)
+        kappa = dl.Constant(.001)
+        dt_expr = dl.Constant(self.dt)
         
-        r_trial = u + dt_expr*( -div(kappa*nabla_grad(u))+ inner(wind_velocity, nabla_grad(u)) )
-        r_test  = v + dt_expr*( -div(kappa*nabla_grad(v))+ inner(wind_velocity, nabla_grad(v)) )
+        r_trial = u + dt_expr*( -dl.div(kappa*dl.nabla_grad(u))+ dl.inner(wind_velocity, dl.nabla_grad(u)) )
+        r_test  = v + dt_expr*( -dl.div(kappa*dl.nabla_grad(v))+ dl.inner(wind_velocity, dl.nabla_grad(v)) )
 
         
-        h = CellSize(mesh)
-        vnorm = sqrt(inner(wind_velocity, wind_velocity))
+        h = dl.CellSize(mesh)
+        vnorm = dl.sqrt(dl.inner(wind_velocity, wind_velocity))
         if gls_stab:
-            tau = Min((h*h)/(Constant(2.)*kappa), h/vnorm )
+            tau = dl.Min((h*h)/(dl.Constant(2.)*kappa), h/vnorm )
         else:
-            tau = Constant(0.)
+            tau = dl.Constant(0.)
                             
-        self.M = assemble( inner(u,v)*dx )
-        self.M_stab = assemble( inner(u, v+tau*r_test)*dx )
-        self.Mt_stab = assemble( inner(u+tau*r_trial,v)*dx )
-        Nvarf  = (inner(kappa *nabla_grad(u), nabla_grad(v)) + inner(wind_velocity, nabla_grad(u))*v )*dx
-        Ntvarf  = (inner(kappa *nabla_grad(v), nabla_grad(u)) + inner(wind_velocity, nabla_grad(v))*u )*dx
-        self.N  = assemble( Nvarf )
-        self.Nt = assemble(Ntvarf)
-        stab = assemble( tau*inner(r_trial, r_test)*dx)
+        self.M = dl.assemble( dl.inner(u,v)*dl.dx )
+        self.M_stab = dl.assemble( dl.inner(u, v+tau*r_test)*dl.dx )
+        self.Mt_stab = dl.assemble( dl.inner(u+tau*r_trial,v)*dl.dx )
+        Nvarf  = (dl.inner(kappa *dl.nabla_grad(u), dl.nabla_grad(v)) + dl.inner(wind_velocity, dl.nabla_grad(u))*v )*dl.dx
+        Ntvarf  = (dl.inner(kappa *dl.nabla_grad(v), dl.nabla_grad(u)) + dl.inner(wind_velocity, dl.nabla_grad(v))*u )*dl.dx
+        self.N  = dl.assemble( Nvarf )
+        self.Nt = dl.assemble(Ntvarf)
+        stab = dl.assemble( tau*dl.inner(r_trial, r_test)*dl.dx)
         self.L = self.M + dt*self.N + stab
         self.Lt = self.M + dt*self.Nt + stab
         
-        boundary_parts = MeshFunction("size_t",mesh, mesh.topology().dim()-1)
+        boundaries = dl.FacetFunction("size_t",mesh)
 
-        class InsideBoundary(SubDomain):
+        class InsideBoundary(dl.SubDomain):
             def inside(self,x,on_boundary):
-                x_in = x[0] > DOLFIN_EPS and x[0] < 1 - DOLFIN_EPS
-                y_in = x[1] > DOLFIN_EPS and x[1] < 1 - DOLFIN_EPS
+                x_in = x[0] > dl.DOLFIN_EPS and x[0] < 1 - dl.DOLFIN_EPS
+                y_in = x[1] > dl.DOLFIN_EPS and x[1] < 1 - dl.DOLFIN_EPS
                 return on_boundary and x_in and y_in
             
         Gamma_M = InsideBoundary()
-        Gamma_M.mark(boundary_parts,1)
+        Gamma_M.mark(boundaries,1)
+        ds_marked = dl.Measure("ds")[boundaries]
         
-        self.Q = assemble( self.dt*inner(u, v) * ds(1), exterior_facet_domains=boundary_parts )
+        self.Q = dl.assemble( self.dt*dl.inner(u, v) * ds_marked(1) )
 
         self.Prior = Prior
         
-        self.solver = PETScKrylovSolver("gmres", "ilu")
+        self.solver = dl.PETScKrylovSolver("gmres", "ilu")
         self.solver.set_operator(self.L)
         
-        self.solvert = PETScKrylovSolver("gmres", "ilu")
+        self.solvert = dl.PETScKrylovSolver("gmres", "ilu")
         self.solvert.set_operator(self.Lt)
                         
         self.true_init = true_initial_condition.copy()
@@ -74,7 +74,7 @@ class TimeDependentAD:
         if component == "ALL":
             u = TimeDependentVector(self.sim_times)
             u.initialize(self.Q, 0)
-            control = Vector()
+            control = dl.Vector()
             self.Prior.init_vector(control,0)
             p = TimeDependentVector(self.sim_times)
             p.initialize(self.Q, 0)
@@ -84,7 +84,7 @@ class TimeDependentAD:
             u.initialize(self.Q, 0)
             return u
         elif component == CONTROL:
-            control = Vector()
+            control = dl.Vector()
             self.Prior.init_vector(control,0)
             return control
         elif component == ADJOINT:
@@ -99,10 +99,10 @@ class TimeDependentAD:
         
     def getIdentityMatrix(self, component):
         Xh = self.Vh[component]
-        test = TestFunction(Xh)
-        trial = TrialFunction(Xh)
+        test = dl.TestFunction(Xh)
+        trial = dl.TrialFunction(Xh)
         
-        I = assemble(test*trial*dx)
+        I = dl.assemble(test*trial*dl.dx)
         I.zero()
         I.ident_zeros()
         
@@ -110,14 +110,14 @@ class TimeDependentAD:
         
           
     def cost(self, x):
-        Rdx = Vector()
+        Rdx = dl.Vector()
         self.Prior.init_vector(Rdx,0)
         dx = x[CONTROL] - self.Prior.mean
         self.Prior.R.mult(dx, Rdx)
         reg = .5*Rdx.inner(dx)
         
-        u  = Vector()
-        ud = Vector()
+        u  = dl.Vector()
+        ud = dl.Vector()
         self.Q.init_vector(u,0)
         self.Q.init_vector(ud,0)
     
@@ -136,8 +136,8 @@ class TimeDependentAD:
     def solveFwd(self, out, x, tol=1e-9):
         out.zero()
         uold = x[CONTROL]
-        u = Vector()
-        rhs = Vector()
+        u = dl.Vector()
+        rhs = dl.Vector()
         self.M.init_vector(rhs, 0)
         self.M.init_vector(u, 0)
         self.solver.parameters["relative_tolerance"] = tol
@@ -151,13 +151,13 @@ class TimeDependentAD:
 
     def computeObservation(self, ud):
         ud.zero()
-        uold_func = Function(self.Vh[CONTROL], self.true_init)
+        uold_func = dl.Function(self.Vh[CONTROL], self.true_init)
         uold = uold_func.vector()
         
         np.random.seed(1)
          
-        u = Vector()
-        rhs = Vector()
+        u = dl.Vector()
+        rhs = dl.Vector()
         self.M.init_vector(rhs, 0)
         self.M.init_vector(u, 0)
         self.solver.parameters["relative_tolerance"] = 1e-9
@@ -175,31 +175,30 @@ class TimeDependentAD:
         
         std_dev = 0.005*MAX
         
-        out_file = File("data/conc.pvd")
-        while t < self.t_final:
-            t += self.dt
+        t = self.t_init
+        while t < self.t_final + self.dt:
             self.ud.retrieve(u,t)
             noise = std_dev * np.random.normal(0, 1, len(u.array()))
             u.set_local(u.array() + noise)
-            out_file << (Function(self.Vh[STATE],u, name='data_conc'),t)
             ud.store(u,t)
+            t += self.dt
             
         return std_dev*std_dev
 
     
     def solveAdj(self, out, x, tol=1e-9):
         out.zero()
-        pold = Vector()
+        pold = dl.Vector()
         self.M.init_vector(pold,0)    
-        p = Vector()
+        p = dl.Vector()
         self.M.init_vector(p,0)
-        rhs = Vector()
+        rhs = dl.Vector()
         self.M.init_vector(rhs,0) 
-        rhs_obs = Vector()
+        rhs_obs = dl.Vector()
         
-        u = Vector()
+        u = dl.Vector()
         self.M.init_vector(u,0)
-        ud = Vector()
+        ud = dl.Vector()
         self.M.init_vector(ud,0)
   
         self.solvert.parameters["relative_tolerance"] = tol
@@ -227,16 +226,16 @@ class TimeDependentAD:
         dx = x[CONTROL] - self.Prior.mean
         self.Prior.R.mult(dx, mg)
         
-        p0 = Vector()
+        p0 = dl.Vector()
         self.Q.init_vector(p0,0)
         x[ADJOINT].retrieve(p0, self.t_init + self.dt)
         
         mg.axpy(-1., self.Mt_stab*p0)
         
-        g = Vector()
+        g = dl.Vector()
         self.M.init_vector(g,1)
         
-        s = PETScKrylovSolver("cg", "jacobi")
+        s = dl.PETScKrylovSolver("cg", "jacobi")
         s.parameters["relative_tolerance"] = 1e-9
         s.set_operator(self.M)
         s.solve(g,mg)
@@ -259,10 +258,10 @@ class TimeDependentAD:
         
     def solveFwdIncremental(self, sol, rhs, tol):
         sol.zero()
-        uold = Vector()
-        u = Vector()
-        Muold = Vector()
-        myrhs = Vector()
+        uold = dl.Vector()
+        u = dl.Vector()
+        Muold = dl.Vector()
+        myrhs = dl.Vector()
         self.M.init_vector(uold, 0)
         self.M.init_vector(u, 0)
         self.M.init_vector(Muold, 0)
@@ -282,10 +281,10 @@ class TimeDependentAD:
         
     def solveAdjIncremental(self, sol, rhs, tol):
         sol.zero()
-        pold = Vector()
-        p = Vector()
-        Mpold = Vector()
-        myrhs = Vector()
+        pold = dl.Vector()
+        p = dl.Vector()
+        Mpold = dl.Vector()
+        myrhs = dl.Vector()
         self.M.init_vector(pold, 0)
         self.M.init_vector(p, 0)
         self.M.init_vector(Mpold, 0)
@@ -303,7 +302,7 @@ class TimeDependentAD:
     
     def applyC(self, da, out):
         out.zero()
-        myout = Vector()
+        myout = dl.Vector()
         self.M.init_vector(myout, 0)
         self.M_stab.mult(da,myout)
         myout *= -1.
@@ -317,7 +316,7 @@ class TimeDependentAD:
     
     def applyCt(self, dp, out):
         t = self.t_init + self.dt
-        dp0 = Vector()
+        dp0 = dl.Vector()
         self.M.init_vector(dp0,0)
         dp.retrieve(dp0, t)
         dp0 *= -1.
@@ -326,7 +325,7 @@ class TimeDependentAD:
     
     def applyWuu(self, du, out):
         out.zero()
-        myout = Vector()
+        myout = dl.Vector()
         self.Q.init_vector(myout,0)
         myout.zero()
         
@@ -335,7 +334,7 @@ class TimeDependentAD:
             out.store(myout, t)
             t += self.dt
             
-        mydu  = Vector()
+        mydu  = dl.Vector()
         self.Q.init_vector(mydu,0)
         while t < self.t_final+(.5*self.dt):
             du.retrieve(mydu,t)
@@ -358,10 +357,10 @@ class TimeDependentAD:
         out.zero()
         
     def exportState(self, x, filename, varname):
-        out_file = File(filename)
-        ufunc = Function(self.Vh[STATE], name=varname)
+        out_file = dl.File(filename)
+        ufunc = dl.Function(self.Vh[STATE], name=varname)
         t = self.t_init
-        out_file << (Function(self.Vh[STATE], x[CONTROL], name=varname),t)
+        out_file << (dl.Function(self.Vh[STATE], x[CONTROL], name=varname),t)
         while t < self.t_final:
             t += self.dt
             x[STATE].retrieve(ufunc.vector(), t)

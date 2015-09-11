@@ -16,5 +16,5 @@ $$/   $$/ $$$$$$/ $$/       $$/           $$/     $$/ $$/ $$$$$$$/
 
                            <hippylib_website>
                            
-The only prerequisite for using hIPPYlib is FEniCS (version 1.5).
-Older or newer version of FEniCS are not supported by hIPPYlib.
+The only prerequisite for using hIPPYlib is FEniCS (version 1.5 or 1.6).
+Older version of FEniCS are not supported by hIPPYlib.

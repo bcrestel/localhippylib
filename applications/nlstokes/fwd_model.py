@@ -100,7 +100,7 @@ b = assemble(bvarf)
 P = assemble(precvarf + weak_bc_prec + robinvarf)
 
 #solver = LUSolver(A)
-solver = PETScKrylovSolver("gmres", "amg")
+solver = PETScKrylovSolver("gmres", "petsc_amg")
 solver.set_operators(A, P)
 x = Vector()
 A.init_vector(x,0)
