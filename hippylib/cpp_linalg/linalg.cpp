@@ -98,7 +98,16 @@ void cpp_linalg::EstimateDiagonal(const GenericMatrix & A, GenericLinearSolver &
 	Vec d_petsc = as_type<PETScVector>(diagAinv).vec();
 
 	ISColoring iscoloring;
-	ierr = MatGetColoring(AAk, MATCOLORINGID, &iscoloring);
+    #if PETSC_VERSION_MINOR <= 3
+		ierr = MatGetColoring(AAk, MATCOLORINGID, &iscoloring);
+    #else
+		MatColoring mc;
+		MatColoringCreate(AAk,&mc);
+		MatColoringSetType(mc,MATCOLORINGID);
+		MatColoringSetFromOptions(mc);
+		MatColoringApply(mc,&iscoloring);
+		MatColoringDestroy(&mc);
+    #endif
 	timer.stop();
 	int size = A.size(0);
 
@@ -204,8 +213,17 @@ Coloring::Coloring(const GenericMatrix & A, int k)
 		k = 2;
 		AAk = AA;
 	}
-	ierr = MatGetColoring(AAk, MATCOLORINGID, &iscoloring);
 
+    #if PETSC_VERSION_MINOR <= 3
+		ierr = MatGetColoring(AAk, MATCOLORINGID, &iscoloring);
+    #else
+		MatColoring mc;
+		MatColoringCreate(AAk,&mc);
+		MatColoringSetType(mc,MATCOLORINGID);
+		MatColoringSetFromOptions(mc);
+		MatColoringApply(mc,&iscoloring);
+		MatColoringDestroy(&mc);
+    #endif
 	if(k != 2)
 		MatDestroy(&AAk);
 }

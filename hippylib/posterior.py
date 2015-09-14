@@ -115,7 +115,7 @@ class GaussianLRPosterior:
         post_trace = pr_trace - corr_trace
         return post_trace, pr_trace, corr_trace
     
-    def pointwise_variance(self, method="Exact", path_len = 12):
+    def pointwise_variance(self, method="Exact", path_len = 8):
         pr_pointwise_variance = self.prior.pointwise_variance(method, path_len)
         correction_pointwise_variance = Vector()
         self.init_vector(correction_pointwise_variance, 0)
