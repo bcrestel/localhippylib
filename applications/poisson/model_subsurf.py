@@ -364,13 +364,6 @@ if __name__ == "__main__":
     gamma = .1
     delta = .5
     
-#    myangle = dl.Constant(math.pi/4)
-#    mydir1 = dl.Constant(2.)
-#    mydir2 = dl.Constant(.5)
-#    c00 = mydir1*dl.sin(myangle)*dl.sin(myangle) + mydir2*dl.cos(myangle)*dl.cos(myangle)
-#    c11 = mydir2*dl.sin(myangle)*dl.sin(myangle) + mydir1*dl.cos(myangle)*dl.cos(myangle)
-#    c01 = (mydir1-mydir2)*dl.sin(myangle)*dl.cos(myangle)
-#    anis_diff = dl.as_matrix(((c00, c01), (c01, c11)))
     anis_diff = dl.Expression(code_AnisTensor2D)
     anis_diff.theta0 = 2.
     anis_diff.theta1 = .5
