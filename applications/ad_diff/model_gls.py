@@ -6,7 +6,7 @@ from hippylib import *
 import matplotlib.pyplot as plt
 
 class TimeDependentAD:    
-    def __init__(self, mesh, Vh, t_init, t_final, t_1, dt, wind_velocity, true_initial_condition, gls_stab, Prior):
+    def __init__(self, mesh, Vh, t_init, t_final, t_1, dt, wind_velocity, gls_stab, Prior):
         self.mesh = mesh
         self.Vh = Vh
         self.t_init = t_init
@@ -66,11 +66,8 @@ class TimeDependentAD:
         self.solvert = dl.PETScKrylovSolver("gmres", "ilu")
         self.solvert.set_operator(self.Lt)
                         
-        self.true_init = true_initial_condition.copy()
-
         self.ud = self.generate_vector(STATE)
-        self.noise_var = self.computeObservation(self.ud)
-        print "Variance of Noise: ", self.noise_var
+        self.noise_variance = 0
                 
     def generate_vector(self, component = "ALL"):
         if component == "ALL":
@@ -129,7 +126,7 @@ class TimeDependentAD:
             self.ud.retrieve(ud,t)
             diff = u - ud
             Qdiff = self.Q * diff
-            misfit += .5/self.noise_var*Qdiff.inner(diff)
+            misfit += .5/self.noise_variance*Qdiff.inner(diff)
             
         c = misfit + reg
                 
@@ -150,47 +147,6 @@ class TimeDependentAD:
             self.solver.solve(u, rhs)
             out.store(u,t)
             uold = u
-
-    def computeObservation(self, ud):
-        ud.zero()
-        uold_func = dl.Function(self.Vh[PARAMETER], self.true_init)
-        uold = uold_func.vector()
-        
-        np.random.seed(1)
-         
-        u = dl.Vector()
-        rhs = dl.Vector()
-        self.M.init_vector(rhs, 0)
-        self.M.init_vector(u, 0)
-        self.solver.parameters["relative_tolerance"] = 1e-9
-        t = self.t_init
-        MAX = uold.norm("linf")
-        ud.store(uold,t)
-        while t < self.t_final:
-            t += self.dt
-            self.M_stab.mult(uold, rhs)
-            self.solver.solve(u, rhs)
-            uold.set_local(u.array())
-            umax = u.norm("linf")
-            if umax > MAX:
-                MAX = umax
-            ud.store(u,t)
-        
-        std_dev = 0.005*MAX
-        
-        out_file1 = dl.File("data/conc_nonoise.pvd")
-        out_file2 = dl.File("data/conc_noisy.pvd")
-        t = self.t_init
-        while t < self.t_final+self.dt:
-            self.ud.retrieve(u,t)
-            out_file1 << (dl.Function(self.Vh[STATE],u, name='data_conc_nonoise'),t)
-            noise = std_dev * np.random.normal(0, 1, len(u.array()))
-            u.set_local(u.array() + noise)
-            out_file2 << (dl.Function(self.Vh[STATE],u, name='data_conc_noisy'),t)
-            ud.store(u,t)
-            t += self.dt
-        return std_dev*std_dev
-
     
     def solveAdj(self, out, x, tol=1e-9):
         out.zero()
@@ -218,7 +174,7 @@ class TimeDependentAD:
                 ud.axpy(-1., u)
                 self.Q.mult(ud,rhs_obs)
 #                print "t = ", t, "solveAdj ||ud-u||_inf = ", ud.norm("linf"), " ||rhs_obs|| = ", rhs_obs.norm("linf")
-                rhs.axpy(1./self.noise_var, rhs_obs)
+                rhs.axpy(1./self.noise_variance, rhs_obs)
                 
             self.solvert.solve(p, rhs)
             pold = p
@@ -345,7 +301,7 @@ class TimeDependentAD:
         while t < self.t_final+(.5*self.dt):
             du.retrieve(mydu,t)
             self.Q.mult(mydu, myout)
-            myout *= 1./self.noise_var
+            myout *= 1./self.noise_variance
             out.store(myout, t)
             t += self.dt
     
@@ -412,6 +368,7 @@ def computeVelocityField(mesh):
         
 if __name__ == "__main__":
     dl.set_log_active(False)
+    np.random.seed(1)
     sep = "\n"+"#"*80+"\n"
     print sep, "Set up the mesh and finite element spaces.\n","Compute wind velocity", sep
     mesh = dl.refine( dl.Mesh("ad_20.xml") )
@@ -439,7 +396,18 @@ if __name__ == "__main__":
     
     print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)
 
-    problem = TimeDependentAD(mesh, [Vh,Vh,Vh], 0., 4., 1., .2, wind_velocity, true_initial_condition, True, prior)
+    problem = TimeDependentAD(mesh, [Vh,Vh,Vh], 0., 4., 1., .2, wind_velocity, True, prior)
+    
+    print sep, "Generate synthetic observation", sep
+    rel_noise = 0.005
+    utrue = problem.generate_vector(STATE)
+    x = [utrue, true_initial_condition, None]
+    problem.solveFwd(x[STATE], x, 1e-9)
+    MAX = utrue.norm("linf", "linf")
+    noise_std_dev = rel_noise * MAX
+    problem.ud.copy(utrue)
+    problem.ud.randn_perturb(noise_std_dev)
+    problem.noise_variance = noise_std_dev*noise_std_dev
     
     print sep, "Test the gradient and the Hessian of the model", sep
     a0 = true_initial_condition.copy()
@@ -489,6 +457,8 @@ if __name__ == "__main__":
     
     print sep, "Save results", sep  
     problem.exportState([u,a,p], "results/conc.pvd", "concentration")
+    problem.exportState([utrue,true_initial_condition,p], "results/true_conc.pvd", "concentration")
+    problem.exportState([problem.ud,true_initial_condition,p], "results/noisy_conc.pvd", "concentration")
 
     if compute_trace:
         fid = dl.File("results/pointwise_variance.pvd")
