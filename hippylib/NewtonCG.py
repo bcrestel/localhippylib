@@ -1,12 +1,12 @@
 import math
-from variables import CONTROL
+from variables import PARAMETER
 from cgsolverSteihaug import CGSolverSteihaug
 from reducedHessian import ReducedHessian
 
 class ReducedSpaceNewtonCG:
     
     """
-    Inexact Newton-CG method to solve constrained optimization problems in the reduced control space.
+    Inexact Newton-CG method to solve constrained optimization problems in the reduced parameter space.
     Globalization is performed using the armijo sufficient reduction condition (backtracking).
     The stopping criterion is based on a control on the norm of the gradient.
        
@@ -14,11 +14,11 @@ class ReducedSpaceNewtonCG:
     derivatives for the gradient and the Hessian.
     
     More specifically the model object should implement following methods:
-       - generate_vector() -> generate the object containing state, control, adjoint
+       - generate_vector() -> generate the object containing state, parameter, adjoint
        - cost(x) -> evaluate the cost functional, report regularization part and misfit separately
        - solveFwd(out, x,tol) -> solve the possibly non linear Fwd Problem up a tolerance tol
        - solveAdj(out, x,tol) -> solve the linear adj problem
-       - evalGradientControl(x, out) -> evaluate the gradient of the control and compute its norm
+       - evalGradientParameter(x, out) -> evaluate the gradient of the parameter and compute its norm
        - setPointForHessianEvaluations(x) -> set the state to perform hessian evaluations
        - solveFwdIncremental(out, rhs, tol) -> solve the linearized forward problem for a given rhs
        - solveAdjIncremental(out, rhs, tol) -> solve the linear adjoint problem for a given rhs
@@ -98,8 +98,8 @@ class ReducedSpaceNewtonCG:
         self.converged = False
         self.ncalls += 1
         
-        ahat = self.model.generate_vector(CONTROL)    
-        mg = self.model.generate_vector(CONTROL)
+        ahat = self.model.generate_vector(PARAMETER)    
+        mg = self.model.generate_vector(PARAMETER)
         
         cost_old, _, _ = self.model.cost([u,a0,p])
         
@@ -107,7 +107,7 @@ class ReducedSpaceNewtonCG:
             self.model.solveAdj(p, [u,a0,p], innerTol)
             
             self.model.setPointForHessianEvaluations([u,a0,p])
-            gradnorm = self.model.evalGradientControl([u,a0,p], mg)
+            gradnorm = self.model.evalGradientParameter([u,a0,p], mg)
             
             if self.it == 0:
                 gradnorm_ini = gradnorm

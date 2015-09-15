@@ -12,7 +12,7 @@ class Poisson:
         """
         Construct a model by proving
         - the mesh
-        - the finite element spaces for the STATE/ADJOINT variable and the control variable
+        - the finite element spaces for the STATE/ADJOINT variable and the PARAMETER variable
         - the Prior information
         """
         self.mesh = mesh
@@ -46,21 +46,21 @@ class Poisson:
         """
         Return the list x=[u,a,p] where:
         - u is any object that describes the state variable
-        - a is a Vector object that describes the control variable.
+        - a is a Vector object that describes the parameter variable.
           (Need to support linear algebra operations)
         - p is any object that describes the adjoint variable
         
-        If component is STATE, CONTROL, or ADJOINT return x[component]
+        If component is STATE, PARAMETER, or ADJOINT return x[component]
         """
         if component == "ALL":
             x = [dl.Vector(), dl.Vector(), dl.Vector()]
             self.B.init_vector(x[STATE],1)
-            self.prior.init_vector(x[CONTROL],0)
+            self.prior.init_vector(x[PARAMETER],0)
             self.B.init_vector(x[ADJOINT], 1)
         elif component == STATE:
             x = dl.Vector()
             self.B.init_vector(x,1)
-        elif component == CONTROL:
+        elif component == PARAMETER:
             x = dl.Vector()
             self.prior.init_vector(x,0)
         elif component == ADJOINT:
@@ -69,9 +69,9 @@ class Poisson:
             
         return x
     
-    def init_control(self, a):
+    def init_parameter(self, a):
         """
-        Reshape a so that it is compatible with the control variable
+        Reshape a so that it is compatible with the parameter variable
         """
         self.prior.init_vector(a,0)
         
@@ -81,7 +81,7 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[STATE])
         test = dl.TestFunction(self.Vh[STATE])
-        c = dl.Function(self.Vh[CONTROL], x[CONTROL])
+        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
         Avarf = dl.inner(dl.exp(c)*dl.nabla_grad(trial), dl.nabla_grad(test))*dl.dx
         if not assemble_adjoint:
             bform = dl.inner(self.f, test)*dl.dx
@@ -105,36 +105,36 @@ class Poisson:
     
     def assembleC(self, x):
         """
-        Assemble the derivative of the forward problem with respect to the control
+        Assemble the derivative of the forward problem with respect to the parameter
         """
-        trial = dl.TrialFunction(self.Vh[CONTROL])
+        trial = dl.TrialFunction(self.Vh[PARAMETER])
         test = dl.TestFunction(self.Vh[STATE])
         s = dl.Function(self.Vh[STATE], x[STATE])
-        c = dl.Function(self.Vh[CONTROL], x[CONTROL])
+        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
         Cvarf = dl.inner(dl.exp(c) * trial * dl.nabla_grad(s), dl.nabla_grad(test)) * dl.dx
         C = dl.assemble(Cvarf)
-#        print "||c||", x[CONTROL].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
+#        print "||c||", x[PARAMETER].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
         self.bc0.zero(C)
         return C
         
     def assembleM(self):
         """
-        Assemble the mass matrix in the control space.
-        This is needed in evalGradientControl to compute the L2 norm of the gradient
+        Assemble the mass matrix in the parameter space.
+        This is needed in evalGradientParameter to compute the L2 norm of the gradient
         """
-        trial = dl.TrialFunction(self.Vh[CONTROL])
-        test  = dl.TestFunction(self.Vh[CONTROL])
+        trial = dl.TrialFunction(self.Vh[PARAMETER])
+        test  = dl.TestFunction(self.Vh[PARAMETER])
         varf = dl.inner(trial, test)*dl.dx
         return dl.assemble(varf)
         
     def assembleWau(self, x):
         """
-        Assemble the derivative of the control equation with respect to the state
+        Assemble the derivative of the parameter equation with respect to the state
         """
         trial = dl.TrialFunction(self.Vh[STATE])
-        test  = dl.TestFunction(self.Vh[CONTROL])
+        test  = dl.TestFunction(self.Vh[PARAMETER])
         a = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
-        c = dl.Function(self.Vh[CONTROL], x[CONTROL])
+        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
         varf = dl.inner(dl.exp(c)*dl.nabla_grad(trial),dl.nabla_grad(a))*test*dl.dx
         Wau = dl.assemble(varf)
         dummy = dl.Vector()
@@ -144,12 +144,12 @@ class Poisson:
     
     def assembleRaa(self, x):
         """
-        Assemble the derivative of the control equation with respect to the control (Newton method)
+        Assemble the derivative of the parameter equation with respect to the parameter (Newton method)
         """
-        trial = dl.TrialFunction(self.Vh[CONTROL])
-        test  = dl.TestFunction(self.Vh[CONTROL])
+        trial = dl.TrialFunction(self.Vh[PARAMETER])
+        test  = dl.TestFunction(self.Vh[PARAMETER])
         s = dl.Function(self.Vh[STATE], x[STATE])
-        c = dl.Function(self.Vh[CONTROL], x[CONTROL])
+        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
         a = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
         varf = dl.inner(dl.nabla_grad(a),dl.exp(c)*dl.nabla_grad(s))*trial*test*dl.dx
         return dl.assemble(varf)
@@ -178,7 +178,7 @@ class Poisson:
     
     def cost(self, x):
         """
-        Given the list x = [u,a,p] which describes the state, control, and
+        Given the list x = [u,a,p] which describes the state, parameter, and
         adjoint variable compute the cost functional as the sum of 
         the misfit functional and the regularization functional.
         
@@ -194,7 +194,7 @@ class Poisson:
         
         Rdiff_x = dl.Vector()
         self.prior.init_vector(Rdiff_x,0)
-        diff_x = x[CONTROL] - self.prior.mean
+        diff_x = x[PARAMETER] - self.prior.mean
         self.prior.R.mult(diff_x, Rdiff_x)
         reg = .5 * diff_x.inner(Rdiff_x)
         
@@ -230,12 +230,12 @@ class Poisson:
         
 #        print "ADJ", (self.At*out - badj).norm("l2")/badj.norm("l2"), nit
     
-    def evalGradientControl(self,x, mg):
+    def evalGradientParameter(self,x, mg):
         """
-        Evaluate the gradient for the variation control equation at the point x=[u,a,p].
+        Evaluate the gradient for the variational parameter equation at the point x=[u,a,p].
         Parameters:
         - x = [u,a,p] the point at which to evaluate the gradient.
-        - mg the variational gradient (g, atest) being atest a test function in the control space
+        - mg the variational gradient (g, atest) being atest a test function in the parameter space
           (Output parameter)
         
         Returns the norm of the gradient in the correct inner product g_norm = sqrt(g,g)
@@ -246,7 +246,7 @@ class Poisson:
         C.transpmult(x[ADJOINT], mg)
         Rdx = dl.Vector()
         self.prior.init_vector(Rdx,0)
-        dx = x[CONTROL] - self.prior.mean
+        dx = x[PARAMETER] - self.prior.mean
         self.prior.R.mult(dx, Rdx)   
         mg.axpy(1., Rdx)
         

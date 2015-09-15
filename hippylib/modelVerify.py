@@ -1,4 +1,4 @@
-from variables import STATE, CONTROL, ADJOINT
+from variables import STATE, PARAMETER, ADJOINT
 from reducedHessian import ReducedHessian
 
 import numpy as np
@@ -7,29 +7,29 @@ def modelVerify(model,a0, eps, tol):
     
     innerTol = 1e-6*tol
     x = model.generate_vector()
-    x[CONTROL] = a0
+    x[PARAMETER] = a0
     model.solveFwd(x[STATE], x, innerTol)
     model.solveAdj(x[ADJOINT], x, innerTol)
     cx = model.cost(x)[0]
     
     #check the gradient
-    h = model.generate_vector(CONTROL)
+    h = model.generate_vector(PARAMETER)
     h.set_local(np.random.normal(0, 1, len( h.array() )) )
 #    print h.norm("l2")
     
     x_plus = model.generate_vector()
-    x_plus[CONTROL] = a0 + eps*h
+    x_plus[PARAMETER] = a0 + eps*h
     model.solveFwd(x_plus[STATE],   x_plus, innerTol)
     model.solveAdj(x_plus[ADJOINT], x_plus,innerTol)
     
     x_minus = model.generate_vector()
-    x_minus[CONTROL] = a0 - eps*h
+    x_minus[PARAMETER] = a0 - eps*h
     model.solveFwd(x_minus[STATE],  x_minus, innerTol)
     model.solveAdj(x_minus[ADJOINT], x_minus, innerTol)
     
     dc = model.cost(x_plus)[0] - model.cost(x_minus)[0]
-    grad_x = model.generate_vector(CONTROL)
-    model.evalGradientControl(x, grad_x)
+    grad_x = model.generate_vector(PARAMETER)
+    model.evalGradientParameter(x, grad_x)
     grad_xh = grad_x.inner( h )
     
     rel_err_grad = abs(dc/eps - 2.*grad_xh)/cx
@@ -38,14 +38,14 @@ def modelVerify(model,a0, eps, tol):
         print "CHECK THE GRADIENT COMPUTATION!!"
         
     #Check the Hessian
-    grad_xplus = model.generate_vector(CONTROL)
-    grad_xminus = model.generate_vector(CONTROL)
-    model.evalGradientControl(x_plus, grad_xplus)
-    model.evalGradientControl(x_minus, grad_xminus)
+    grad_xplus = model.generate_vector(PARAMETER)
+    grad_xminus = model.generate_vector(PARAMETER)
+    model.evalGradientParameter(x_plus, grad_xplus)
+    model.evalGradientParameter(x_minus, grad_xminus)
     
     model.setPointForHessianEvaluations(x)
     H = ReducedHessian(model,innerTol)
-    Hh = model.generate_vector(CONTROL)
+    Hh = model.generate_vector(PARAMETER)
     H.mult(h, Hh)
     err  = grad_xplus
     err -= grad_xminus
@@ -59,9 +59,9 @@ def modelVerify(model,a0, eps, tol):
     if(rel_err_H > tol):
         print "CHECK THE HESSIAN COMPUTATION"
     
-    xx = model.generate_vector(CONTROL)
+    xx = model.generate_vector(PARAMETER)
     xx.set_local( np.random.normal(0, 1, len( xx.array() )) )
-    yy = model.generate_vector(CONTROL)
+    yy = model.generate_vector(PARAMETER)
     yy.set_local( np.random.normal(0, 1, len( yy.array() )) )
     
     ytHx = H.inner(yy,xx)

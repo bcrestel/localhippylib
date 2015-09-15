@@ -4,7 +4,7 @@ class ModelTemplate:
     provide.
     In the following we will denote with
     - u the state variable
-    - a the control variable
+    - a the parameter variable
     - p the adjoint variable
     
     For a concrete example see application/poisson/model.py.
@@ -14,7 +14,7 @@ class ModelTemplate:
     def __init__(self, mesh, Vh, prior, other):
         """
         Construct a model by proving a mesh, the finite element spaces
-        for the STATE/ADJOINT variable and the control variable, and a
+        for the STATE/ADJOINT variable and the PARAMETER variable, and a
         model for the prior information/regularization
         Pass any other parameter as needed.
         """
@@ -23,19 +23,19 @@ class ModelTemplate:
         """
         By default, return the list [u,a,p] where:
         - u is any object that describes the state variable
-        - a is a Vector object that describes the control variable.
+        - a is a Vector object that describes the parameter variable.
           (Need to support linear algebra operations)
         - p is any object that describes the adjoint variable
         
         If component = STATE return only u
-           component = CONTROL return only a
+           component = PARAMETER return only a
            component = ADJOINT return only p
         """ 
         return [None, None, None] #[u,a,p]
     
-    def init_control(self, a):
+    def init_parameter(self, a):
         """
-        Reshape a so that it is compatible with the control variable
+        Reshape a so that it is compatible with the parameter variable
         
         If R is a dolfin.Matrix object this can be simply implemented as
         model.R.init_vector(a,0)
@@ -44,7 +44,7 @@ class ModelTemplate:
             
     def cost(self, x):
         """
-        Given the list x = [u,a,p] which describes the state, control, and
+        Given the list x = [u,a,p] which describes the state, parameter, and
         adjoint variable compute the cost functional as the sum of 
         the misfit functional and the regularization functional.
         
@@ -60,7 +60,7 @@ class ModelTemplate:
         Parameters:
         - out: is the solution of the forward problem (i.e. the state) (Output parameters)
         - x = [u,a,p] provides
-              1) the control variable a for the solution of the forward problem
+              1) the parameter variable a for the solution of the forward problem
               2) the initial guess u if the forward problem is non-linear
           Note: p is not accessed
         - tol is the relative tolerance for the solution of the forward problem.
@@ -75,7 +75,7 @@ class ModelTemplate:
         Parameters:
         - out: is the solution of the adjoint problem (i.e. the adjoint p) (Output parameter)
         - x = [u,a,p] provides
-              1) the control variable a for assembling the adjoint operator
+              1) the parameter variable a for assembling the adjoint operator
               2) the state variable u for assembling the adjoint right hand side
           Note: p is not accessed
         - tol is the relative tolerance for the solution of the adjoint problem.
@@ -83,12 +83,12 @@ class ModelTemplate:
         """
         return
     
-    def evalGradientControl(self,x, mg):
+    def evalGradientParameter(self,x, mg):
         """
-        Evaluate the gradient for the variation control equation at the point x=[u,a,p].
+        Evaluate the gradient for the variational parameter equation at the point x=[u,a,p].
         Parameters:
         - x = [u,a,p] the point at which to evaluate the gradient.
-        - mg the variational gradient (g, atest) being atest a test function in the control space
+        - mg the variational gradient (g, atest) being atest a test function in the parameter space
           (Output parameter)
         
         Returns the norm of the gradient in the correct inner product g_norm = sqrt(g,g)
@@ -132,10 +132,10 @@ class ModelTemplate:
     
     def applyC(self, da, out):
         """
-        Apply the C block of the Hessian to a (incremental) control variable.
+        Apply the C block of the Hessian to a (incremental) parameter variable.
         out = C da
         Parameters:
-        - da the (incremental) control variable
+        - da the (incremental) parameter variable
         - out the action of the C block on da
         
         Note: this routine assumes that out has the correct shape.
@@ -169,10 +169,10 @@ class ModelTemplate:
     
     def applyWua(self, da, out):
         """
-        Apply the Wua block of the Hessian to a (incremental) control variable.
+        Apply the Wua block of the Hessian to a (incremental) parameter variable.
         out = Wua da
         Parameters:
-        - da the (incremental) control variable
+        - da the (incremental) parameter variable
         - out the action of the Wua block on du
         
         Note: this routine assumes that out has the correct shape.
@@ -194,10 +194,10 @@ class ModelTemplate:
     
     def applyR(self, da, out):
         """
-        Apply the regularization R to a (incremental) control variable.
+        Apply the regularization R to a (incremental) parameter variable.
         out = R da
         Parameters:
-        - da the (incremental) control variable
+        - da the (incremental) parameter variable
         - out the action of R on da
         
         Note: this routine assumes that out has the correct shape.
@@ -216,10 +216,10 @@ class ModelTemplate:
     
     def applyRaa(self, da, out):
         """
-        Apply the Raa block of the Hessian to a (incremental) control variable.
+        Apply the Raa block of the Hessian to a (incremental) parameter variable.
         out = Raa da
         Parameters:
-        - da the (incremental) control variable
+        - da the (incremental) parameter variable
         - out the action of R on da
         
         Note: this routine assumes that out has the correct shape.

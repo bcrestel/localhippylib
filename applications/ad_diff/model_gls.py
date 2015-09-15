@@ -76,19 +76,19 @@ class TimeDependentAD:
         if component == "ALL":
             u = TimeDependentVector(self.sim_times)
             u.initialize(self.Q, 0)
-            control = dl.Vector()
-            self.Prior.init_vector(control,0)
+            a = dl.Vector()
+            self.Prior.init_vector(a,0)
             p = TimeDependentVector(self.sim_times)
             p.initialize(self.Q, 0)
-            return [u, control, p]
+            return [u, a, p]
         elif component == STATE:
             u = TimeDependentVector(self.sim_times)
             u.initialize(self.Q, 0)
             return u
-        elif component == CONTROL:
-            control = dl.Vector()
-            self.Prior.init_vector(control,0)
-            return control
+        elif component == PARAMETER:
+            a = dl.Vector()
+            self.Prior.init_vector(a,0)
+            return a
         elif component == ADJOINT:
             p = TimeDependentVector(self.sim_times)
             p.initialize(self.Q, 0)
@@ -96,7 +96,7 @@ class TimeDependentAD:
         else:
             raise
     
-    def init_control(self, a):
+    def init_parameter(self, a):
         self.Prior.init_vector(a,0)
         
     def getIdentityMatrix(self, component):
@@ -114,7 +114,7 @@ class TimeDependentAD:
     def cost(self, x):
         Rdx = dl.Vector()
         self.Prior.init_vector(Rdx,0)
-        dx = x[CONTROL] - self.Prior.mean
+        dx = x[PARAMETER] - self.Prior.mean
         self.Prior.R.mult(dx, Rdx)
         reg = .5*Rdx.inner(dx)
         
@@ -137,7 +137,7 @@ class TimeDependentAD:
     
     def solveFwd(self, out, x, tol=1e-9):
         out.zero()
-        uold = x[CONTROL]
+        uold = x[PARAMETER]
         u = dl.Vector()
         rhs = dl.Vector()
         self.M.init_vector(rhs, 0)
@@ -153,7 +153,7 @@ class TimeDependentAD:
 
     def computeObservation(self, ud):
         ud.zero()
-        uold_func = dl.Function(self.Vh[CONTROL], self.true_init)
+        uold_func = dl.Function(self.Vh[PARAMETER], self.true_init)
         uold = uold_func.vector()
         
         np.random.seed(1)
@@ -227,9 +227,9 @@ class TimeDependentAD:
             
             
             
-    def evalGradientControl(self,x, mg):
+    def evalGradientParameter(self,x, mg):
         self.Prior.init_vector(mg,1)
-        dx = x[CONTROL] - self.Prior.mean
+        dx = x[PARAMETER] - self.Prior.mean
         self.Prior.R.mult(dx, mg)
         
         p0 = dl.Vector()
@@ -366,7 +366,7 @@ class TimeDependentAD:
         out_file = dl.File(filename)
         ufunc = dl.Function(self.Vh[STATE], name=varname)
         t = self.t_init
-        out_file << (dl.Function(self.Vh[STATE], x[CONTROL], name=varname),t)
+        out_file << (dl.Function(self.Vh[STATE], x[PARAMETER], name=varname),t)
         while t < self.t_final:
             t += self.dt
             x[STATE].retrieve(ufunc.vector(), t)
@@ -449,8 +449,8 @@ if __name__ == "__main__":
     [u,a,p] = problem.generate_vector()
     problem.solveFwd(u, [u,a,p], 1e-12)
     problem.solveAdj(p, [u,a,p], 1e-12)
-    mg = problem.generate_vector(CONTROL)
-    grad_norm = problem.evalGradientControl([u,a,p], mg)
+    mg = problem.generate_vector(PARAMETER)
+    grad_norm = problem.evalGradientParameter([u,a,p], mg)
         
     print "(g,g) = ", grad_norm
     

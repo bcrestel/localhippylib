@@ -1,4 +1,4 @@
-from variables import STATE, CONTROL, ADJOINT
+from variables import STATE, PARAMETER, ADJOINT
 from linalg import MatPtAP
 from dolfin import Vector, PETScKrylovSolver
 
@@ -27,7 +27,7 @@ class ReducedHessian:
         self.rhs_adj2 = model.generate_vector(ADJOINT)
         self.uhat    = model.generate_vector(STATE)
         self.phat    = model.generate_vector(ADJOINT)
-        self.yhelp = model.generate_vector(CONTROL)
+        self.yhelp = model.generate_vector(PARAMETER)
     
     def init_vector(self, x, dim):
         """
@@ -44,7 +44,7 @@ class ReducedHessian:
               the domain is the same. Either way, we choosed to add the parameter
               dim for consistency with the interface of Matrix in dolfin.
         """
-        self.model.init_control(x)
+        self.model.init_parameter(x)
         
     def mult(self,x,y):
         """
@@ -64,7 +64,7 @@ class ReducedHessian:
         Hessian H.
         (x, y)_H = x' H y
         """
-        Ay = self.model.generate_vector(CONTROL)
+        Ay = self.model.generate_vector(PARAMETER)
         Ay.zero()
         self.mult(y,Ay)
         return x.inner(Ay)
@@ -110,8 +110,8 @@ class ReducedHessianActiveSet:
     
     def __init__(self, model, innerTol, gauss_newton_approx=False):
         self.H = ReducedHessian(model, innerTol, gauss_newton_approx)
-        self.I_set = model.getIdentityMatrix(CONTROL)
-        self.A_set = model.getIdentityMatrix(CONTROL)
+        self.I_set = model.getIdentityMatrix(PARAMETER)
+        self.A_set = model.getIdentityMatrix(PARAMETER)
         self.A_set.zero()
         
         self.index_active_set = None

@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from variables import CONTROL
+from variables import PARAMETER
 from cgsolverSteihaug import CGSolverSteihaug
 from reducedHessian import ReducedHessianActiveSet
 
@@ -59,9 +59,9 @@ class PDActiveSet:
         self.model.solveFwd(u, [u, a0, p], innerTol)
         self.model.solveAdj(p, [u,a0,p], innerTol)
         
-        mg = self.model.generate_vector(CONTROL)    
+        mg = self.model.generate_vector(PARAMETER)    
         self.model.setPointForHessianEvaluations([u,a0,p])
-        self.model.evalGradientControl([u,a0,p], mg)
+        self.model.evalGradientParameter([u,a0,p], mg)
         
         self.it = 0
         self.converged = False
@@ -77,9 +77,9 @@ class PDActiveSet:
             
         solver.solve(a, -mg)
         
-        l = self.model.generate_vector(CONTROL)
+        l = self.model.generate_vector(PARAMETER)
         l.zero()
-        res = self.model.generate_vector(CONTROL)
+        res = self.model.generate_vector(PARAMETER)
         
         while self.it < max_iter:
             self.it += 1
@@ -88,7 +88,7 @@ class PDActiveSet:
             index_active = np.zeros(l.array().shape, dtype = l.array().dtype)
             self.update_active_set(l, a, lb, ub, index_active)
             HessApply.setActiveSet(index_active)
-            x = self.model.generate_vector(CONTROL)
+            x = self.model.generate_vector(PARAMETER)
             x.axpy(-1., mg)
             
             HessApply.applyBounds(x, lb, ub)
