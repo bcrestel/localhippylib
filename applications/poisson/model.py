@@ -344,7 +344,7 @@ if __name__ == "__main__":
     solver.parameters["abs_tolerance"] = 1e-9
     solver.parameters["inner_rel_tolerance"] = 1e-15
     solver.parameters["c_armijo"] = 1e-4
-    solver.parameters["GN_iter"] = 5
+    solver.parameters["GN_iter"] = 6
     
     x = solver.solve(a0.vector())
     

@@ -11,11 +11,11 @@ class ModelTemplate:
     
     """
     
-    def __init__(self, mesh, Vh, prior, other):
+    def __init__(self, mesh, Vh, prior, args):
         """
         Construct a model by proving a mesh, the finite element spaces
         for the STATE/ADJOINT variable and the PARAMETER variable, and a
-        model for the prior information/regularization
+        model for the prior information/regularization.
         Pass any other parameter as needed.
         """
                 
@@ -36,9 +36,6 @@ class ModelTemplate:
     def init_parameter(self, a):
         """
         Reshape a so that it is compatible with the parameter variable
-        
-        If R is a dolfin.Matrix object this can be simply implemented as
-        model.R.init_vector(a,0)
         """
         return
             
@@ -204,12 +201,12 @@ class ModelTemplate:
         """
         return
     
-    def RPreconditioner(self):
+    def Rsolver(self):
         """
-        Return an object Rprec that is a suitable preconditioner for the regularization
+        Return an object Rsovler that is a suitable solver for the regularization
         operator R.
         
-        The preconditioner object should implement the method Rprec.solve(z,r) such that
+        The solver object should implement the method Rsolver.solve(z,r) such that
         R*z \\approx r.
         """
 

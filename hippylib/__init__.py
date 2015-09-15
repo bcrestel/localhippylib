@@ -12,6 +12,5 @@ from lowRankOperator import LowRankOperator
 from prior import LaplacianPrior, BiLaplacianPrior, ConstrainedBiLaplacianPrior, MollifiedBiLaplacianPrior
 from posterior import GaussianLRPosterior
 from cgsampler import CGSampler
-from matFreeChol import MatFreeChol
 from traceEstimator import TraceEstimator
 from expression import code_AnisTensor2D, code_Mollifier
