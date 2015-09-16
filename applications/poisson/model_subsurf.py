@@ -148,8 +148,8 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test = dl.TestFunction(self.Vh[STATE])
-        s = dl.Function(Vh[STATE], x[STATE])
-        c = dl.Function(Vh[PARAMETER], x[PARAMETER])
+        s = dl.Function(self.Vh[STATE], x[STATE])
+        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
         Cvarf = dl.inner(dl.exp(c) * trial * dl.nabla_grad(s), dl.nabla_grad(test)) * dl.dx
         C = dl.assemble(Cvarf)
 #        print "||c||", x[PARAMETER].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
@@ -383,9 +383,9 @@ if __name__ == "__main__":
     model = Poisson(mesh, Vh, targets, prior)
     
     #Generate synthetic observations
-    x = [model.generate_vector(STATE), atrue, None]
+    utrue = model.generate_vector(STATE)
+    x = [utrue, atrue, None]
     model.solveFwd(x[STATE], x, 1e-9)
-    utrue = x[STATE]
     model.B.mult(x[STATE], model.u_o)
     rel_noise = 0.01
     MAX = model.u_o.norm("linf")
