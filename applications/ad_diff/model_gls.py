@@ -387,19 +387,19 @@ if __name__ == "__main__":
         delta = 1e1
         prior = LaplacianPrior(Vh, gamma, delta)
     elif orderPrior == 2:
-        gamma = 5e-1
-        delta = 2
+        gamma = 1
+        delta = 8
         prior = BiLaplacianPrior(Vh, gamma, delta)
         
 #    prior.mean = interpolate(Expression('min(0.6,exp(-50*(pow(x[0]-0.34,2) +  pow(x[1]-0.71,2))))'), Vh).vector()
-    prior.mean = dl.interpolate(dl.Expression('0'), Vh).vector()
+    prior.mean = dl.interpolate(dl.Expression('0.5'), Vh).vector()
     
     print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)
 
     problem = TimeDependentAD(mesh, [Vh,Vh,Vh], 0., 4., 1., .2, wind_velocity, True, prior)
     
     print sep, "Generate synthetic observation", sep
-    rel_noise = 0.005
+    rel_noise = 0.001
     utrue = problem.generate_vector(STATE)
     x = [utrue, true_initial_condition, None]
     problem.solveFwd(x[STATE], x, 1e-9)
