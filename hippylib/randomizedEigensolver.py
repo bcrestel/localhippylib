@@ -3,7 +3,38 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 
+"""
+Randomized algorithms for the solution of Hermitian Eigenvalues Problems (HEP)
+and Generalized Hermitian Eigenvalues Problems (GHEP).
+
+In particular we provide an implementation of the single and double pass algorithms
+and some convergence test.
+
+REFERENCES:
+
+Nathan Halko, Per Gunnar Martinsson, and Joel A. Tropp,
+Finding structure with randomness:
+Probabilistic algorithms for constructing approximate matrix decompositions,
+SIAM Review, 53 (2011), pp. 217-288.
+
+Arvind K. Saibaba, Jonghyun Lee, Peter K. Kitanidis,
+Randomized algorithms for Generalized Hermitian Eigenvalue Problems with application
+to computing Karhunen-Loeve expansion,
+Numerical Linear Algebra with Applications, to appear.
+"""
+
 def singlePass(A,Omega,k):
+    """
+    The single pass algorithm for the HEP as presented in [1].
+    Inputs:
+    - A: the operator for which we need to estimate the dominant eigenpairs.
+    - Omega: a random gassian matrix with m >= k columns.
+    - k: the number of eigenpairs to extract.
+    
+    Outputs:
+    - d: the estimate of the k dominant eigenvalues of A
+    - U: the estimate of the k dominant eigenvectors of A. U^T U = I_k
+    """
     w = Vector()
     y = Vector()
     A.init_vector(w,1)
@@ -41,6 +72,17 @@ def singlePass(A,Omega,k):
     return d, U
 
 def doublePass(A,Omega,k):
+    """
+    The double pass algorithm for the HEP as presented in [1].
+    Inputs:
+    - A: the operator for which we need to estimate the dominant eigenpairs.
+    - Omega: a random gassian matrix with m >= k columns.
+    - k: the number of eigenpairs to extract.
+    
+    Outputs:
+    - d: the estimate of the k dominant eigenvalues of A
+    - U: the estimate of the k dominant eigenvectors of A. U^T U = I_k
+    """
     w = Vector()
     y = Vector()
     A.init_vector(w,1)
@@ -79,6 +121,20 @@ def doublePass(A,Omega,k):
     return d, U
 
 def singlePassG(A, B, Binv, Omega,k, check_Bortho = False, check_Aortho=False, check_residual = False):
+    """
+    The single pass algorithm for the GHEP as presented in [2].
+    B-orthogonalization is achieved using the PreCholQR algorithm.
+    
+    Inputs:
+    - A: the operator for which we need to estimate the dominant generalized eigenpairs.
+    - B: the rhs operator
+    - Omega: a random gassian matrix with m >= k columns.
+    - k: the number of eigenpairs to extract.
+    
+    Outputs:
+    - d: the estimate of the k dominant eigenvalues of A
+    - U: the estimate of the k dominant eigenvectors of A. U^T B U = I_k
+    """
     w = Vector()
     ybar = Vector()
     y = Vector()
@@ -136,6 +192,20 @@ def singlePassG(A, B, Binv, Omega,k, check_Bortho = False, check_Aortho=False, c
     return d, U
 
 def doublePassG(A, B, Binv, Omega,k, check_Bortho = False, check_Aortho=False, check_residual = False):
+    """
+    The double pass algorithm for the GHEP as presented in [2].
+    B-orthogonalization is achieved using the PreCholQR algorithm.
+    
+    Inputs:
+    - A: the operator for which we need to estimate the dominant generalized eigenpairs.
+    - B: the rhs operator
+    - Omega: a random gassian matrix with m >= k columns.
+    - k: the number of eigenpairs to extract.
+    
+    Outputs:
+    - d: the estimate of the k dominant eigenvalues of A
+    - U: the estimate of the k dominant eigenvectors of A. U^T B U = I_k
+    """
     w = Vector()
     ybar = Vector()
     y = Vector()
@@ -196,6 +266,9 @@ def doublePassG(A, B, Binv, Omega,k, check_Bortho = False, check_Aortho=False, c
             
 
 def BorthogonalityTest(B, U):
+    """
+    Test the frobenious norm of  U^TBU - I_k
+    """
     BU = np.zeros(U.shape)
     Bu = Vector()
     u = Vector()
@@ -213,6 +286,9 @@ def BorthogonalityTest(B, U):
     print "|| UtBU - I ||_F = ", np.linalg.norm(err, 'fro')
     
 def AorthogonalityCheck(A, U, d):
+    """
+    Test the frobenious norm of  D^{-1}(U^TAU) - I_k
+    """
     V = np.zeros(U.shape)
     AV = np.zeros(U.shape)
     Av = Vector()
@@ -241,6 +317,10 @@ def AorthogonalityCheck(A, U, d):
 
     
 def residualCheck(A,B, U, d):
+    """
+    Test the l2 norm of the residual:
+    r[:,i] = d[i] B U[:,i] - A U[:,i]
+    """
     u = Vector()
     Au = Vector()
     Bu = Vector()

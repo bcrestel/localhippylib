@@ -20,13 +20,14 @@ def gaussian_engine(n):
 class TraceEstimator:
     """
     An unbiased stochastic estimator for the trace of A.
-    d = [ \sum_{j=1}^k vj .* A^{-1} vj ] ./ [ \sum_{j=1}^k vj .* vj ]
+    d = \sum_{j=1}^k (vj, A vj)
     where
-    - vj are i.i.d. ~ N(0, I)
-    - .* and ./ represent the element-wise multiplication and division
-      of vectors, respectively.
-
+    - vj are i.i.d. Rademacher or Gaussian random vectors
+    - (.,.) represents the inner product
     
+    The number of samples k is estimated at run time based on
+    the variance of the estimator.
+
     REFERENCE:
     
     Haim Avron and Sivan Toledo,
@@ -34,6 +35,16 @@ class TraceEstimator:
     Journal of the ACM (JACM), 58 (2011), p. 17.
     """
     def __init__(self, A, solve_mode=False, accurancy = 1e-1, init_vector=None, random_engine=rademacher_engine):
+        """
+        Constructor:
+        - A: an operator
+        - solve_mode:    if True we estimate the trace of A^{-1}, otherwise of A.
+        - accurancy:     we stop when the standard deviation of the estimator is less then
+                         accurancy*tr(A).
+        - init_vector:   use a custom function to initialize a vector compatible with the
+                         range/domain of A
+        - random_engine: which type of i.i.d. random variables to use (Rademacher or Gaussian)  
+        """
         self.A = A
         self.accurancy = accurancy
         self.random_engine = random_engine
@@ -61,7 +72,10 @@ class TraceEstimator:
         self.A.solve(Az, z)
         
     def __call__(self, min_iter=5, max_iter=100):
-        
+        """
+        Estimate the trace of A (or A^-1) using at least
+        min_iter and at most max_iter samples.
+        """
         sum_tr = 0
         sum_tr2 = 0
         self.iter = 0

@@ -6,16 +6,21 @@ class ReducedHessian:
     """
     This class implements matrix free application of the reduced hessian operator.
     The constructor takes the following parameters:
-    - model: the object which contains the description of the problem.
-    - innerTol: the relative tolerance for the solution of the incremental forward
-                and adjoint problems.
-    - gauss_newton_approx: a boolean flag that describe whenever the true hessian or
+    - model:               the object which contains the description of the problem.
+    - innerTol:            the relative tolerance for the solution of the incremental
+                           forward and adjoint problems.
+    - gauss_newton_approx: a boolean flag that describes whenever the true hessian or
                            the Gauss Newton approximation of the Hessian should be
                            applied.
+    - misfit_only:         a boolean flag that describes whenever the full hessian or
+                           only the misfit component of the hessian is used.
     
     Type help(modelTemplate) for more information on which methods model should implement.
     """
     def __init__(self, model, innerTol, gauss_newton_approx=False, misfit_only=False):
+        """
+        Construct the reduced Hessian Operator:
+        """
         self.model = model
         self.tol = innerTol
         self.gauss_newton_approx = gauss_newton_approx
@@ -107,7 +112,9 @@ class ReducedHessian:
             y.axpy(1., self.yhelp)
         
 class ReducedHessianActiveSet:
-    
+    """
+    Experimental implementation of ActiveSet constraints
+    """
     def __init__(self, model, innerTol, gauss_newton_approx=False):
         self.H = ReducedHessian(model, innerTol, gauss_newton_approx)
         self.I_set = model.getIdentityMatrix(PARAMETER)
