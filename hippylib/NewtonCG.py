@@ -7,7 +7,7 @@ class ReducedSpaceNewtonCG:
     
     """
     Inexact Newton-CG method to solve constrained optimization problems in the reduced parameter space.
-    The Newton system is solved inexactly by early termination of CG iterations via Eisenstat–Walker
+    The Newton system is solved inexactly by early termination of CG iterations via Eisenstat-Walker
     (to prevent oversolving) and Steihaug (to avoid negative curvature) criteria.
     Globalization is performed using the armijo sufficient reduction condition (backtracking).
     The stopping criterion is based on a control on the norm of the gradient and a control of the
@@ -56,7 +56,7 @@ class ReducedSpaceNewtonCG:
         max_backtracking_iter --> Maximum number of backtracking iterations
         print_level           --> Print info on screen
         GN_iter               --> Number of Gauss Newton iterations before switching to Newton
-        cg_coarse_tolerance   --> Coarsest tolerance for the CG method (Eisenstat–Walker)
+        cg_coarse_tolerance   --> Coarsest tolerance for the CG method (Eisenstat-Walker)
         """
         self.model = model
         

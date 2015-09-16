@@ -119,8 +119,9 @@ def estimate_diagonal_inv_coloring(Asolver, coloring, d):
     REFERENCE:
     Jok M Tang and Yousef Saad,
     A probing method for computing the diagonal of a matrix inverse,
-    Numerical Linear Algebra with Applications, 19 (2012), pp. 485–501.
+    Numerical Linear Algebra with Applications, 19 (2012), pp. 485-501
     """
+    
     x, b = Vector(), Vector()
     
     if hasattr(Asolver, "init_vector"):
@@ -153,7 +154,7 @@ def estimate_diagonal_inv2(Asolver, k, d):
     REFERENCE:
     Costas Bekas, Effrosyni Kokiopoulou, and Yousef Saad,
     An estimator for the diagonal of a matrix,
-    Applied Numerical Mathematics, 57 (2007), pp. 1214–1229.
+    Applied Numerical Mathematics, 57 (2007), pp. 1214-1229.
     """
     x, b = Vector(), Vector()
     
