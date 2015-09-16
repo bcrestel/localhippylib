@@ -1,3 +1,19 @@
+'''
+This file contains C++ Expression to implement
+
+- A symmetric tensor in 2D of the form:
+  [  sin(alpha)  cos(alpha) ] [theta0    0   ] [ sin(alpha)  -cos(alpha) ]
+  [ -cos(alpha)  sin(alpha) ] [   0   theta1 ] [ cos(alpha)   sin(alpha) ]
+
+- A mollifier function f of the form:
+  f(x) = \sum_{i} exp( -|| x - x_i ||^o_B/l^o ),
+  where:
+  - x_i (i = i,...,n) are given locations in space
+  - o                 is the order of the mollifier
+  - l                 is a correlation lenght
+  - B                 is a s.p.d. tensor in 2D as above.
+'''
+
 code_AnisTensor2D = '''
 class AnisTensor2D : public Expression
 {

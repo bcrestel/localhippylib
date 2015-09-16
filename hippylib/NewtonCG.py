@@ -7,8 +7,11 @@ class ReducedSpaceNewtonCG:
     
     """
     Inexact Newton-CG method to solve constrained optimization problems in the reduced parameter space.
+    The Newton system is solved inexactly by early termination of CG iterations via Eisenstat–Walker
+    (to prevent oversolving) and Steihaug (to avoid negative curvature) criteria.
     Globalization is performed using the armijo sufficient reduction condition (backtracking).
-    The stopping criterion is based on a control on the norm of the gradient.
+    The stopping criterion is based on a control on the norm of the gradient and a control of the
+    inner product between the gradient and the Newton direction.
        
     The user must provide a model that describes the forward problem, cost functionals, and all the
     derivatives for the gradient and the Hessian.
@@ -29,7 +32,7 @@ class ReducedSpaceNewtonCG:
        - applyWau(du, out)  --> Compute out = Wau * du
        - applyR(da, out)    --> Compute out = R * da
        - applyRaa(da,out)   --> Compute out = Raa * out
-       - RPreconditioner()  --> Compute a preconditoner for the regularization term
+       - Rsolver()          --> A solver for the regularization term
        
     Type help(ModelTemplate) for additional information
     """
@@ -43,9 +46,9 @@ class ReducedSpaceNewtonCG:
     def __init__(self, model):
         """
         Initialize the ReducedSpaceNewtonCG with the following parameters.
-        rel_tolerance         --> we converge when sqrt(g,g) <= rel_tolerance*sqrt(g_0,g_0)
+        rel_tolerance         --> we converge when sqrt(g,g)/sqrt(g_0,g_0) <= rel_tolerance
         abs_tolerance         --> we converge when sqrt(g,g) <= abs_tolerance
-        gda_tolerance         --> we converge when gda <= gda_tolerance
+        gda_tolerance         --> we converge when (g,da) <= gda_tolerance
         max_iter              --> maximum number of iterations
         inner_rel_tolerance   --> relative tolerance used for the solution of the
                                   forward, adjoint, and incremental (fwd,adj) problems
@@ -53,7 +56,7 @@ class ReducedSpaceNewtonCG:
         max_backtracking_iter --> Maximum number of backtracking iterations
         print_level           --> Print info on screen
         GN_iter               --> Number of Gauss Newton iterations before switching to Newton
-        cg_coarse_tolerance   --> Coarsest tolerance for the 
+        cg_coarse_tolerance   --> Coarsest tolerance for the CG method (Eisenstat–Walker)
         """
         self.model = model
         

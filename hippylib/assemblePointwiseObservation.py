@@ -74,6 +74,14 @@ except:
     include_dirs=[".",  sdir])
     
     def assemblePointwiseObservation(Vh, targets):
+        """
+        Assemble the pointwise observation matrix:
+        Input
+        - Vh: FEniCS finite element space
+        - targets: observation points (numpy array)
+         
+        Note: This Function will not work in parallel!!!
+        """
         #Ensure that PetscInitialize is called
         dummy = dl.assemble( dl.inner(dl.TrialFunction(Vh), dl.TestFunction(Vh))*dl.dx )
         #Call the cpp module to compute the pointwise observation matrix

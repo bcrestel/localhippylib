@@ -3,13 +3,22 @@ import numpy as np
 import math
 
 class CGSampler:
-    """ Implementation of the CG Sampler as in
-        Albert Parker and Colin Fox
-        Sampling Gaussian Distributions in Krylov Spaces with Conjugate Gradient
-        SIAM J SCI COMPUT, Vol 34, No. 3 pp. B312-B334
+    """ 
+    This class implements the CG sampler algorithm to generate samples from N(0, A^-1).
+
+    REFERENCE:
+    Albert Parker and Colin Fox
+    Sampling Gaussian Distributions in Krylov Spaces with Conjugate Gradient
+    SIAM J SCI COMPUT, Vol 34, No. 3 pp. B312-B334    
     """
 
     def __init__(self):
+        """
+        Construct the solver with default parameters
+        tolerance = 1e-4
+        print_level = 0
+        verbose = 0
+        """
         self.parameters = {}
         self.parameters["tolerance"] = 1e-4
         self.parameters["print_level"] = 0
@@ -25,6 +34,11 @@ class CGSampler:
         self.Ap = Vector()
                 
     def set_operator(self, A):
+        """
+        Set the operator A, such that x ~ N(0, A^-1).
+        
+        Note A is any object that provides the methods init_vector and mult.
+        """
         self.A = A
         self.A.init_vector(self.r,0)
         self.A.init_vector(self.p,0)
@@ -34,7 +48,13 @@ class CGSampler:
         self.b.set_local(np.random.randn(self.b.array().shape[0]))
                         
     def sample(self, noise, s):
+        """
+        Generate a sample s ~ N(0, A^-1).
         
+        noise is a numpy.array of i.i.d. normal variables used as input.
+        For a fixed realization of noise the algorithm is fully deterministic.
+        The size of noise determine the maximum number of CG iterations.
+        """
         s.zero()
         
         self.iter = 0

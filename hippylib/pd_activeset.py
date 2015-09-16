@@ -8,6 +8,7 @@ from reducedHessian import ReducedHessianActiveSet
 class PDActiveSet:
     """
     Primal-dual Active Set Method for box constraints.
+    This function is sperimental.
     """
     termination_reasons = [
                            "Maximum Number of Iterations Reached",

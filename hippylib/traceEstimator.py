@@ -3,15 +3,36 @@ import numpy as np
 import math
 
 def rademacher_engine(n):
+    """
+    Generate a vector of n i.i.d. Rademacher variables.
+    """
     omega = np.random.rand(n)
     omega[omega < .5 ] = -1.
     omega[omega >= .5 ] = 1.
     return omega
     
 def gaussian_engine(n):
+    """
+    Generate a vector of n i.i.d. standard normal variables.
+    """
     return np.random.randn(n)
 
 class TraceEstimator:
+    """
+    An unbiased stochastic estimator for the trace of A.
+    d = [ \sum_{j=1}^k vj .* A^{-1} vj ] ./ [ \sum_{j=1}^k vj .* vj ]
+    where
+    - vj are i.i.d. ~ N(0, I)
+    - .* and ./ represent the element-wise multiplication and division
+      of vectors, respectively.
+
+    
+    REFERENCE:
+    
+    Haim Avron and Sivan Toledo,
+    Randomized algorithms for estimating the trace of an implicit symmetric positive semi-definite matrix,
+    Journal of the ACM (JACM), 58 (2011), p. 17.
+    """
     def __init__(self, A, solve_mode=False, accurancy = 1e-1, init_vector=None, random_engine=rademacher_engine):
         self.A = A
         self.accurancy = accurancy

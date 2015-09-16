@@ -9,6 +9,11 @@ class CGSolverSteihaug:
     - reason of termination 1: we reduced the residual up to the given tolerance (convergence)
     - reason of termination 2: we reached a negative direction (premature termination due to not spd matrix)
     
+    The stopping criterion is based on either
+    - the absolute preconditioned residual norm check: || r^* ||_{B^{-1}} < atol
+    - the relative preconditioned residual norm check: || r^* ||_{B^{-1}}/|| r^0 ||_{B^{-1}} < rtol
+    where r^* = b - Ax^* is the residual at convergence and r^0 = b - Ax^0 is the initial residual.
+    
     The operator A is set using the method set_operator(A).
     A must provide the following two methods:
     - A.mult(x,y): y = A*x
@@ -19,11 +24,19 @@ class CGSolverSteihaug:
     B must provide the following method:
     - B.solve(z,r): z is the action of the preconditioner B on the vector r
     
-    To solve the linear system A*x = b call solve(x,b). Here x and b are assumed
-    to be FEniCS::Vector objects
+    To solve the linear system A*x = b call self.solve(x,b).
+    Here x and b are assumed to be FEniCS::Vector objects
     
-    Maximum number of iterations, tolerances, verbosity level etc can be
-    set using the parameters attributes.
+    The parameter attributes allows to set:
+    - rel_tolerance     : the relative tolerance for the stopping criterion
+    - abs_tolerance     : the absolute tolerance for the stopping criterion
+    - max_iter          : the maximum number of iterations
+    - zero_initial_guess: if True we start with a 0 initial guess
+                          if False we use the x as initial guess.
+    - print_level       : verbosity level:
+                          -1 --> no output on screen
+                           0 --> only final residual at convergence
+                                 or reason for not not convergence
     """
     reason = ["Maximum Number of Iterations Reached",
               "Relative/Absolute residual less than tol",
@@ -49,16 +62,24 @@ class CGSolverSteihaug:
         self.d = Vector()
                 
     def set_operator(self, A):
+        """
+        Set the operator A.
+        """
         self.A = A
         self.A.init_vector(self.r,0)
         self.A.init_vector(self.z,0)
         self.A.init_vector(self.d,0)
         
     def set_preconditioner(self, B):
+        """
+        Set the preconditioner B.
+        """
         self.B = B
         
     def solve(self,x,b):
-        
+        """
+        Solve the linear system Ax = b
+        """
         self.iter = 0
         self.converged = False
         self.reasonid  = 0

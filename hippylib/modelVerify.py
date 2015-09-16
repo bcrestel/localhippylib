@@ -4,6 +4,9 @@ from reducedHessian import ReducedHessian
 import numpy as np
 
 def modelVerify(model,a0, eps, tol):
+    """
+    Verify the reduced Gradient and the Hessian of a model.
+    """
     
     innerTol = 1e-6*tol
     x = model.generate_vector()

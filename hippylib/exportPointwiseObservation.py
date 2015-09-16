@@ -1,6 +1,16 @@
 import numpy as np
 
 def exportPointwiseObservation(points, data, fname, varname="observation"):
+    """
+    This function write a VTK PolyData file to visualize pointwise data.
+    Inputs:
+    - points:  locations of the points 
+               (numpy array of size number of points by space dimension)
+    - data:    pointwise values
+               (dolfin vector of size number of points)
+    - fname:   filename for the vtk file to export
+    - varname: name of the variable for the vtk file
+    """
     ndim = points.shape[1]
     npoints = points.shape[0]
     
