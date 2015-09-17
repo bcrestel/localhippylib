@@ -1,3 +1,20 @@
+"""
+hIPPYlib implements state-of-the-art scalable algorithms for PDE-based
+deterministic and Bayesian inverse problems. It builds on FEniCS (a 
+parallel finite element element library) [http://fenicsproject.org/]
+for the discretization of the PDE and on PETSc [http://www.mcs.anl.gov/petsc/]
+for scalable and efficient linear algebra operations and solvers.
+
+For building instructions, see the file INSTALL. Copyright information
+and licensing restrictions can be found in the file COPYRIGHT.
+
+The best starting point for new users interested in hIPPYlib's features are the
+interactive tutorials in the notebooks folder.
+
+Conceptually, hIPPYlib can be viewed as a toolbox that provides
+the building blocks for experimenting new ideas and developing scalable
+algorithms for PDE-based deterministic and Bayesian inverse problems.
+"""
 from variables import *
 from modelVerify import *
 from NewtonCG import *

@@ -25,7 +25,7 @@ class CGSolverSteihaug:
     - B.solve(z,r): z is the action of the preconditioner B on the vector r
     
     To solve the linear system A*x = b call self.solve(x,b).
-    Here x and b are assumed to be FEniCS::Vector objects
+    Here x and b are assumed to be FEniCS::Vector objects.
     
     The parameter attributes allows to set:
     - rel_tolerance     : the relative tolerance for the stopping criterion
@@ -38,6 +38,7 @@ class CGSolverSteihaug:
                            0 --> only final residual at convergence
                                  or reason for not not convergence
     """
+
     reason = ["Maximum Number of Iterations Reached",
               "Relative/Absolute residual less than tol",
               "Reached a negative direction"
