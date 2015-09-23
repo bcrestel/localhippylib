@@ -216,6 +216,12 @@ class _BilaplacianR:
     def init_vector(self,x, dim):
         self.A.init_vector(x,1)
         
+    def inner(self,x,y):
+        Rx = dl.Vector()
+        self.init_vector(Rx,0)
+        self.mult(x, Rx)
+        return Rx.inner(y)
+        
     def mult(self,x,y):
         self.A.mult(x, self.help1)
         self.Msolver.solve(self.help2, self.help1)
