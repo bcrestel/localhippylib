@@ -14,14 +14,23 @@ class LowRankHessian:
         self.LowRankHinv = LowRankOperator(dsolve, U)
         self.help = Vector()
         self.init_vector(self.help, 0)
+        self.help1 = Vector()
+        self.init_vector(self.help1, 0)
         
     def init_vector(self,x, dim):
         self.prior.init_vector(x,dim)
+    
+    def inner(self,x,y):
+        Hx = Vector()
+        self.init_vector(Hx, 0)
+        self.mult(x, Hx)
+        return Hx.inner(y)
         
     def mult(self, x, y):
         self.prior.R.mult(x,y)
-        self.LowRankH.mult(x, self.help)
-        y.axpy(1, self.help)
+        self.LowRankH.mult(y, self.help)
+        self.prior.R.mult(self.help,self.help1)
+        y.axpy(1, self.help1)
         
         
     def solve(self, sol, rhs):
