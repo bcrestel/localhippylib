@@ -22,7 +22,7 @@ if __name__ == "__main__":
     print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(Vh[STATE].dim(), Vh[PARAMETER].dim(), Vh[ADJOINT].dim())
     
     print sep, "Set up the location of observation, Prior Information, and model", sep
-    ntargets = 10
+    ntargets = 5
     np.random.seed(seed=1)
     targets = np.random.uniform(0.1,0.9, [ntargets, ndim] )
     print "Number of observation points: {0}".format(ntargets)
@@ -38,7 +38,7 @@ if __name__ == "__main__":
         
     locations = np.array([[0.1, 0.1], [0.1, 0.9], [.5,.5], [.9, .1], [.9, .9]])
     if 1:
-        pen = 1e1
+        pen = 0.001
         prior = MollifiedBiLaplacianPrior(Vh[PARAMETER], gamma, delta, locations, atrue, anis_diff, pen)
     else:
         pen = 1e4
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     x = [utrue, atrue, None]
     model.solveFwd(x[STATE], x, 1e-9)
     model.B.mult(x[STATE], model.u_o)
-    rel_noise = 0.05
+    rel_noise = 0.2
     MAX = model.u_o.norm("linf")
     noise_std_dev = rel_noise * MAX
     randn_perturb(model.u_o, noise_std_dev)
@@ -87,24 +87,21 @@ if __name__ == "__main__":
     print sep, "Compute the low rank Gaussian Approximation of the posterior", sep
     model.setPointForHessianEvaluations(x)
     Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-    k = 50
+    k = min(50, ntargets)
     p = 20
     print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
     Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
     #d, U = singlePassG(Hmisfit, model.R, model.Rsolver, Omega, k, check_Bortho=True, check_Aortho=True, check_residual=True)
     d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, check_Bortho=False, check_Aortho=False, check_residual=False)
     posterior = GaussianLRPosterior(prior, d, U)
+    plt.figure()
+    plt.semilogy(d)
     posterior.mean = x[PARAMETER]
     
-    
-    
-    start = model.generate_vector(PARAMETER)
-    
+        
     noise = model.generate_vector(PARAMETER)
     noise_size = noise.array().shape[0]
     
-#    noise.set_local( np.random.randn( noise_size ) )
-#    posterior.sample(noise, start)
     start = posterior.mean.copy()
     
     dir = model.generate_vector(PARAMETER)
@@ -115,93 +112,101 @@ if __name__ == "__main__":
     pdfg = GaussianDistribution(posterior.Hlr, posterior.mean)
     pdfp = GaussianDistribution(prior.R, posterior.mean)
     
-    n = 20
-    all_eps = 1e-3*np.power(2., -np.arange(0,n))
-    err_grad = np.ndarray(all_eps.shape)
-    err_H = np.ndarray(all_eps.shape)
-    grad = model.generate_vector(PARAMETER)
-    pdf.gradient(start, grad)
-    graddir = grad.inner(dir)
-    c = pdf(start)
-    for i in range(n):
-        eps = all_eps[i]
-        aplus = start.copy()
-        aplus.axpy(eps, dir)        
-        cplus = pdf(aplus)
+    check_derivatives = False
+    if check_derivatives:
+        n = 20
+        all_eps = 1e-3*np.power(2., -np.arange(0,n))
+        err_grad = np.ndarray(all_eps.shape)
+        err_H = np.ndarray(all_eps.shape)
+        grad = model.generate_vector(PARAMETER)
+        pdf.gradient(start, grad)
+        graddir = grad.inner(dir)
+        c = pdf(start)
+        for i in range(n):
+            eps = all_eps[i]
+            aplus = start.copy()
+            aplus.axpy(eps, dir)        
+            cplus = pdf(aplus)
         
-        err_grad[i] =  np.abs( (cplus-c)/eps - graddir)
+            err_grad[i] =  np.abs( (cplus-c)/eps - graddir)
 
     
-    Hdir = model.generate_vector(PARAMETER)
-    pdf.hessian_apply(start, dir, Hdir)
-    grad_plus = model.generate_vector(PARAMETER)
-    for i in range(n):
-        eps = all_eps[i]
-        aplus = start.copy()
-        aplus.axpy(eps, dir)        
-        pdf.gradient(aplus, grad_plus)        
-        err = grad_plus.copy()
-        err.axpy(-1, grad)
-        err *= 1/eps
-        err.axpy(-1, Hdir)
-        err_H[i] = err.norm("linf")
+        Hdir = model.generate_vector(PARAMETER)
+        pdf.hessian_apply(start, dir, Hdir)
+        grad_plus = model.generate_vector(PARAMETER)
+        for i in range(n):
+            eps = all_eps[i]
+            aplus = start.copy()
+            aplus.axpy(eps, dir)        
+            pdf.gradient(aplus, grad_plus)        
+            err = grad_plus.copy()
+            err.axpy(-1, grad)
+            err *= 1/eps
+            err.axpy(-1, Hdir)
+            err_H[i] = err.norm("linf")
         
-    err_gradg = np.ndarray(all_eps.shape)
-    err_Hg = np.ndarray(all_eps.shape)
-    pdfg.gradient(start, grad)
-    graddir = grad.inner(dir)
-    c = pdf(start)
-    for i in range(n):
-        eps = all_eps[i]
-        aplus = start.copy()
-        aplus.axpy(eps, dir)        
-        cplus = pdfg(aplus)
+        err_gradg = np.ndarray(all_eps.shape)
+        err_Hg = np.ndarray(all_eps.shape)
+        pdfg.gradient(start, grad)
+        graddir = grad.inner(dir)
+        c = pdf(start)
+        for i in range(n):
+            eps = all_eps[i]
+            aplus = start.copy()
+            aplus.axpy(eps, dir)        
+            cplus = pdfg(aplus)
         
-        err_gradg[i] =  np.abs( (cplus-c)/eps - graddir)
+            err_gradg[i] =  np.abs( (cplus-c)/eps - graddir)
 
-    pdfg.hessian_apply(start, dir, Hdir)
-    grad_plus = model.generate_vector(PARAMETER)
-    for i in range(n):
-        eps = all_eps[i]
-        aplus = start.copy()
-        aplus.axpy(eps, dir)        
-        pdfg.gradient(aplus, grad_plus)        
-        err = grad_plus.copy()
-        err.axpy(-1, grad)
-        err *= 1/eps
-        err.axpy(-1, Hdir)
-        err_Hg[i] = err.norm("linf")
+        pdfg.hessian_apply(start, dir, Hdir)
+        grad_plus = model.generate_vector(PARAMETER)
+        for i in range(n):
+            eps = all_eps[i]
+            aplus = start.copy()
+            aplus.axpy(eps, dir)        
+            pdfg.gradient(aplus, grad_plus)        
+            err = grad_plus.copy()
+            err.axpy(-1, grad)
+            err *= 1/eps
+            err.axpy(-1, Hdir)
+            err_Hg[i] = err.norm("linf")
         
-    plt.figure()
-    plt.subplot(221)
-    plt.loglog(all_eps, err_grad)
-    plt.ylabel("Err Grad Post")
-    plt.subplot(222)
-    plt.loglog(all_eps, err_H)
-    plt.ylabel("Err H Post")
-    plt.subplot(223)
-    plt.loglog(all_eps, err_gradg)
-    plt.ylabel("Err Grad Gaussian")
-    plt.subplot(224)
-    plt.loglog(all_eps, err_Hg)
-    plt.ylabel("Err H Gaussian")
+        plt.figure()
+        plt.subplot(221)
+        plt.loglog(all_eps, err_grad)
+        plt.ylabel("Err Grad Post")
+        plt.subplot(222)
+        plt.loglog(all_eps, err_H)
+        plt.ylabel("Err H Post")
+        plt.subplot(223)
+        plt.loglog(all_eps, err_gradg)
+        plt.ylabel("Err Grad Gaussian")
+        plt.subplot(224)
+        plt.loglog(all_eps, err_Hg)
+        plt.ylabel("Err H Gaussian")
     
-    i = 0
+    iact = np.where(d > .1)
+    alpha = np.zeros(d.shape)
+    alpha[iact] = np.random.randn( iact[0].shape[0] )
+    print alpha
     dir = model.generate_vector(PARAMETER)
-    dir.set_local(U[:,i])
-    l = 1/math.sqrt(1+d[i])
+    dir.set_local( np.dot(U, alpha) )
+#    l = 1/math.sqrt(1+d[i])
+#    dir = model.generate_vector(PARAMETER)
+#    noise.set_local( np.random.randn( noise_size ) )
+#    posterior.sample(noise, dir, add_mean=False)
+    H = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=False)
+    l = 1/math.sqrt(H.inner(dir, dir));
     
-    npoints = 1000
-    d = np.linspace(0, 3*l, npoints, endpoint=True)
+    npoints = 100
+    d = np.linspace(-3*l, 3*l, npoints, endpoint=True)
     ct = np.ndarray(npoints)
     cg = np.ndarray(npoints)
-    cp = np.ndarray(npoints)
     for i in range(npoints):
         pp = posterior.mean.copy()
         pp.axpy(d[i], dir)
         ct[i] = pdf(pp)
         cg[i] = pdfg(pp)
-        cp[i] = pdfp(pp)
 
         
     plt.figure()
@@ -210,6 +215,5 @@ if __name__ == "__main__":
     plt.plot(d, cg, "--r")
     plt.subplot(1,2,2)
     plt.plot(d, ct-cg, "-b")
-#    plt.plot(d, cp, "--r")
     plt.show()
 
