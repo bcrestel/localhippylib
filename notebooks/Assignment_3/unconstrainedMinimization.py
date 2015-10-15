@@ -13,6 +13,8 @@ class InexactNewtonCG:
     The user must provide the variational forms for the energy functional. 
     The gradient and the Hessian of the energy functional can be either provided by the user
     or computed by FEniCS using automatic differentiation.
+    
+    NOTE: Essential Boundary Conditions are not supported
     """
     termination_reasons = [
                            "Maximum number of Iteration reached",      #0
@@ -52,9 +54,11 @@ class InexactNewtonCG:
     def solve(self, F, u, grad = None, H = None):
         
         if grad is None:
+            print "Using Automatic Differentiation to compute the gradient"
             grad = derivative(F,u)
             
         if H is None:
+            print "Using Automatic Differentiation to compute the Hessian"
             H = derivative(grad, u)
         
         rtol = self.parameters["rel_tolerance"]
@@ -104,6 +108,7 @@ class InexactNewtonCG:
             u_backtrack = u.copy(deepcopy=True)
             alpha = 1.   
             bk_converged = False
+            
             #Backtrack
             for j in range(max_backtrack):
                 u.assign(u_backtrack)

@@ -261,7 +261,7 @@ A_2 = \begin{pmatrix}
 \end{pmatrix}
 \end{equation*}
 and compare the results obtained using $A_1$ and $A_2$ in \eqref{eq:P}.
-
+\newpage
 {\bf HINTS:}
 \begin{itemize}
 \item [-] A mesh for the unit circle is provided in the file \verb+circle.xml+. You can load the mesh in FEniCS using the command
@@ -285,36 +285,29 @@ Tikhonov (TN) and total variation (TV) regularizations. To this end,
 set $k(\boldsymbol{x})=\alpha$ with small $\alpha>0$ in
 $\mathcal{R}_{TV}$ and $\mathcal{R}_{TN}$, choose small $\varepsilon
 >0$, and take a homogeneous Neumann boundary condition for $u$ (i.e.,
-$\nabla u \cdot \bs{n} = 0$).  A function that evaluates the noisy
-image $u_0(\bs{x})$ is provided in the file \verb+ustar_fun.m+, while
-the file \verb+TNTV.m+ contains some lines to start up the
-implementation.
+$\nabla u \cdot \bs{n} = 0$).  
+The file \verb+tntv.py+ contains some lines to start up the
+implementation (definition of the mesh, finite element space, and an expression
+to evaluate the true image and the noisy image at each point of the mesh).
 \begin{enumerate}
 
 \item Solve the denoising inverse problem using TN
   regularization. Since for TN regularization, the gradient is linear
-  in $u$, you can use COMSOL's linear solver \verb+femlin+. Choose an
+  in $u$, you can use FEniCS's linear solver \verb+solve+. Choose an
   $\alpha>0$ such that you obtain a reasonable
   reconstruction\footnote{Either experiment manually with a few values
-    for $\alpha$ or use the L-curve criterion. To evaluate terms in
-    the cost functional, use the function {\ttfamily postint}.}, i.e.,
-  a reconstruction that removes noise from the image but  does not
+    for $\alpha$ or use the L-curve criterion.}, i.e.,
+  a reconstruction that removes noise from the image but does not
   overly smooth the image.
 
 \item Solve the denoising inverse problem using TV
   regularization. Since the gradient is nonlinear in $u$, use the
-  nonlinear solver \verb+femnlin+\footnote{This function implements a
-    Newton method with damping to solve the weak form of a nonlinear
-    equation, using symbolic variations of the residual to obtain the
-    Jacobian for Newton's method. While COMSOL's nonlinear solver will
-    work for this problem (and you should use it), it does not work
-    for every nonlinear system of PDEs, which is why it is often
-    necessary to derive and implement Newton's method manually (via
-    explicit solution of a sequence of linear problems).  One
-    situation where explicit implementation of Newton's method is
-    useful is when the nonlinear equation corresponds to the vanishing
-    of the gradient of an optimization problem (as it is in the
-    denoising problem). In this case, COMSOL does not know the
+  \verb+InexactNewtonCG+ solver provided in the file \verb+unconstrainedMinimization.py+.
+  This solver uses the inexact Newton CG algorithm with Eisenstat-Walker stopping criterion
+  and backtracking line search based on the Armijo conditions
+  \footnote{See file {\ttfamily energyMinimization.py} for an example on how to use the solver. 
+  FEniCS's built-in nonlinear solver will not
+    work for this problem. FEniCS does not know the
     underlying optimization cost functional, so manual implementation
     allows one to globalize Newton's method via a line search based on
     a knowledge of the cost functional.}. Find an appropriate value
@@ -323,10 +316,10 @@ implementation.
     justified here, since compared to TN regularization, TV
     regularization is not quadratic, which makes the automatic choice
     of $\alpha$ harder.}. You will have to increase the default number
-  of nonlinear iterations in \verb+femnlin+\footnote{Typing
-    ``{\ttfamily help femnlin}'' will show you solver options. You
-    should increase the value of {\ttfamily Maxiter}, which defaults
-    to 25.}. How does the number of nonlinear iterations behave for
+  of nonlinear iterations in \verb+InexactNewtonCG+\footnote{Typing
+    ``{\ttfamily help(InexactNewtonCG)}'' will show you solver options. You
+    should set the relative tolerance {\ttfamily rel\_tolerance} to $10^{-5}$ and increase the value of {\ttfamily max\_iter}, which defaults
+    to 20.}. How does the number of nonlinear iterations behave for
   decreasing $\varepsilon$ (e.g., between $10$ and $10^{-4}$)? Try to
   explain this behavior\footnote{There are more efficient so-called
     primal-dual Newton algorithms for TV-regularized problems (see,
