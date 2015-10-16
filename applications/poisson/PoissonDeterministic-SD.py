@@ -1,88 +1,15 @@
-# # Example: Coefficient field inversion in an elliptic partial differential equation
-# 
-# We consider the estimation of a coefficient in an elliptic partial
-# differential equation as a first model problem. Depending on the
-# interpretation of the unknowns and the type of measurements, this
-# model problem arises, for instance, in inversion for groundwater flow
-# or heat conductivity.  It can also be interpreted as finding a
-# membrane with a certain spatially varying stiffness. Let
-# $\Omega\subset\mathbb{R}^n$, $n\in\{1,2,3\}$ be an open, bounded
-# domain and consider the following problem:
-# 
-# $$
-# \min_{a} J(a):=\frac{1}{2}\int_\Omega (u-u_d)^2\, dx + \frac{\gamma}{2}\int_\Omega|\nabla a|^2\,dx,
-# $$
-# 
-# where $u$ is the solution of
-# 
-# $$
-# \begin{split}
-# \quad -\nabla\cdot(\exp(a)\nabla u) &= f \text{ in }\Omega,\\
-# u &= 0 \text{ on }\partial\Omega.
-# \end{split}
-# $$
-# 
-# Here $a\in U_{ad}:=\{a\in L^{\infty}(\Omega)\}$ the unknown coefficient field, $u_d$ denotes (possibly noisy) data, $f\in H^{-1}(\Omega)$ a given force, and $\gamma\ge 0$ the regularization parameter.
-# 
-# ### The variational (or weak) form of the state equation:
-# 
-# Find $u\in H_0^1(\Omega)$ such that $(\exp(a)\nabla u,\nabla v) - (f,v) = 0, \text{ for all } v\in H_0^1(\Omega),$
-# where $H_0^1(\Omega)$ is the space of functions vanishing on $\partial\Omega$ with square integrable derivatives. Here, $(\cdot\,,\cdot)$ denotes the $L^2$-inner product, i.e, for scalar functions $u,v$ defined on $\Omega$ we denote $(u,v) := \int_\Omega u(x) v(x) \,dx$.
-# 
-# ### Optimality System:
-# 
-# The Lagrangian functional $\mathscr{L}:L^\infty(\Omega)\times H_0^1(\Omega)\times H_0^1(\Omega)\rightarrow \mathbb{R}$, which we use as a tool to derive the optimality system, is given by
-# 
-# $$
-# \mathscr{L}(a,u,p):= \frac{1}{2}(u-u_d,u-u_d) +
-# \frac{\gamma}{2}(\nabla a, \nabla a) +  (\exp(a)\nabla u,\nabla p) - (f,p).
-# $$
-# 
-# The Lagrange multiplier theory shows that, at a solution all variations of the Lagrangian functional with respect to all variables must vanish. These variations of $\mathscr{L}$ with respect to $(p,u,a)$ in directions $(\tilde{u}, \tilde{p}, \tilde{a})$ are given by
-# 
-# $$
-#   \begin{alignat}{2}
-#     \mathscr{L}_p(a,u,p)(\tilde{p})  &= (\exp(a)\nabla u, \nabla \tilde{p}) -
-#     (f,\tilde{p}) &&= 0,\\
-#      \mathscr{L}_u(a,u,p)(\tilde{u}) &= (\exp(a)\nabla p, \nabla \tilde{u}) +
-#      (u-u_d,\tilde{u}) && = 0,\\
-#      \mathscr{L}_a(a,u,p)(\tilde{a})  &= \gamma(\nabla a, \nabla \tilde{a}) +
-#      (\tilde{a}\exp(a)\nabla u, \nabla p) &&= 0,
-#   \end{alignat}
-# $$
-# 
-# where the variations $(\tilde{u}, \tilde{p}, \tilde{a})$ are taken from the same spaces as $(u,p,a)$. 
-# 
-# The gradient of the cost functional $\mathcal{J}(a)$ therefore is
-# 
-# $$
-#     \mathcal{G}(a)(\tilde a) = \gamma(\nabla a, \nabla \tilde{a}) +
-#      (\tilde{a}\exp(a)\nabla u, \nabla \tilde{p}).
-# $$
-# 
-# ### Goals:
-# 
-# By the end of this notebook, you should be able to:
-# 
-# - solve the forward and adjoint Poisson equations
-# - understand the inverse method framework
-# - visualise and understand the results
-# - modify the problem and code
-# 
-# ### Mathematical tools used:
-# 
-# - Finite element method
-# - Derivation of gradiant and Hessian via the adjoint method
-# - inexact Newton-CG
-# - Armijo line search
-# 
-# ### List of software used:
-# 
-# - <a href="http://fenicsproject.org/">FEniCS</a>, a parallel finite element element library for the discretization of partial differential equations
-# - <a href="http://www.mcs.anl.gov/petsc/">PETSc</a>, for scalable and efficient linear algebra operations and solvers
-# - <a href="http://matplotlib.org/">Matplotlib</a>, a python package used for plotting the results
-# - <a href="http://www.numpy.org/">Numpy</a>, a python package for linear algebra
-
+## Steepest descent solution of a coefficient field inversion in an
+## elliptic partial differential equation
+##
+##   min  1/2 * ||u - uobs||^2 + gamma/2 * ||grad a||^2,
+##    a
+##        where u is the solution of
+##
+##             - div (a * grad u) = f     on Omega
+##                              u = 0     on bdry(Omega)
+##
+## for given force f, gamma >= 0 and data uobs.
+## The data uobs is constructed using a "true" parameter field atrue
 
 # Import dependencies
 from dolfin import *
@@ -100,11 +27,6 @@ set_log_active(False)
 np.random.seed(seed=1)
 
 # The cost function evaluation:
-# 
-# $$
-# J(a):=\underbrace{\frac{1}{2}\int_\Omega (u-u_d)^2\, dx}_{\text misfit} + \underbrace{\frac{\gamma}{2}\int_\Omega|\nabla a|^2\,dx}_{\text reg}
-# $$
-
 def cost(u, ud, a, W, R):
     diff = u.vector() - ud.vector()
     reg = 0.5 * a.vector().inner(R*a.vector() ) 
@@ -160,13 +82,6 @@ bc2 = DirichletBC(V2, u0, u0_boundary)
 
 
 # Set up synthetic observations:
-# 
-# - Propose a coefficient field $a_{\text true}$ shown above
-# - The weak form of the pde: 
-#     Find $u\in H_0^1(\Omega)$ such that $\underbrace{(a_{\text true} \nabla u,\nabla v)}_{\; := \; a_{pde}} - \underbrace{(f,v)}_{\; := \;L_{pde}} = 0, \text{ for all } v\in H_0^1(\Omega)$.
-# 
-# - Perturb the solution: $u_{d} = u_{\rm true} + \eta$, where $\eta \sim \mathcal{N}(0, \sigma)$
-
 # weak form for setting up the synthetic observations
 a_goal = inner( atrue * nabla_grad(u_trial), nabla_grad(u_test)) * dx
 L_goal = f * u_test * dx
@@ -193,7 +108,8 @@ ud.vector().axpy(1., noise)
 File("state_true.pvd") << utrue
 File("observation.pvd") << ud
 
-# Setting up the state equations, right hand side for the adjoint and the neccessary matrices:
+# Setting up the state equations, right hand side for the adjoint and
+# the neccessary matrices:
 
 # weak form for setting up the state equation
 a_state = inner( a * nabla_grad(u_trial), nabla_grad(u_test)) * dx
@@ -253,7 +169,7 @@ while iter <  maxiter and not converged:
     it_backtrack = 0
     a_prev.assign(a)
     for it_backtrack in range(20):
-        
+
         a.vector().axpy(-alpha, g )
 
         # solve the state/forward problem
@@ -275,14 +191,14 @@ while iter <  maxiter and not converged:
     print "%2d %1s %8.5e %1s %8.5e %1s %8.5e %1s %8.5e %1s %5.2f" % \
         (iter, sp, cost_new, sp, misfit_new, sp, reg_new, sp, \
         gradnorm, sp, alpha)
-    
+
     # check for convergence
     if gradnorm < tol and iter > 1:
         converged = True
         print "Steepest descent converged in ",iter,"  iterations"
-        
+
     iter += 1
-    
+
 if not converged:
     print "Steepest descent method did not converge in ", maxiter, " iterations"
 
