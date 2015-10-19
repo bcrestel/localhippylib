@@ -69,7 +69,7 @@ class Arolla:
         
     def _forwardvarf(self, a, up, vq):
         n = dl.FacetNormal(self.mesh)
-        h = dl.CellSize(mesh)
+        h = dl.CellSize(self.mesh)
         pen = dl.Constant(10)
         
         uh,ph = dl.split(up)
