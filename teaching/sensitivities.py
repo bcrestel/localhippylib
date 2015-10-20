@@ -1,4 +1,18 @@
-# add description
+#$ Compute direct and adjoint sensitivities for 
+## elliptic partial differential equation
+##
+##   min  1/2 * ||u - uobs||^2
+##    m
+##   where u is the solution of
+##
+##   - div (m * grad u) = f     on Omega
+##                    u = 0     on bdry(Omega)
+##
+## for given force f, gamma >= 0 and data uobs.
+## The data uobs is constructed from u by adding noise.
+## Here we consider m = sum_{i=1}^7 m_i phi_i(x), where
+## phi_1(x) = 1; phi_2(x) = sin(2*pi*x); phi_3(x) = sin(2*pi*y), etc.
+
 # Import dependencies
 from dolfin import *
 import numpy as np
@@ -32,35 +46,18 @@ bc = DirichletBC(V, u0, u0_boundary)
 var_state     = inner( m * nabla_grad(u_trial), nabla_grad(u_test)) * dx
 var_rhs_state = f * u_test * dx
 var_mass      = inner(u_trial, u_test) * dx
-
 mat_state, rhs_state = assemble_system(var_state, var_rhs_state, bc)
 
-
-mass = assemble(var_mass)
-
 # solve state equation
-u = Function(V)
-solve(mat_state, u.vector(), rhs_state)
-
-if mesh.num_cells() < 16: # print for small meshes only
-    print mat_state.array()
-    print mass.array()
-    print rhs_state.array()
-
-u.rename("state","ignore this")
+u = Function(V,name="state")
+solve(var_state == var_rhs_state, u, bc)
 File("state.pvd") << u
 
-# solve sensitivity equations
+# variational form of the sensitivity equations
 var_sens      = inner( m * nabla_grad(du_trial), nabla_grad(du_test)) * dx
 var_rhs_sens  = inner( -dm * nabla_grad(u), nabla_grad(du_test) ) * dx
 
-mat_sens, rhs_sens   = assemble_system(var_sens, var_rhs_sens, bc)
-
-du = Function(V,name="sens1")
-solve(mat_sens, du.vector(), rhs_sens)
-File("sens1.pvd") << du
-
-## misfit
+## set up misfit
 ud = Function(V,name="data")
 ud.assign(u)
 ## perturb state solution and create synthetic measurements ud
@@ -68,7 +65,7 @@ ud.assign(u)
 noise_level = 0.05
 MAX         = ud.vector().norm("linf")
 noise       = Vector()
-mat_sens.init_vector(noise,1)
+mat_state.init_vector(noise,1)
 noise.set_local( noise_level * MAX * np.random.normal(0, 1, len(ud.vector().array())) )
 bc.apply(noise)
 ud.vector().axpy(1., noise)
@@ -76,15 +73,39 @@ File("data.pvd") << ud
 
 var_misfit = inner( (u - ud), u_test)*dx
 vec_misfit = assemble(var_misfit)
-grad1 = vec_misfit.inner(du.vector())
-print grad1
 
-# adjoint approach
+# solve adjoint problem
 var_adj = inner( m * nabla_grad(p_trial), nabla_grad(p_test)) * dx
 rhs_adj = -var_misfit
-
 p = Function(V,name="adj")
 solve(var_adj==rhs_adj,p,bc)
 File("adj.pvd") << p
-grad_adj = assemble(inner (dm * nabla_grad(u), nabla_grad(p) )* dx)
-print grad_adj
+
+##################################
+# second component of the gradient
+##################################
+du = Function(V,name="sens1")
+solve(var_sens==var_rhs_sens,du,bc)
+File("sens1.pvd") << du
+grad_sens1 = vec_misfit.inner(du.vector())
+print grad_sens1
+
+# adjoint approach
+grad_adj1 = assemble(inner (dm * nabla_grad(u), nabla_grad(p) )* dx)
+print grad_adj1
+
+##################################
+# second component of the gradient
+##################################
+# sensitivity approach
+dm = Expression("sin(2*pi*x[1])")
+var_rhs_sens  = inner( -dm * nabla_grad(u), nabla_grad(du_test) ) * dx
+du = Function(V,name="sens2")
+solve(var_sens==var_rhs_sens,du,bc)
+File("sens2.pvd") << du
+grad_sens2 = vec_misfit.inner(du.vector())
+print grad_sens2
+
+# adjoint approach
+grad_adj2 = assemble(inner (dm * nabla_grad(u), nabla_grad(p) )* dx)
+print grad_adj2
