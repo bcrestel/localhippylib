@@ -35,7 +35,6 @@ du_test,  p_test,  u_test  = TestFunction(V), TestFunction(V), TestFunction(V)
 f  = Constant("1.0")
 u0 = Constant("0.0")
 m  = Constant("1.0")
-dm = Expression('1.0')
 
 # set up dirichlet boundary conditions
 def u0_boundary(x,on_boundary):
@@ -45,7 +44,6 @@ bc = DirichletBC(V, u0, u0_boundary)
 # variational forms
 var_state     = inner( m * nabla_grad(u_trial), nabla_grad(u_test)) * dx
 var_rhs_state = f * u_test * dx
-var_mass      = inner(u_trial, u_test) * dx
 mat_state, rhs_state = assemble_system(var_state, var_rhs_state, bc)
 
 # solve state equation
@@ -55,7 +53,6 @@ File("state.pvd") << u
 
 # variational form of the sensitivity equations
 var_sens      = inner( m * nabla_grad(du_trial), nabla_grad(du_test)) * dx
-var_rhs_sens  = inner( -dm * nabla_grad(u), nabla_grad(du_test) ) * dx
 
 ## set up misfit
 ud = Function(V,name="data")
@@ -82,8 +79,10 @@ solve(var_adj==rhs_adj,p,bc)
 File("adj.pvd") << p
 
 ##################################
-# second component of the gradient
+# first component of the gradient
 ##################################
+dm = Expression('1.0')
+var_rhs_sens  = inner( -dm * nabla_grad(u), nabla_grad(du_test) ) * dx
 du = Function(V,name="sens1")
 solve(var_sens==var_rhs_sens,du,bc)
 File("sens1.pvd") << du
