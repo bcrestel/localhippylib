@@ -1,16 +1,16 @@
 #$ Compute direct and adjoint sensitivities for 
 ## elliptic partial differential equation
 ##
-##   min  1/2 * ||u - uobs||^2
+##   min  1/2 * ||u - ud||^2
 ##    m
 ##   where u is the solution of
 ##
 ##   - div (m * grad u) = f     on Omega
 ##                    u = 0     on bdry(Omega)
 ##
-## for given force f, gamma >= 0 and data uobs.
-## The data uobs is constructed from u by adding noise.
-## Here we consider m = sum_{i=1}^7 m_i phi_i(x), where
+## for given force f, and data ud.
+## The data ud is constructed from u by adding noise.
+## and consider m = sum_{i=1}^7 m_i phi_i(x), where
 ## phi_1(x) = 1; phi_2(x) = sin(2*pi*x); phi_3(x) = sin(2*pi*y), etc.
 
 # Import dependencies
@@ -44,15 +44,15 @@ bc = DirichletBC(V, u0, u0_boundary)
 # variational forms
 var_state     = inner( m * nabla_grad(u_trial), nabla_grad(u_test)) * dx
 var_rhs_state = f * u_test * dx
+var_sens      = inner( m * nabla_grad(du_trial), nabla_grad(du_test)) * dx
+
+# assemble just for getting the size
 mat_state, rhs_state = assemble_system(var_state, var_rhs_state, bc)
 
 # solve state equation
 u = Function(V,name="state")
 solve(var_state == var_rhs_state, u, bc)
 File("state.pvd") << u
-
-# variational form of the sensitivity equations
-var_sens      = inner( m * nabla_grad(du_trial), nabla_grad(du_test)) * dx
 
 ## set up misfit
 ud = Function(V,name="data")
