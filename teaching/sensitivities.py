@@ -34,7 +34,7 @@ du_test,  p_test,  u_test  = TestFunction(V), TestFunction(V), TestFunction(V)
 # initialize input functions
 f  = Constant("1.0")
 u0 = Constant("0.0")
-m  = Constant("1.0")
+m  = Constant("2.0")
 
 # set up dirichlet boundary conditions
 def u0_boundary(x,on_boundary):
@@ -88,6 +88,13 @@ solve(var_sens==var_rhs_sens,du,bc)
 File("sens1.pvd") << du
 grad_sens1 = vec_misfit.inner(du.vector())
 print grad_sens1
+
+# compute the sensitivity using the assemble (solve mat_sense du = rhs_sens)
+var_rhs_sens  = inner( -dm * nabla_grad(u), nabla_grad(du_test) ) * dx
+mat_sens, rhs_sens = assemble_system(var_sens, var_rhs_sens, bc)
+solve(mat_sens, du.vector(), rhs_sens)
+grad_fd_sens1 = vec_misfit.inner(du.vector())
+print grad_fd_sens1
 
 # adjoint approach
 grad_adj1 = assemble(inner (dm * nabla_grad(u), nabla_grad(p) )* dx)
