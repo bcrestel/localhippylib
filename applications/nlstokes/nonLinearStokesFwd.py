@@ -1,56 +1,3 @@
-class PDEProblem:
-    """ Consider the PDE Problem:
-        Given a, find u s.t. 
-        F(u,a,p) = ( f(u,a), p) = 0 for all p.
-        Here F is linear in p, but it may be non-linear in u and a.
-    """
-        
-    def generate_state(self):
-        """ return a vector in the shape of the state """
-    
-    def solveFwd(self, state, x):
-        """ Solve the possibly nonlinear Fwd Problem:
-        Given a, find u such that
-        \delta_p F(u,a,p;\hat_p) = 0 \for all \hat_p"""
-        
-    def setLinearizationPoint(self,x):
-        """ Set the values of the state and parameter
-            for the incremental Fwd and Adj solvers """
-        
-    def solveIncremental(self, out, rhs, is_adj):
-        """ If is_adj = False:
-            Solve the forward incremental system:
-            Given u, a, find \tilde_u s.t.:
-            \delta_{pu} F(u,a,p; \hat_p, \tilde_u) = rhs for all \hat_p.
-            
-            If is_adj = True:
-            Solve the adj incremental system:
-            Given u, a, find \tilde_p s.t.:
-            \delta_{up} F(u,a,p; \hat_u, \tilde_p) = rhs for all \delta_u.
-        """
-        
-    def applyF_pa(self, dir, out, is_adj):
-        """ If is_adj = False:
-            Given u, a; compute 
-            \delta_{pa} F(u,a,p; \hat_p, \tilde_a) in the direction \tilde_a = dir for all \hat_p
-
-            If is_adj = True:
-            Given u, a; compute \delta_{ap} F(u,a,p; \hat_a, \tilde_p) in the direction \tilde_p = dir for all \hat_a
-        """
-        
-    def applyF_aa(self, delta_a, out):
-        """ 
-        Given u,a,p; compute \delta_{aa} F(u,a,p; \hat_a, \tilde_a) in the direction \tilde_a = dir for all \hat_a
-        """
-        
-    def applyF_au(self, dir, out, is_adj):
-        """ If is_adj = False:
-            Given u, a, p; compute \delta_{au} F(u,a,p; \hat_a, tilde_u) in the direction \tilde_u = dir for all \hat_a
-            
-            If is_adj = True:
-            Given u, a, p; compute \delta_{ua} F(u,a,p; \hat_u, tilde_a) in the direction \tilde_a = dir for all \hat_u
-        """
-
 import dolfin as dl
 import math
 import sys
@@ -88,11 +35,15 @@ class IceProblem(PDEProblem):
         self.newton_parameters = {}
         self.newton_parameters["rel_tolerance"] = 1e-6
         self.newton_parameters["abs_tolerance"] = 1e-9
-        self.newton_parameters["gdu_tolerance"] = 1e-18
+        self.newton_parameters["gdu_tolerance"] = 1e-20
         self.newton_parameters["lin_tolerance"] = 1e-12
         self.newton_parameters["max_iter"]      = 100
         self.newton_parameters["c_armijo"]      = 1e-5
         self.newton_parameters["max_backtracking_iter"] = 10
+        
+        self.use_Nitsche = False
+        
+        self.KKT = {}
         
     def generate_state(self):
         return dl.Function(self.Vh[STATE]).vector()
@@ -119,10 +70,12 @@ class IceProblem(PDEProblem):
         a12 = -dl.nabla_div(vh)*ph*dl.dx
         a21 = -dl.nabla_div(uh)*qh*dl.dx
         robinvarf  = dl.exp(a)*dl.inner(uh - dl.dot(dl.outer(n,n),uh), vh) * self.ds_robin
-        weak_bc = -dl.dot(n, t(uh, ph, n) )*dl.dot(vh,n)*self.ds_robin \
-                  - dl.dot(n, t(vh, qh, n) )*dl.dot(uh,n)*self.ds_robin \
-                  + self.pen/h*dl.dot(uh,n)*dl.dot(vh, n)*self.ds_robin
-        #weak_bc = pen/h*dl.dot(uh,n)*dl.dot(vh, n)*self.ds_robin
+        if self.use_Nitsche:
+            weak_bc = -dl.dot(n, t(uh, ph, n) )*dl.dot(vh,n)*self.ds_robin \
+                      - dl.dot(n, t(vh, qh, n) )*dl.dot(uh,n)*self.ds_robin \
+                      + self.pen/h*dl.dot(uh,n)*dl.dot(vh, n)*self.ds_robin
+        else:
+            weak_bc = self.pen/h*dl.dot(uh,n)*dl.dot(vh, n)*self.ds_robin
         
         f1 = dl.inner(vh, self.gravity*self.density)*dl.dx
         f2 = dl.Constant(0.)*qh*dl.dx
@@ -135,24 +88,27 @@ class IceProblem(PDEProblem):
             raise Exception()
 
     def Energy(self,up, a):
-
-        n = dl.FacetNormal(self.Vh[STATE].mesh())
-        h = dl.CellSize(self.Vh[STATE].mesh())
         
-        uh,ph = dl.split(up)
-        
-        myA = self.RateFactor**(-1./self.GlenExp)
-        myExp = dl.Constant(.5)*( dl.Constant(1.) + self.GlenExp)/self.GlenExp
-        
-        Phi = dl.Constant(1.)/myExp*myA*( dl.Constant(.5)*dl.inner( dl.sym(dl.nabla_grad(uh)), dl.sym(dl.nabla_grad(uh)) )  + self.eps )**myExp
-                
-        a11 = Phi*dl.dx
-        robinvarf  = dl.Constant(.5)*dl.exp(a)*dl.inner(uh - dl.dot(dl.outer(n,n),uh), uh) * self.ds_robin
-        weak_bc = dl.Constant(.5)*self.pen/h*dl.dot(uh,n)*dl.dot(uh, n)*self.ds_robin
-        
-        f1 = dl.inner(uh, self.gravity*self.density)*dl.dx
-       
-        return a11+robinvarf+weak_bc - f1
+        if self.use_Nitsche:
+            return None
+        else:
+            n = dl.FacetNormal(self.Vh[STATE].mesh())
+            h = dl.CellSize(self.Vh[STATE].mesh())
+            
+            uh,ph = dl.split(up)
+            
+            myA = self.RateFactor**(-1./self.GlenExp)
+            myExp = dl.Constant(.5)*( dl.Constant(1.) + self.GlenExp)/self.GlenExp
+            
+            Phi = dl.Constant(1.)/myExp*myA*( dl.Constant(.5)*dl.inner( dl.sym(dl.nabla_grad(uh)), dl.sym(dl.nabla_grad(uh)) )  + self.eps )**myExp
+            
+            a11 = Phi*dl.dx
+            robinvarf  = dl.Constant(.5)*dl.exp(a)*dl.inner(uh - dl.dot(dl.outer(n,n),uh), uh) * self.ds_robin
+            weak_bc = dl.Constant(.5)*self.pen/h*dl.dot(uh,n)*dl.dot(uh, n)*self.ds_robin
+            
+            f1 = dl.inner(uh, self.gravity*self.density)*dl.dx
+            
+            return a11+robinvarf+weak_bc - f1
         
 
                 
@@ -167,7 +123,6 @@ class IceProblem(PDEProblem):
         myExp = dl.Constant(.5)*( dl.Constant(1.) - self.GlenExp)/self.GlenExp
         
         eta = myA*( dl.Constant(.5)*dl.inner( dl.sym(dl.nabla_grad(uh)), dl.sym(dl.nabla_grad(uh)) )  + self.eps )**myExp
-        #eta = myA
         
         def t(u,p,n): return dl.dot(eta*dl.sym(dl.nabla_grad(u)),n) - p*n
         
@@ -175,10 +130,12 @@ class IceProblem(PDEProblem):
         a12 = -dl.nabla_div(vh)*ph*dl.dx
         a21 = -dl.nabla_div(uh)*qh*dl.dx
         robinvarf  = dl.exp(a)*dl.inner(uh - dl.dot(dl.outer(n,n),uh), vh) * self.ds_robin
-        #weak_bc = -dl.dot(n, t(uh, ph, n) )*dl.dot(vh,n)*self.ds_robin \
-        #          - dl.dot(n, t(vh, qh, n) )*dl.dot(uh,n)*self.ds_robin \
-        #          + self.pen/h*dl.dot(uh,n)*dl.dot(vh, n)*self.ds_robin
-        weak_bc = self.pen/h*dl.dot(uh,n)*dl.dot(vh, n)*self.ds_robin
+        if self.use_Nitsche:
+            weak_bc = -dl.dot(n, t(uh, ph, n) )*dl.dot(vh,n)*self.ds_robin \
+                      - dl.dot(n, t(vh, qh, n) )*dl.dot(uh,n)*self.ds_robin \
+                      + self.pen/h*dl.dot(uh,n)*dl.dot(vh, n)*self.ds_robin
+        else:
+            weak_bc = self.pen/h*dl.dot(uh,n)*dl.dot(vh, n)*self.ds_robin
         
         f1 = dl.inner(vh, self.gravity*self.density)*dl.dx
         f2 = dl.Constant(0.)*qh*dl.dx
@@ -190,7 +147,7 @@ class IceProblem(PDEProblem):
         else:
             raise Exception()
         
-    def solveFwd(self, state, x):
+    def solveFwd(self, state, x, mytol):
         # Assume u0 is div free
         up = dl.Function(self.Vh[STATE], state)
         a  = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
@@ -200,7 +157,10 @@ class IceProblem(PDEProblem):
         F0 = dl.assemble( self.F(up, a, vq) )
         norm_F0 = self.normF(F0)
         
-        rtol = self.newton_parameters["rel_tolerance"]
+        if mytol is None:
+            rtol = self.newton_parameters["rel_tolerance"]
+        else:
+            rtol = mytol
         atol = self.newton_parameters["abs_tolerance"]
         gdu_tol  = self.newton_parameters["gdu_tolerance"]
         lin_tol = self.newton_parameters["lin_tolerance"]
@@ -211,6 +171,7 @@ class IceProblem(PDEProblem):
         
         tol = max( norm_F0*rtol, atol)
         
+        E_prev = E0
         up_prev = dl.Function(self.Vh[STATE])
         du = self.generate_state()
         for it in range(maxiter):
@@ -221,21 +182,23 @@ class IceProblem(PDEProblem):
             norm_F = self.normF(F)
             
             if norm_F < tol:
+                print "Converged ||F||_L2 = {0:5e}.".format(norm_F)
                 converged = True
                 break
             
-            Jsolver = dl.PETScLUSolver(J)
+            Jsolver = dl.PETScLUSolver()
+            Jsolver.set_operator(J)
             Jsolver.solve(du, F)
             
             duF = F.inner(du)
             
             if duF < gdu_tol:
+                print "Converged (du,F) = {0:5e}.".format(duF)
                 converged = True
                 break
             
             bt_converged = False
             alpha = 1.
-            E_prev = dl.assemble( self.Energy(up, a) )
             up_prev.assign(up)
             
             for j in range(maxiter_backtracking):
@@ -243,16 +206,65 @@ class IceProblem(PDEProblem):
                 E_cur = dl.assemble( self.Energy(up, a) )
                 if E_cur < E_prev - alpha*c_armijo*duF:
                     bt_converged = True
+                    E_prev = E_cur
                     break
                 else:
                     up.assign(up_prev)
                     alpha *= .5
-                    
+            
+            print "{0:3d} {1:15e} {2:15e} {3:15e} {4:15e}".format(it, E_cur, norm_F, duF, alpha)       
             if not bt_converged:
+                print "Maximum number of backtracking reached."
                 break
                         
-        assert converged
+        #assert converged
+        
+    def solveAdj(self, adj, x, adj_rhs, tol):
+        up = dl.Function(self.Vh[STATE], x[STATE], name="up")
+        a  = dl.Function(self.Vh[PARAMETER], x[PARAMETER], name="a")
+        vq = dl.Function(self.Vh[STATE], name="vq")  
+        f_form = self.F(up,a,vq)
+        adj_form = dl.derivative( dl.derivative(f_form, up), vq )
+        Aadj = dl.assemble(adj_form) 
+        Aadjsolver = dl.PETScLUSolver()
+        Aadjsolver.set_operator(Aadj)
+        Aadjsolver.solve(adj, adj_rhs) 
+        
+    def eval_da(self, x, out):
+        up = dl.Function(self.Vh[STATE], x[STATE], name="up")
+        a  = dl.Function(self.Vh[PARAMETER], x[PARAMETER], name="a")
+        vq = dl.Function(self.Vh[STATE], x[ADJOINT], name="vq")
+        f_form = self.F(up,a,vq)
+        da_form = dl.derivative(f_form, a)
+        dl.assemble(da_form, tensor=out)
                     
+    def setLinearizationPoint(self,x):
+        up = dl.Function(self.Vh[STATE], x[STATE], name="up")
+        a  = dl.Function(self.Vh[PARAMETER], x[PARAMETER], name="a")
+        vq = dl.Function(self.Vh[STATE], x[ADJOINT], name="vq")
+        
+        x_fun = [up,a,vq]
+        
+        f_form = self.F(up,a,vq)
+        
+        g_form = [None,None,None]
+        for i in range(3):
+            g_form[i] = dl.derivative(f_form, x_fun[i])
+
+        kkt_form = {}
+        for i in range(3):
+            for j in range(3):
+                kkt_form[i,j] = dl.derivative(g_form[i], x_fun[j])
+                self.KKT[i,j] = dl.assemble(kkt_form[i,j])
                 
+    def apply_ij(self,i,j, dir, out):
+        self.KKT[i,j].mult(dir, out)
             
+    def solveIncremental(self, out, rhs, is_adj, mytol):
+        solver = dl.PETScLUSolver()
+        if is_adj:
+            solver.set_operator(self.KKT[STATE,ADJOINT])
+        else:
+            solver.set_operator(self.KKT[ADJOINT,STATE])
             
+        solver.solve(out, rhs)

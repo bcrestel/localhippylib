@@ -104,6 +104,17 @@ class _Prior:
         
         return pw_var
     
+    def cost(self,a):
+        d = self.mean.copy()
+        d.axpy(-1., a)
+        Rd = dl.Vector()
+        self.init_vector(Rd,0)
+        return .5*Rd.inner(d)
+    
+    def grad(self,a, out):
+        d = self.mean.copy()
+        d.axpy(-1., a)
+        self.R.mult(d,out)
 
 class LaplacianPrior(_Prior):
     """
@@ -132,11 +143,11 @@ class LaplacianPrior(_Prior):
         trial = dl.TrialFunction(Vh)
         test  = dl.TestFunction(Vh)
         
-        varfL = gamma*dl.inner(dl.nabla_grad(trial), dl.nabla_grad(test))*dl.dx
-        varfM = delta*dl.inner(trial,test)*dl.dx
+        varfL = dl.inner(dl.nabla_grad(trial), dl.nabla_grad(test))*dl.dx
+        varfM = dl.inner(trial,test)*dl.dx
         
         self.M = dl.assemble(varfM)
-        self.R = dl.assemble(varfL + varfM)
+        self.R = dl.assemble(gamma*varfL + delta*varfM)
         
         self.Rsolver = dl.PETScKrylovSolver("cg", amg_method())
         self.Rsolver.set_operator(self.R)
@@ -144,6 +155,13 @@ class LaplacianPrior(_Prior):
         self.Rsolver.parameters["relative_tolerance"] = rel_tol
         self.Rsolver.parameters["error_on_nonconvergence"] = True
         self.Rsolver.parameters["nonzero_initial_guess"] = False
+        
+        self.Msolver = dl.PETScKrylovSolver("cg", "jacobi")
+        self.Msolver.set_operator(self.M)
+        self.Msolver.parameters["maximum_iterations"] = max_iter
+        self.Msolver.parameters["relative_tolerance"] = rel_tol
+        self.Msolver.parameters["error_on_nonconvergence"] = True
+        self.Msolver.parameters["nonzero_initial_guess"] = False
         
         Q1h = dl.FunctionSpace(Vh.mesh(), 'Quadrature', 2*Vh._FunctionSpace___degree)
         ndim = Vh.mesh().geometry().dim()
@@ -601,7 +619,7 @@ class LaplaceBeltramiPrior(_Prior):
         self.Rsolver.parameters["error_on_nonconvergence"] = True
         self.Rsolver.parameters["nonzero_initial_guess"] = False
         
-        self.Msolver = dl.PETScKrylovSolver("jacobi", amg_method())
+        self.Msolver = dl.PETScKrylovSolver("cg", "jacobi")
         self.Msolver.set_operator(self.M_1)
         self.Msolver.parameters["maximum_iterations"] = max_iter
         self.Msolver.parameters["relative_tolerance"] = rel_tol

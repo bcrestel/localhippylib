@@ -34,7 +34,7 @@ if __name__ == "__main__":
     gravity   = dl.Expression(("0.","-1.")) #m/s^2
     GlenExp   = dl.Constant(3)
     RateFactor = dl.Constant(1) #Pa^-n years^-1
-    eps = dl.Constant(.1)
+    eps = dl.Constant(.001)
     
     problem = IceProblem([Vh, Vh1], ds(1), RateFactor, GlenExp, density, gravity, eps)
     
@@ -93,6 +93,7 @@ if __name__ == "__main__":
     plt.loglog(my_eps, .5*err_H[0] * (my_eps/my_eps[0]), "--k" )
     plt.show()
     
+    up.vector().zero()
     x = [up.vector(), a.vector()]
     problem.solveFwd(up.vector(), x)
     
