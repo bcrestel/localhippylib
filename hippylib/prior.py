@@ -109,11 +109,12 @@ class _Prior:
         d.axpy(-1., a)
         Rd = dl.Vector()
         self.init_vector(Rd,0)
+        self.R.mult(d,Rd)
         return .5*Rd.inner(d)
     
     def grad(self,a, out):
-        d = self.mean.copy()
-        d.axpy(-1., a)
+        d = a.copy()
+        d.axpy(-1., self.mean)
         self.R.mult(d,out)
 
 class LaplacianPrior(_Prior):

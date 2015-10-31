@@ -110,7 +110,8 @@ class Model:
         tmp = self.generate_vector(PARAMETER)
         self.problem.eval_da(x, tmp)
         mg.axpy(1., tmp)
-        self.prior.Rsolver.solve(tmp, mg)
+        self.prior.Msolver.solve(tmp, mg)
+        #self.prior.Rsolver.solve(tmp, mg)
         return math.sqrt(mg.inner(tmp))
         
     

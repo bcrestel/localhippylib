@@ -1,8 +1,6 @@
-'''
-Created on Oct 19, 2015
+import dolfin as dl
+from variables import STATE, PARAMETER, ADJOINT
 
-@author: uvilla
-'''
 class PDEProblem:
     """ Consider the PDE Problem:
         Given a, find u s.t. 
@@ -56,6 +54,13 @@ class PDEVariationalProblem(PDEProblem):
         self.bc = bc
         self.bc0 = bc0
         
+        self.A  = []
+        self.At = []
+        self.C = []
+        self.Wau = []
+        self.Waa = []
+        self.Wuu = []
+        
     def generate_state(self):
         """ return a vector in the shape of the state """
         return dl.Function(self.Vh[STATE]).vector()
@@ -78,20 +83,54 @@ class PDEVariationalProblem(PDEProblem):
         """
         u = dl.Function(self.Vh[STATE], x[STATE])
         a = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
-        p = dl.TrialFunction(self.Vh[ADJOINT])
-        res_form = self.varf_handler(u,a,p)
-        adj_form = dl.derivative(res_form, u)
-        Aadj = dl.assemle(adj_form)
-        self.bc0.apply(Aadj, adj_rhs)
-        dl.solve(Aadj, adj, adj_rhs)
+        p = dl.Function(self.Vh[ADJOINT])
+        du = dl.TestFunction(self.Vh[STATE])
+        dp = dl.TrialFunction(self.Vh[ADJOINT])
+        varf = self.varf_handler(u,a,p)
+        adj_form = dl.derivative( dl.derivative(varf, u, du), p, dp )
+        Aadj, dummy = dl.assemble_system(adj_form, dl.Constant(0.)*du*dl.dx, self.bc0)
+        solver = dl.PETScLUSolver()
+        solver.set_operator(Aadj)
+        solver.solve(adj, adj_rhs)
      
     def eval_da(self, x, out):
         """Given u,a,p; eval \delta_a F(u,a,p; \hat_a) \for all \hat_a """
+        u = dl.Function(self.Vh[STATE], x[STATE])
+        a = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        p = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
+        da = dl.TestFunction(self.Vh[PARAMETER])
+        res_form = self.varf_handler(u,a,p)
+        out.zero()
+        dl.assemble( dl.derivative(res_form, a, da), tensor=out)
          
     def setLinearizationPoint(self,x):
         """ Set the values of the state and parameter
             for the incremental Fwd and Adj solvers """
+        u = dl.Function(self.Vh[STATE], x[STATE])
+        a = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        p = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
+        x_fun = [u,a,p]
         
+        f_form = self.varf_handler(u,a,p)
+        
+        g_form = [None,None,None]
+        for i in range(3):
+            g_form[i] = dl.derivative(f_form, x_fun[i])
+            
+        self.A, dummy = dl.assemble_system(dl.derivative(g_form[ADJOINT],u), g_form[ADJOINT], self.bc0)
+        self.At, dummy = dl.assemble_system(dl.derivative(g_form[STATE],p),  g_form[STATE], self.bc0)
+        self.C = dl.assemble(dl.derivative(g_form[ADJOINT],a))
+        self.bc0.zero(self.C)
+        self.Wau = dl.assemble(dl.derivative(g_form[PARAMETER],u))
+        self.bc0.zero_columns(self.Wau, dummy)
+        
+        self.Wuu = dl.assemble(dl.derivative(g_form[STATE],u))
+        self.bc0.zero(self.Wuu)
+        self.bc0.zero_columns(self.Wuu, dummy)
+        
+        self.Waa = dl.assemble(dl.derivative(g_form[PARAMETER],a))
+        
+                
     def solveIncremental(self, out, rhs, is_adj, mytol):
         """ If is_adj = False:
             Solve the forward incremental system:
@@ -103,11 +142,29 @@ class PDEVariationalProblem(PDEProblem):
             Given u, a, find \tilde_p s.t.:
             \delta_{up} F(u,a,p; \hat_u, \tilde_p) = rhs for all \delta_u.
         """
+        solver = dl.PETScLUSolver()
+        if is_adj:
+            solver.set_operator(self.A)
+        else:
+            solver.set_operator(self.At)
+            
+        solver.solve(out, rhs)
     
     def apply_ij(self,i,j, dir, out):   
         """
             Given u, a, p; compute 
             \delta_{ij} F(u,a,p; \hat_i, \tilde_j) in the direction \tilde_j = dir for all \hat_i
         """
+        KKT = {}
+        KKT[STATE,STATE] = self.Wuu
+        KKT[PARAMETER, STATE] = self.Wau
+        KKT[PARAMETER, PARAMETER] = self.Waa
+        KKT[ADJOINT, STATE] = self.A
+        KKT[ADJOINT, PARAMETER] = self.C
+        
+        if i >= j:
+            KKT[i,j].mult(dir, out)
+        else:
+            KKT[j,i].transpmult(dir, out)
 
     

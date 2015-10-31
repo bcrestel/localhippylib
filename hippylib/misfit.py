@@ -31,7 +31,7 @@ class PointwiseStateObservation(Misfit):
     def adj_rhs(self, x, out):
         self.B.mult(x[STATE], self.Bu)
         self.Bu.axpy(-1., self.d)
-        self.B.mult_transp(self.Bu, out)
+        self.B.transpmult(self.Bu, out)
         out *= (-1./self.noise_variance)
     
     def setLinearizationPoint(self,x):
@@ -40,7 +40,7 @@ class PointwiseStateObservation(Misfit):
     def apply_ij(self,i,j,dir,out):
         if i == STATE and j == STATE:
             self.B.mult(dir, self.Bu)
-            self.B.mult_transp(self.Bu, out)
+            self.B.transpmult(self.Bu, out)
             out *= (1./self.noise_variance)
         else:
             out.zero()
