@@ -370,7 +370,7 @@ if __name__ == "__main__":
         
     print sep, "Test the gradient and the Hessian of the model", sep
     a0 = dl.interpolate(dl.Expression("sin(x[0])"), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-4, 1e-6)
+    modelVerify(model, a0.vector(), 1e-12)
 
     print sep, "Find the MAP point", sep
     a0 = prior.mean.copy()
@@ -453,6 +453,7 @@ if __name__ == "__main__":
     dl.plot(dl.exp(xx[PARAMETER]), title = xxname[PARAMETER])
     dl.plot(xx[ADJOINT], title = xxname[ADJOINT])
     
+    plt.figure()
     plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
     plt.yscale('log')
         

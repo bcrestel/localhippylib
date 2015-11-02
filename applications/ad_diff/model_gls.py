@@ -411,7 +411,7 @@ if __name__ == "__main__":
     
     print sep, "Test the gradient and the Hessian of the model", sep
     a0 = true_initial_condition.copy()
-    modelVerify(problem, a0, 1e-4, 1e-4)
+    modelVerify(problem, a0, 1e-12)
     
     print sep, "Compute the reduced gradient and hessian", sep
     [u,a,p] = problem.generate_vector()
@@ -488,6 +488,7 @@ if __name__ == "__main__":
     
     
     print sep, "Visualize results", sep 
+    plt.figure()
     plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
     plt.yscale('log')
     dl.plot(dl.Function(Vh,a, name = "Initial Condition"))
