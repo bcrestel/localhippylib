@@ -36,6 +36,27 @@ void eval(Array<double>& values, const Array<double>& x) const
     """
     return dl.interpolate(dl.Expression(cpp), Vh).vector()
 
+def prior_mean(Vh):
+    cpp = \
+    """
+    class BetaPrior : public Expression
+    {
+    public:
+
+    BetaPrior() :
+    Expression()
+    {
+    }
+
+void eval(Array<double>& values, const Array<double>& x) const
+  {
+  double val = 1000.;
+  values[0] = log(val);
+  }  
+};
+    """
+    return dl.interpolate(dl.Expression(cpp), Vh).vector()
+
             
 if __name__ == "__main__":
     dl.set_log_active(False)
@@ -76,7 +97,7 @@ if __name__ == "__main__":
     
     gamma = 1.
     delta = 1.
-    prior = LaplaceBeltramiPrior(Vh[PARAMETER], gamma, delta, ds(1), mean=None, rel_tol=1e-12, max_iter=100)
+    prior = LaplaceBeltramiPrior(Vh[PARAMETER], gamma, delta, ds(1), mean=prior_mean(Vh[PARAMETER]), rel_tol=1e-12, max_iter=100)
         
     u_trial,p_trial = dl.TrialFunctions(Vh[STATE])
     u_test,p_test = dl.TestFunctions(Vh[STATE])
@@ -94,4 +115,26 @@ if __name__ == "__main__":
     
     model = Model(problem, prior,misfit)
     modelVerify(model,a_true, 1e-6)
+    
+    a0 = prior.mean.copy()
+    solver = ReducedSpaceNewtonCG(model)
+    solver.parameters["rel_tolerance"] = 1e-9
+    solver.parameters["abs_tolerance"] = 1e-12
+    solver.parameters["max_iter"]      = 25
+    solver.parameters["inner_rel_tolerance"] = 1e-15
+    solver.parameters["c_armijo"] = 1e-4
+    solver.parameters["GN_iter"] = 5
+    
+    x = solver.solve(a0)
+    
+    if solver.converged:
+        print "\nConverged in ", solver.it, " iterations."
+    else:
+        print "\nNot Converged"
+
+    print "Termination reason: ", solver.termination_reasons[solver.reason]
+    print "Final gradient norm: ", solver.final_grad_norm
+    print "Final cost: ", solver.final_cost
+
+    
     plt.show()
