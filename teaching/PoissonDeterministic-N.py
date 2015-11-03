@@ -1,3 +1,16 @@
+## Newton solution of a coefficient field inversion in an
+## elliptic partial differential equation
+##
+##   min  1/2 * ||u - uobs||^2 + gamma/2 * ||grad a||^2,
+##    a
+##        where u is the solution of
+##
+##             - div (a * grad u) = f     on Omega
+##                              u = 0     on bdry(Omega)
+##
+## for given force f, gamma >= 0 and data uobs.
+## The data uobs is constructed using a "true" parameter field atrue
+
 from dolfin import *
 
 import numpy as np
