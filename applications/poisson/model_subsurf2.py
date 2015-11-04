@@ -83,36 +83,7 @@ if __name__ == "__main__":
     misfit.noise_variance = noise_std_dev*noise_std_dev
     
     model = Model(pde,prior, misfit)
-    
-    u_test = pde.generate_state()
-    p_test = pde.generate_state()
-    
-    model.solveFwd(u_test, [u_test, atrue, p_test])
-    model.solveAdj(p_test, [u_test, atrue, p_test])
-    print "||p_test||", p_test.norm("l2")
-    print model.cost([u_test, atrue, p_test])
-    
-    model.setPointForHessianEvaluations([u_test, atrue, p_test])
-    
-    xx = model.generate_vector()
-    yy = model.generate_vector()
-    xx[STATE].axpy(1., u_test)
-    xx[STATE].axpy(-1., p_test)
-    xx[ADJOINT].axpy(2., u_test)
-    xx[ADJOINT].axpy(-.5, p_test)
-    xx[PARAMETER].axpy(.1, atrue)
-    
-    model.applyC(xx[PARAMETER], yy[STATE])
-    print "||Ca|| =", yy[STATE].norm("l2")
-    model.applyCt(xx[ADJOINT], yy[PARAMETER])
-    print "||C^t p|| =", yy[PARAMETER].norm("l2")
-    model.applyWuu(xx[STATE], yy[STATE])
-    print "||Wuu u|| =", yy[STATE].norm("l2")
-    model.applyWau(xx[STATE], yy[PARAMETER])
-    print "||Wua a|| =", yy[PARAMETER].norm("l2")
-    model.applyWua(xx[PARAMETER], yy[STATE])
-    print "||Wau u|| =", yy[PARAMETER].norm("l2")
-       
+           
     print sep, "Test the gradient and the Hessian of the model", sep
     a0 = dl.interpolate(dl.Expression("sin(x[0])"), Vh[PARAMETER])
     modelVerify(model, a0.vector(), 1e-12)

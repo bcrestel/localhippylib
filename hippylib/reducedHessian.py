@@ -81,7 +81,7 @@ class ReducedHessian:
         """
         self.model.applyC(x, self.rhs_fwd)
         self.model.solveFwdIncremental(self.uhat, self.rhs_fwd, self.tol)
-        self.model.applyWuu(self.uhat, self.rhs_adj)
+        self.model.applyWuu(self.uhat, self.rhs_adj, True)
         self.model.solveAdjIncremental(self.phat, self.rhs_adj, self.tol)
         self.model.applyCt(self.phat, y)
         

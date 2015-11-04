@@ -144,9 +144,9 @@ class PDEVariationalProblem(PDEProblem):
         """
         solver = dl.PETScLUSolver()
         if is_adj:
-            solver.set_operator(self.A)
-        else:
             solver.set_operator(self.At)
+        else:
+            solver.set_operator(self.A)
             
         solver.solve(out, rhs)
     
