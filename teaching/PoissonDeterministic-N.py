@@ -103,10 +103,6 @@ iter = 0
 total_cg_iter = 0
 solution = 0
 
-# flags for checking the derivatives
-grad_check = 0
-Hess_Check = 0
-
 # create mesh and define function spaces
 nx = 64
 ny = 64
@@ -120,11 +116,9 @@ u_test, p_test, ud_test, g_test = TestFunction(V2), TestFunction(V2), TestFuncti
 p = Function(V2)
 
 # initialize input functions
-#atrue = Expression('log(2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2))')
 atrue = interpolate(Expression('8. - 4.*(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2) < pow(0.2,2))'), V)
 f = Constant("1.0")
 u0 = Constant("0.0")
-#a = interpolate(Expression("log(2.0)"),V)
 a = interpolate(Expression("4."),V)
 
 # set up dirichlet boundary conditions
@@ -207,56 +201,6 @@ while iter <  maxiter and solution == 0:
     MG = CT_p + R * a.vector()
     solve(M, g, MG)
 
-    # gradient check via the finite differences
-    if grad_check == 1:
-        h = Vector()
-        R.init_vector(h,0)
-        h.set_local(np.random.normal(0, 1, len(g.array())) )
-        [cost1, misfit1, reg1] = cost(u, ud, a, W, R)
-
-        a_prev.assign(a)
-        a.vector().axpy(eps, h)
-        state_A, state_b = assemble_system(a_state, L_state, bc2)
-        solve(state_A, u.vector(), state_b)
-        [cost2, misfit2, reg2] = cost(u, ud, a, W, R)
-
-        RHS = (cost2 - cost1)/eps
-        LHS = g.inner( M * h)
-
-        a.assign(a_prev)
-
-        print "relative error of gradient: %5.3e" % (abs(RHS - LHS)/abs(RHS))
-
-    if Hess_Check == 1 and iter == 1:
-        Norm_Check('a','u','p')
-        # Hessian Finite Difference Check
-        h = Vector()
-        R.init_vector(h,0)
-        h.set_local( np.random.normal(0, 1, len(g.array()) ) )
-        a.vector().axpy(eps, h)
-
-        # Calculate H(a)*h
-        H = Hess_Newton (h, R, C, A, W, Wua)
-
-        # solve state equation
-        A, state_b = assemble_system (a_state, L_state, bc2)
-        solve (A, u.vector(), state_b)
-
-        # solve adjoint equation
-        A, adjoint_RHS = assemble_system(a_state, L_adjoint, bc2)
-        C = assemble (C_equ)
-        solve(A, p.vector(), adjoint_RHS)
-
-        # solve gradient
-        C.transpmult(p, CT_p)
-        MG2 = CT_p + R * a.vector()
-        solve(M, g, MG2)
-
-        # Compute FD Approximation
-        FD = (MG2 - MG)/eps
-        print "Relative Hessian Error", np.linalg.norm(H.array() - FD.array())/np.linalg.norm(FD.array())
-        break
-
     # calculate the norm of the gradient
     grad2 = g.inner(MG)
     gradnorm = sqrt(grad2)
@@ -323,7 +267,6 @@ if solution == 0:
     print "Newton's method did not converge in ", maxiter, " iterations"
 
 # Dump solution to file in VTK format
-
 u.rename("u","ignore_this")
 File('poisson_state.pvd') << u
 
