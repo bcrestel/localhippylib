@@ -337,7 +337,7 @@ if __name__ == "__main__":
     model = Poisson(mesh, Vh, Prior)
         
     a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-4, 1e-4)
+    modelVerify(model, a0.vector(), 1e-12)
 
     a0 = interpolate(Expression("0.0"),Vh[PARAMETER])
     solver = ReducedSpaceNewtonCG(model)
@@ -369,6 +369,7 @@ if __name__ == "__main__":
     k = min( 250, Vh[PARAMETER].dim()-p)
     Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
     d, U = singlePassG(Hmisfit, Prior.R, Prior.Rsolver, Omega, k)
+    plt.figure()
     plt.plot(range(0,k), d, 'b*')
     plt.yscale('log')
     

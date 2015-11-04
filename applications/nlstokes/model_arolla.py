@@ -5,49 +5,36 @@ from hippylib import *
 import numpy as np
 import matplotlib.pyplot as plt
 
-def u_boundary(x, on_boundary):
-    return on_boundary and ( x[1] < dl.DOLFIN_EPS or x[1] > 1.0 - dl.DOLFIN_EPS)
+def true_model(Vh):
+    cpp =
+    """
+    class BetaTrue : public Expression
+    {
+    public:
 
-def v_boundary(x, on_boundary):
-    return on_boundary and ( x[0] < dl.DOLFIN_EPS or x[0] > 1.0 - dl.DOLFIN_EPS)
+    BetaTrue() :
+    Expression()
+    {
+    }
 
-def compute_velocity(mesh, Vh, a, u):
-    #export the velocity field v = - exp( a ) \grad u: then we solve ( exp(-a) v, w) = ( u, div w)
-    Vv = dl.FunctionSpace(mesh, 'RT', 1)
-    v = dl.Function(Vv, name="velocity")
-    vtrial = dl.TrialFunction(Vv)
-    vtest = dl.TestFunction(Vv)
-    afun = dl.Function(Vh[PARAMETER], a)
-    ufun = dl.Function(Vh[STATE], u)
-    Mv = dl.exp(-afun) *dl.inner(vtrial, vtest) *dl.dx
-    n = dl.FacetNormal(mesh)
-    class TopBoundary(dl.SubDomain):
-        def inside(self,x,on_boundary): 
-            return on_boundary and x[1] > 1 - dl.DOLFIN_EPS
-        
-    Gamma_M = TopBoundary()
-    boundaries = dl.FacetFunction("size_t", mesh)
-    boundaries.set_all(0)
-    Gamma_M.mark(boundaries, 1)
-    dss = dl.Measure("ds")[boundaries]
-    rhs = ufun*dl.div(vtest)*dl.dx - dl.dot(vtest,n)*dss(1)
-    bcv = dl.DirichletBC(Vv, dl.Expression( ("0.0", "0.0") ), v_boundary)
-    dl.solve(Mv == rhs, v, bcv)
-    
-    return v
+void eval(Array<double>& values, const Array<double>& x) const
+  {
+  double pi = 4.*atan(1.);
+  double val = 0.;
+  double x0 = x[0];
+  if(x0 < 3750.)
+     val = 1000.*(1. + sin(2*pi*x0/5000.));
+  else if (x0 < 4000.)
+     val = 1000.*(16 - x0/250.);
+  else
+     val = 1000.;
+  values[0] = log(val);
+  }  
+};
+    """
+    return dl.interpolate(dl.Expression(cpp), Vh).vector()
 
-def true_model(Vh, gamma, delta, anis_diff):
-    prior = BiLaplacianPrior(Vh, gamma, delta, anis_diff )
-    noise = dl.Vector()
-    prior.init_vector(noise,"noise")
-    noise_size = noise.array().shape[0]
-    noise.set_local( np.random.randn( noise_size ) )
-    atrue = dl.Vector()
-    prior.init_vector(atrue, 0)
-    prior.sample(noise,atrue)
-    return atrue
-
-class Poisson:
+class Arolla:
     def __init__(self, mesh, Vh, targets, prior):
         """
         Construct a model by proving
@@ -58,16 +45,15 @@ class Poisson:
         self.mesh = mesh
         self.Vh = Vh
         
-        # Initialize Expressions
-        self.f = dl.Expression("0.0")
+        self.rho = dl.Constant(910.) #kg/m^3
+        self.g   = dl.Constant(9.81) #m/s^2
+        self.n   = dl.Constant(3)
+        self.RateFactor = dl.Constant(1e-16) #Pa^-n years^-1 
         
-        self.u_bdr = dl.Expression("x[1]")
-        self.u_bdr0 = dl.Expression("0.0")
-        self.bc = dl.DirichletBC(self.Vh[STATE], self.u_bdr, u_boundary)
-        self.bc0 = dl.DirichletBC(self.Vh[STATE], self.u_bdr0, u_boundary)
-                
+        # Initialize Expressions
+        self.f_vel = dl.Expression([dl.Constant(0.), -self.rho*self.g])
+                        
         # Assemble constant matrices      
-        self.M = self.assembleM()
         self.prior = prior
         self.B = assemblePointwiseObservation(Vh[STATE],targets)
                 
@@ -80,6 +66,25 @@ class Poisson:
         self.u_o = dl.Vector()
         self.B.init_vector(self.u_o,0)
         self.noise_variance = 0
+        
+    def _forwardvarf(self, a, up, vq):
+        n = dl.FacetNormal(self.mesh)
+        h = dl.CellSize(self.mesh)
+        pen = dl.Constant(10)
+        
+        uh,ph = dl.split(up)
+        vh,qh = dl.split(vq)
+        
+        eta = dl.power(self.RateFactor, -1./self.n)*dl.power( dl.sym( dl.grad(uh) ) , .5*( dl.Constant(1.) - self.n)/self.n )
+        def t(u,p,n): return dl.dot(eta*dl.sym(dl.grad(u)),n) - p*n
+        
+        a11 = eta*dl.inner(dl.sym( dl.grad(uh) ), dl.sym( dl.grad(vh) ))*dl.dx
+        a12 = -dl.nabla_div(vh)*ph*dl.dx
+        a21 = -dl.nabla_div(uh)*qh*dl.dx
+        robinvarf  = dl.exp(a)*dl.inner(uh - dl.dot(dl.outer(n,n),uh), vh) * self.ds(1)
+        weak_bc = -dl.dot(n, t(uh, ph, n) )*dl.dot(vh,n)*dl.ds(1) - dl.dot(n, t(vh, qh, n) )*dl.dot(uh,n)*dl.ds(1) + pen/h*dl.dot(uh,n)*dl.dot(vh, n)*dl.ds(1)
+        
+        return a11+a12+a21+robinvarf+weak_bc
         
     def generate_vector(self, component="ALL"):
         """
@@ -114,33 +119,23 @@ class Poisson:
         """
         self.prior.init_vector(a,0)
         
-    def assembleA(self,x, assemble_adjoint = False, assemble_rhs = False):
+    def assembleA(self,x, assemble_adjoint = False):
         """
         Assemble the matrices and rhs for the forward/adjoint problems
         """
         trial = dl.TrialFunction(self.Vh[STATE])
         test = dl.TestFunction(self.Vh[STATE])
-        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
-        Avarf = dl.inner(dl.exp(c)*dl.nabla_grad(trial), dl.nabla_grad(test))*dl.dx
+        a = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        up = dl.Function(self.Vh[PARAMETER], x[STATE])
+        res_varf = self._forwardvarf(self, a, up, test)
+        Avarf = dl.derivative(res_varf, up, trial)
         if not assemble_adjoint:
-            bform = dl.inner(self.f, test)*dl.dx
-            Matrix, rhs = dl.assemble_system(Avarf, bform, self.bc)
+            A = dl.assemble(Avarf)
         else:
             # Assemble the adjoint of A (i.e. the transpose of A)
-            s = dl.Function(self.Vh[STATE], x[STATE])
-            bform = dl.inner(dl.Constant(0.), test)*dl.dx
-            Matrix, _ = dl.assemble_system(dl.adjoint(Avarf), bform, self.bc0)
-            Bu = -(self.B*x[STATE])
-            Bu += self.u_o
-            rhs = dl.Vector()
-            self.B.init_vector(rhs, 1)
-            self.B.transpmult(Bu,rhs)
-            rhs *= 1.0/self.noise_variance
+            A = dl.assemble(dl.adjoint(Avarf))
             
-        if assemble_rhs:
-            return Matrix, rhs
-        else:
-            return Matrix
+        return A
     
     def assembleC(self, x):
         """
@@ -148,37 +143,26 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test = dl.TestFunction(self.Vh[STATE])
-        s = dl.Function(self.Vh[STATE], x[STATE])
-        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
-        Cvarf = dl.inner(dl.exp(c) * trial * dl.nabla_grad(s), dl.nabla_grad(test)) * dl.dx
+        up = dl.Function(self.Vh[STATE], x[STATE])
+        a = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        res_varf = self._forwardvarf(self, a, up, test)
+        Cvarf = dl.derivative(res_varf, a, trial)
         C = dl.assemble(Cvarf)
-#        print "||c||", x[PARAMETER].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
-        self.bc0.zero(C)
         return C
-        
-    def assembleM(self):
-        """
-        Assemble the mass matrix in the parameter space.
-        This is needed in evalGradientParameter to compute the L2 norm of the gradient
-        """
-        trial = dl.TrialFunction(self.Vh[PARAMETER])
-        test  = dl.TestFunction(self.Vh[PARAMETER])
-        varf = dl.inner(trial, test)*dl.dx
-        return dl.assemble(varf)
-        
+                
     def assembleWau(self, x):
         """
         Assemble the derivative of the parameter equation with respect to the state
         """
         trial = dl.TrialFunction(self.Vh[STATE])
         test  = dl.TestFunction(self.Vh[PARAMETER])
-        a = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
-        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
-        varf = dl.inner(dl.exp(c)*dl.nabla_grad(trial),dl.nabla_grad(a))*test*dl.dx
+        vq = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
+        a = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        up = dl.Function(self.Vh[STATE], x[STATE])
+        val = self._forwardvarf(self, a, up, vq)
+        form = dl.derivative(val, a, test)
+        varf = dl.derivative(form, up, trial)
         Wau = dl.assemble(varf)
-        dummy = dl.Vector()
-        Wau.init_vector(dummy,0)
-        self.bc0.zero_columns(Wau, dummy)
         return Wau
     
     def assembleRaa(self, x):
@@ -187,10 +171,12 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test  = dl.TestFunction(self.Vh[PARAMETER])
-        s = dl.Function(self.Vh[STATE], x[STATE])
-        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
-        a = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
-        varf = dl.inner(dl.nabla_grad(a),dl.exp(c)*dl.nabla_grad(s))*trial*test*dl.dx
+        vq = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
+        a = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        up = dl.Function(self.Vh[STATE], x[STATE])
+        val = self._forwardvarf(a, up, vq)
+        form = dl.derivative(val,a,test)
+        varf = dl.derivative(form, a, trial)
         return dl.assemble(varf)
 
             
@@ -221,32 +207,31 @@ class Poisson:
         return c, reg, misfit
     
     def solveFwd(self, out, x, tol=1e-9):
-        """
-        Solve the forward problem.
-        """
-        A, b = self.assembleA(x, assemble_rhs = True)
-        A.init_vector(out, 1)
-        solver = dl.PETScKrylovSolver("cg", amg_method())
-        solver.parameters["relative_tolerance"] = tol
-        solver.set_operator(A)
-        nit = solver.solve(out,b)
-        
-#        print "FWD", (self.A*out - b).norm("l2")/b.norm("l2"), nit
+        a = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        up = dl.Function(self.Vh[STATE], x[STATE])
+        vq = dl.TestFunction(self.Vh[STATE])
+        vh,qh = dl.split(vq)
+        form = self._forwardvarf(a, up, vq)
+        rhs  = self.f_vel*vh*dl.dx + dl.Constant(0.)*qh*dl.dx
+        sol = dl.Function(self.Vh[STATE], out)
+        dl.solve(form==rhs, sol, solver_parameters={"newton_solver": {"relative_tolerance":tol, "maximum_iterations":100}}))
 
     
     def solveAdj(self, out, x, tol=1e-9):
         """
         Solve the adjoint problem.
         """
-        At, badj = self.assembleA(x, assemble_adjoint = True,assemble_rhs = True)
+        At = self.assembleA(x, assemble_adjoint = True)
         At.init_vector(out, 1)
+        Bu = -(self.B*x[STATE])
+        Bu += self.u_o
+        rhs = dl.Vector()
+        self.B.init_vector(rhs, 1)
+        self.B.transpmult(Bu,rhs)
+        rhs *= 1.0/self.noise_variance
         
-        solver = dl.PETScKrylovSolver("cg", amg_method())
-        solver.parameters["relative_tolerance"] = tol
-        solver.set_operator(At)
-        nit = solver.solve(out,badj)
-        
-#        print "ADJ", (self.At*out - badj).norm("l2")/badj.norm("l2"), nit
+        solver = dl.PETScLUSolver(At)
+        nit = solver.solve(out,rhs)
     
     def evalGradientParameter(self,x, mg):
         """
@@ -271,9 +256,7 @@ class Poisson:
         g = dl.Vector()
         self.prior.init_vector(g,1)
         
-        solver = dl.PETScKrylovSolver("cg", "jacobi")
-        solver.set_operator(self.M)
-        solver.solve(g, mg)
+        self.prior.Msolver.solve(g, mg)
         g_norm = dl.sqrt( g.inner(mg) )
         
         return g_norm
@@ -295,9 +278,7 @@ class Poisson:
         """
         Solve the incremental forward problem for a given rhs
         """
-        solver = dl.PETScKrylovSolver("cg", amg_method())
-        solver.set_operator(self.A)
-        solver.parameters["relative_tolerance"] = tol
+        solver = dl.PETScLUSolver(self.A)
         self.A.init_vector(sol,1)
         nit = solver.solve(sol,rhs)
 #        print "FwdInc", (self.A*sol-rhs).norm("l2")/rhs.norm("l2"), nit
@@ -306,9 +287,7 @@ class Poisson:
         """
         Solve the incremental adjoint problem for a given rhs
         """
-        solver = dl.PETScKrylovSolver("cg", amg_method())
-        solver.set_operator(self.At)
-        solver.parameters["relative_tolerance"] = tol
+        solver = dl.PETScLUSolver(self.At)
         self.At.init_vector(sol,1)
         nit = solver.solve(sol, rhs)
 #        print "AdjInc", (self.At*sol-rhs).norm("l2")/rhs.norm("l2"), nit
@@ -395,7 +374,7 @@ if __name__ == "__main__":
    
     print sep, "Test the gradient and the Hessian of the model", sep
     a0 = dl.interpolate(dl.Expression("sin(x[0])"), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-12)
+    modelVerify(model, a0.vector(), 1e-4, 1e-6)
 
     print sep, "Find the MAP point", sep
     a0 = prior.mean.copy()
@@ -481,7 +460,6 @@ if __name__ == "__main__":
     dl.plot(dl.exp(xx[PARAMETER]), title = xxname[PARAMETER])
     dl.plot(xx[ADJOINT], title = xxname[ADJOINT])
     
-    plt.figure()
     plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
     plt.yscale('log')
         

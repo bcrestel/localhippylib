@@ -26,8 +26,11 @@ from linalg import MatMatMult, MatPtAP, to_dense, trace, get_diagonal, estimate_
 from timeDependentVector import TimeDependentVector
 from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePassG
 from lowRankOperator import LowRankOperator
-from prior import LaplacianPrior, BiLaplacianPrior, ConstrainedBiLaplacianPrior, MollifiedBiLaplacianPrior
+from prior import LaplacianPrior, BiLaplacianPrior, ConstrainedBiLaplacianPrior, MollifiedBiLaplacianPrior, LaplaceBeltramiPrior
 from posterior import GaussianLRPosterior
 from cgsampler import CGSampler
 from traceEstimator import TraceEstimator
 from expression import code_AnisTensor2D, code_Mollifier
+from PDEProblem import PDEProblem, PDEVariationalProblem
+from misfit import DistributedStateObservation, PointwiseStateObservation
+from model import Model
