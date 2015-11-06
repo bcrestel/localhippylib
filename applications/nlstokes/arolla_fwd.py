@@ -27,7 +27,7 @@ void eval(Array<double>& values, const Array<double>& x) const
   if(x0 < 3750.)
      val = 1000.*(1. + sin(2*pi*x0/5000.));
   else if (x0 < 4000.)
-     val = 1000.*(16 - x0/250.);
+     val = 1000. - 1000.*(16 - x0/250.);
   else
      val = 1000.;
   values[0] = log(val);
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     gravity   = dl.Expression(("0.","-9.81")) #m/s^2
     GlenExp   = dl.Constant(3)
     RateFactor = dl.Constant(1e-16) #Pa^-n years^-1
-    eps = dl.Constant(1e-5)
+    eps = dl.Constant(1e-10)
     pen = dl.Constant(1.e10)
     
     problem = IceProblem([Vh, Vh1], ds(1), RateFactor, GlenExp, density, gravity, eps,pen)
