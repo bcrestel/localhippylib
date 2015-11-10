@@ -64,7 +64,7 @@ MAX         = ud.vector().norm("linf")
 noise       = Vector()
 mat_state.init_vector(noise,1)
 noise.set_local( noise_level * MAX * np.random.normal(0, 1, len(ud.vector().array())) )
-bc.apply(noise)
+#bc.apply(noise)
 ud.vector().axpy(1., noise)
 File("data.pvd") << ud
 

@@ -29,7 +29,7 @@ np.random.seed(seed=1)
 # The cost function evaluation:
 def cost(u, ud, a, W, R):
     diff = u.vector() - ud.vector()
-    reg = 0.5 * a.vector().inner(R*a.vector() ) 
+    reg = 0.5 * a.vector().inner(R*a.vector() )
     misfit = 0.5 * diff.inner(W * diff)
     return [reg + misfit, misfit, reg]
 
@@ -45,7 +45,7 @@ V2 = FunctionSpace(mesh, 'Lagrange', 2)
 
 # The true and inverted parameter
 atrue = interpolate(Expression('8. - 4.*(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2) < pow(0.2,2))'), V)
-a = interpolate(Expression("4."),V)
+a = interpolate(Expression("8."),V)
 
 File("parameter_true.pvd") << atrue
 File("parameter_initial_guess.pvd") << a
@@ -66,8 +66,8 @@ u0 = Constant("0.0")
 noise_level = 0.05
 
 # define parameters for the optimization
-tol = 1e-6
-gamma = 1e-8
+tol = 1e-7
+gamma = 1e-16
 maxiter = 1000
 plot_any = 30
 
@@ -79,7 +79,6 @@ converged = False
 def u0_boundary(x,on_boundary):
     return on_boundary
 bc2 = DirichletBC(V2, u0, u0_boundary)
-
 
 # Set up synthetic observations:
 # weak form for setting up the synthetic observations
@@ -120,7 +119,7 @@ W_equ   = inner(u_trial, u_test) * dx
 L_adjoint = -inner(u - ud, u_test) * dx
 
 # weak form for setting up matrices
-CT_equ   = inner(a_test * nabla_grad(u), nabla_grad(p_trial)) * dx
+CT_equ  = inner(a_test * nabla_grad(u), nabla_grad(p_trial)) * dx
 M_equ   = inner(a_trial, a_test) * dx
 R_equ   = gamma * inner(nabla_grad(a_trial), nabla_grad(a_test)) * dx
 
@@ -164,7 +163,7 @@ while iter <  maxiter and not converged:
     gradnorm = sqrt(grad_norm2)
 
     # linesearch
-    c_armijo = 1e-5
+    c_armijo = 1e-4
     alpha = 1e5
     it_backtrack = 0
     a_prev.assign(a)
@@ -188,7 +187,7 @@ while iter <  maxiter and not converged:
             a.assign(a_prev)  # reset a
 
     sp = ""
-    print "%2d %1s %8.5e %1s %8.5e %1s %8.5e %1s %8.5e %1s %5.2f" % \
+    print "%3d %1s %8.5e %1s %8.5e %1s %8.5e %1s %8.5e %1s %5.2f" % \
         (iter, sp, cost_new, sp, misfit_new, sp, reg_new, sp, \
         gradnorm, sp, alpha)
 
