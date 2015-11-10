@@ -9090,7 +9090,7 @@ $$J( a + \alpha \delta a ) \leq J(a) + \alpha c_{\rm armijo} (\delta a,g). $$</p
         <span class="p">[</span><span class="n">cost_new</span><span class="p">,</span> <span class="n">misfit_new</span><span class="p">,</span> <span class="n">reg_new</span><span class="p">]</span> <span class="o">=</span> <span class="n">cost</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">ud</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>
 
         <span class="c"># check if Armijo conditions are satisfied</span>
-        <span class="k">if</span> <span class="n">cost_new</span> <span class="o">&lt;</span> <span class="n">cost_old</span> <span class="o">-</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">c</span> <span class="o">*</span> <span class="n">grad2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">cost_new</span> <span class="o">&lt;</span> <span class="n">cost_old</span> <span class="o">+</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">c</span> <span class="o">*</span> <span class="n">MG.inner(a_delta)</span><span class="p">:</span>
             <span class="n">cost_old</span> <span class="o">=</span> <span class="n">cost_new</span>
             <span class="n">descent</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="k">else</span><span class="p">:</span>

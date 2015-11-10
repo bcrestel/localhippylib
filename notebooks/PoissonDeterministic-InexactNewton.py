@@ -279,7 +279,7 @@ while iter <  maxiter and not converged:
         [cost_new, misfit_new, reg_new] = cost(u, ud, a, W, R)
 
         # check if Armijo conditions are satisfied
-        if cost_new < cost_old - alpha * c * grad2:
+        if cost_new < cost_old + alpha * c * MG.inner(a_delta):
             cost_old = cost_new
             descent = 1
         else:
