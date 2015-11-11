@@ -1,0 +1,524 @@
+
+\documentclass[12pt]{article}
+
+%% \usepackage{times}
+% \usepackage{newcent}
+%% FONTS
+%% To get the default sans serif font in latex, uncomment following line:
+\renewcommand*\familydefault{\sfdefault}
+%%
+%% to get Arial font as the sans serif font, uncomment following line:
+%% \renewcommand{\sfdefault}{phv} % phv is the Arial font
+%%
+%% to get Helvetica font as the sans serif font, uncomment following line:
+% \usepackage{helvet}
+\usepackage{wrapfig}
+%% NATBIB is the one to use here. Just be careful since it puts space
+%% between references; there's probably some customization that
+%% compresses the space out (like the cite package does).
+%% For CDI, space was tight so we went back to cite
+% \usepackage[square,numbers,sort&compress]{natbib}
+%% note that hyperref has problems with the cite package--better to
+%% use natbib
+\usepackage[sort,nocompress]{cite}
+% \usepackage[margin=0pt,font=small,labelsep=space,labelfont=bf]{caption}
+\usepackage[small,bf,up]{caption}
+\renewcommand{\captionfont}{\footnotesize}
+\usepackage[left=1in,right=1in,top=1in,bottom=1in]{geometry}
+\usepackage{graphics,epsfig,graphicx,float,subfigure,color}
+\usepackage{algorithm,algorithmic}
+\usepackage{amsmath,amssymb,amsbsy,amsfonts,amsthm}
+% \usepackage{subsec}
+\usepackage{comment}
+\usepackage{url}
+\usepackage{boxedminipage}
+\usepackage[sf,bf,small]{titlesec}
+% \usepackage[textsize=footnotesize]{todonotes}
+ \usepackage[plainpages=false, colorlinks=true,
+   citecolor=blue, filecolor=blue, linkcolor=blue,
+   urlcolor=blue]{hyperref}
+% \usepackage{url}
+
+\newcommand{\todo}[1]{\textcolor{red}{#1}}
+% see documentation for titlesec package
+% \titleformat{\section}{\large \sffamily \bfseries}
+\titlelabel{\thetitle.\,\,\,}
+
+% \renewcommand{\baselinestretch}{0.994}
+
+\newcommand{\gbf}[1]{\text{\boldmath${#1}$\unboldmath}}
+\newcommand{\bs}{\boldsymbol}
+\newcommand{\Div}{\text{div}}
+
+\newcommand{\edot}{\dot{\gbf{\varepsilon}}}
+\newcommand{\secinve}{\edot_\mathrm{II}}
+\newcommand{\secinvt}{\gbf{\tau}_\mathrm{II}}
+\newcommand{\cD}{\mathcal{D}}
+\newcommand{\cF}{\mathcal{F}}
+\newcommand{\cL}{\mathcal{L}}
+\newcommand{\cR}{\mathcal{R}}
+
+\newcommand{\obs}{\mathrm{obs}}
+
+\newcommand{\bit}{\begin{itemize}}
+\newcommand{\eit}{\end{itemize}}
+
+\newcommand{\bdm}{\begin{displaymath}}
+\newcommand{\edm}{\end{displaymath}}
+
+\newcommand{\ben}{\begin{enumerate}}
+\newcommand{\een}{\end{enumerate}}
+
+\newcommand{\alert}[1]{\textcolor{red}{#1}}
+% \newcommand{\alert}[1]{\textcolor{SkyBlue3}{#1}}
+
+\newcommand{\mcone}[1]{\multicolumn{1}{c}{#1}}
+\newcommand{\tentwo}[1] {\ensuremath{\boldsymbol{#1}}}
+\newcommand{\tenfour}[1] {\ensuremath{\boldsymbol{\mathsf{#1}}}}
+\renewcommand{\vec}[1] {\ensuremath{\boldsymbol{#1}}}
+
+\newcommand{\zapspace}{\topsep=0pt\partopsep=0pt\itemsep=0pt\parskip=0pt}
+
+\newcommand{\footnoteremember}[2]{\footnote{#2}\newcounter{#1}\setcounter{#1}{\value{footnote}}}
+
+\newcommand{\footnoterecall}[1]{\footnotemark[\value{#1}]}
+
+\setlength{\emergencystretch}{20pt}
+
+\begin{document}
+
+\begin{center}
+\large \textsf{\textbf{%%
+Spring 2014: \\ 
+Computational and Variational Methods for Inverse Problems\\
+CSE 397/GEO 391/ME 397/ORI 397\\
+Assignment 3 (due 24 March 2014)}}
+\end{center}
+
+\noindent
+The problems below require a mix of paper-and-pencil work and FEniCS implementation.
+Example implementations in FEniCS (as used for Problems 2 and 3 below) can be found on the class
+website,
+\url{http://users.ices.utexas.edu/~omar/inverse_probs/index.html}. Please
+hand in printouts of your FEniCS implementations together with the
+results.
+
+\begin{enumerate}
+
+\item The problem of removing noise from an image without blurring
+sharp edges can be formulated as an infinite-dimensional minimization
+problem. Given a possibly noisy image $u_0(x,y)$ defined within a
+square domain $\Omega$, we would like to
+find the image $u(x,y)$ that is closest in the $L_2$ sense, i.e.\ we
+want to minimize 
+%
+\bdm
+\mathcal{F}_{LS} := \frac{1}{2}\int_\Omega (u - u_0)^2 \; d\boldsymbol{x},
+\edm
+%
+while also removing noise, which is assumed to comprise very ``rough''
+components of the image. This latter goal can be incorporated as an
+additional term in the objective, in the form of a penalty, i.e., 
+%
+\bdm \mathcal{R}_{TN} := \! \frac{1}{2}\int_\Omega k(\boldsymbol{x}) \nabla u
+\cdot \! \nabla u \; d\boldsymbol{x}, 
+\edm 
+%
+where $k(\boldsymbol{x})$ acts as a ``diffusion'' coefficient that controls
+how strongly we impose the penalty, i.e.\ how much smoothing
+occurs. Unfortunately, if there are sharp edges in the image, this
+so-called {\em Tikhonov (TN) regularization} will blur them. Instead,
+in these cases we prefer the so-called {\em total variation (TV)
+regularization},
+%
+\bdm
+\mathcal{R}_{TV} := \! \int_\Omega k(\boldsymbol{x}) (\nabla u \cdot \! \nabla
+u)^{\frac{1}{2}} \; d\boldsymbol{x}
+\edm
+%
+where (we will see that) taking the square root is the key to
+preserving edges. Since 
+$\mathcal{R}_{TV}$ is not differentiable when $\nabla u =
+\boldsymbol{0}$, it is usually modified to include a positive parameter
+$\varepsilon$ as follows:
+\bdm
+\mathcal{R}^{\varepsilon}_{TV} := \!  \int_\Omega k(\boldsymbol{x}) (\nabla u \cdot
+\! \nabla u + \varepsilon)^{\frac{1}{2}} \; d\boldsymbol{x}.
+\edm
+We wish to study the performance of the two denoising functionals
+$\mathcal{F}_{TN}$ and $\mathcal{F}^{\varepsilon}_{TV}$, where
+\bdm
+\mathcal{F}_{TN}  := \mathcal{F}_{LS} + \mathcal{R}_{TN}  
+\edm
+and
+\bdm
+\mathcal{F}^{\varepsilon}_{TV}  := \mathcal{F}_{LS} +
+      \mathcal{R}^{\varepsilon}_{TV}.
+\edm
+%
+We will prescribe the homogeneous Neumann condition 
+$\nabla u \cdot \boldsymbol{n}=0$ on the four sides of the square,
+which amounts to assuming that the image intensity does not change
+normal to the boundary of the image. 
+
+\ben
+
+\item For both $\mathcal{F}_{TN}$ and
+$\mathcal{F}^{\varepsilon}_{TV}$, derive the 
+first-order necessary condition for optimality using calculus of
+variations, in both weak form and strong form. Use $\hat{u}$ to represent
+the variation of $u$.
+
+\item Show that when $\boldsymbol{\nabla}u$ is zero, $\mathcal{R}_{TV}$ is not
+differentiable, but $\mathcal{R}^{\varepsilon}_{TV}$ is.
+
+\item For both $\mathcal{F}_{TN}$ and
+  $\mathcal{F}^{\varepsilon}_{TV}$, derive the infinite-dimensional
+  Newton step, in both weak and strong form. For consistency of
+  notation, please use $\tilde{u}$ as the differential of $u$
+  (i.e.\ the Newton step). The strong form of the second variation of
+  $\mathcal{F}^{\varepsilon}_{TV}$ will give an anisotropic diffusion
+  operator of the form $-\Div(\boldsymbol{A}(u) \nabla \tilde{u})$,
+  where $\boldsymbol{A}(u)$ is an anisotropic tensor that plays the
+  role of the diffusivity coefficient\footnote{Hint: For vectors
+    $a,b,c\in \mathbb{R}^n$, note the identity $(a\cdot b)c =
+    (ca^T)b$, where $a\cdot b\in \mathbb{R}$ is the inner product and
+    $ca^T\in \mathbb{R}^{n\times n}$ is a matrix of rank one.}. (In
+  contrast, you can think of the second variation of
+  $\mathcal{F}_{TN}$ giving an {\em isotropic} diffusion operator,
+  i.e.\ with $\boldsymbol{A}= \alpha \boldsymbol{I}$ for some
+  $\alpha$.)
+
+\item Derive expressions for the two eigenvalues and corresponding
+  eigenvectors of $\boldsymbol{A}$. Based on these expressions, give
+  an explanation of why $\mathcal{F}_{TV}^{\varepsilon}$ is effective
+  at preserving sharp edges in the image, while $\mathcal{F}_{TN}$ is
+  not. Consider a single Newton step for this argument.
+
+\item Show that for large
+enough $\varepsilon$, $\mathcal{R}^{\varepsilon}_{TV}$ behaves like
+$\mathcal{R}_{TN}$, and for $\varepsilon=0$, the Hessian of
+$\mathcal{R}^{\varepsilon}_{TV}$ is singular. This suggests that
+$\varepsilon$ should be chosen small enough that edge preservation is
+not lost, but not too small that ill-conditioning occurs.
+
+%\item Show the equivalence between the following two approaches:
+%\bit
+%\item {\em Ritz method (i.e.\ ``discretize-then-optimize'')}: First make a finite element
+%approximation of the infinite-dimensional functional
+%$\mathcal{F}^{\varepsilon}_{TV}$, and then derive the
+%finite-dimensional Newton step.
+%%
+%\item {\em Galerkin method (i.e.\ ``optimize-then-discretize'')}: Directly make a finite
+%element approximation of the (weak form of the) infinite-dimensional
+%Newton step you derived above.
+%\eit
+
+\een
+
+%\end{enumerate}
+% ****************************
+
+\item An anisotropic Poisson problem in a two-dimensional domain
+  $\Omega$ is given by the strong form
+\begin{subequations}\label{eq:P}
+\begin{align}\label{eq:P1}
+-\nabla \cdot\left( \bs{A} \nabla u\right) &= f \quad
+\:\:\text{ in }\Omega, \\ 
+u &= u_0  \quad \text{ on }\partial\Omega,
+\end{align}
+\end{subequations}
+where the conductivity tensor $\bs{A}(\bs{x})\in \mathbb{R}^{2\times
+  2}$ is assumed to be symmetric and positive definite for all
+$\bs{x}$, $f(\bs{x})$ is a given distributed source, and $u_0(\bs{x})$
+is the boundary source.\footnote{One interpretation of
+  Eqn.\ \eqref{eq:P} is that it describes the steady state conduction
+  of heat in a solid body. In this case, $u$ is the temperature,
+  $\bs{A}$ is the thermal conductivity, $f$
+  is the distributed heat source, and the temperature at the boundary
+  $\partial\Omega$ is maintained at $u_0$.}
+
+\begin{enumerate}
+\item Derive the variational/weak form corresponding to the above
+    problem, and give the energy functional that is minimized by the
+  solution $u$ of \eqref{eq:P}.
+\item Solve problem \eqref{eq:P} in FEniCS using quadratic finite
+  elements. Choose $\Omega$ to be a disc with radius 1 around the
+  origin and take the source terms to be
+\begin{equation*}
+f = \exp(-100(x^2+y^2))\quad \text{ and } \quad u_0 = 0.
+\end{equation*}
+Use conductivity tensors $A(x)$ given by
+\begin{equation*}
+A_1 = \begin{pmatrix}
+10 & 0\\
+0  &10
+\end{pmatrix}
+\text{ and }
+A_2 = \begin{pmatrix}
+1  & -5\\
+-5 &100
+\end{pmatrix}
+\end{equation*}
+and compare the results obtained using $A_1$ and $A_2$ in \eqref{eq:P}.
+\newpage
+{\bf HINTS:}
+\begin{itemize}
+\item [-] A mesh for the unit circle is provided in the file \verb+circle.xml+. You can load the mesh in FEniCS using the command
+\begin{verbatim}
+mesh = Mesh("circle.xml")
+\end{verbatim}
+\item [-] To define the conductivity tensor ${\bs A}({\bs x})$ use the commands
+\begin{verbatim}
+A1 = Expression((("10", "0"),("0", "10")))
+A2 = Expression((("1", "-5"),("-5", "100")))
+\end{verbatim}
+\end{itemize}
+
+\end{enumerate}
+
+% ****************************
+
+\item
+Implement the image denoising method from Problem 1 above using
+Tikhonov (TN) and total variation (TV) regularizations. To this end,
+set $k(\boldsymbol{x})=\alpha$ with small $\alpha>0$ in
+$\mathcal{R}_{TV}$ and $\mathcal{R}_{TN}$, choose small $\varepsilon
+>0$, and take a homogeneous Neumann boundary condition for $u$ (i.e.,
+$\nabla u \cdot \bs{n} = 0$).  
+The file \verb+tntv.py+ contains some lines to start up the
+implementation (definition of the mesh, finite element space, and an expression
+to evaluate the true image and the noisy image at each point of the mesh).
+\begin{enumerate}
+
+\item Solve the denoising inverse problem using TN
+  regularization. Since for TN regularization, the gradient is linear
+  in $u$, you can use FEniCS's linear solver \verb+solve+. Choose an
+  $\alpha>0$ such that you obtain a reasonable
+  reconstruction\footnote{Either experiment manually with a few values
+    for $\alpha$ or use the L-curve criterion.}, i.e.,
+  a reconstruction that removes noise from the image but does not
+  overly smooth the image.
+
+\item Solve the denoising inverse problem using TV
+  regularization. Since the gradient is nonlinear in $u$, use the
+  \verb+InexactNewtonCG+ solver provided in the file \verb+unconstrainedMinimization.py+.
+  This solver uses the inexact Newton CG algorithm with Eisenstat-Walker stopping criterion
+  and backtracking line search based on the Armijo conditions
+  \footnote{See file {\ttfamily energyMinimization.py} for an example on how to use the solver. 
+  FEniCS's built-in nonlinear solver will not
+    work for this problem. FEniCS does not know the
+    underlying optimization cost functional, so manual implementation
+    allows one to globalize Newton's method via a line search based on
+    a knowledge of the cost functional.}. Find an appropriate value
+  for $\alpha$\footnote{Try out a few different values for
+    $\alpha$. Using the L-curve or Morozov's criterion in not
+    justified here, since compared to TN regularization, TV
+    regularization is not quadratic, which makes the automatic choice
+    of $\alpha$ harder.}. You will have to increase the default number
+  of nonlinear iterations in \verb+InexactNewtonCG+\footnote{Typing
+    ``{\ttfamily help(InexactNewtonCG)}'' will show you solver options. You
+    should set the relative tolerance {\ttfamily rel\_tolerance} to $10^{-5}$ and increase the value of {\ttfamily max\_iter}, which defaults
+    to 20.}. How does the number of nonlinear iterations behave for
+  decreasing $\varepsilon$ (e.g., between $10$ and $10^{-4}$)? Try to
+  explain this behavior\footnote{There are more efficient so-called
+    primal-dual Newton algorithms for TV-regularized problems (see,
+    for instance, {\em T.F.\ Chan, G.H.\ Golub, and P. Mulet,
+      A nonlinear primal-dual method for total variation-based image
+      restoration, SIAM Journal on Scientific Computing,
+      20(6):1964--1977, 1999}). The efficient solution of
+    TV-regularized problems is still an active field of research.}.
+
+\item Compare the denoised images obtained with TN and TV
+  regularizations, using the insight derived from your answers to
+  Problem 1.
+
+\end{enumerate}
+
+% **********************
+%\item
+%We solve the following inverse problem for a distributed source $g \in
+%L_2(\Omega)$ on a domain $\Omega$ with boundary $\partial\Omega$.
+%\begin{subequations}\label{eq:optcon}
+%\begin{align}\label{eq:optcon1}
+%\min_{g} J(g) := \frac 12 \int_\Omega (u-u^{obs})^2\,dx + \frac{\alpha}{2}\int_\Omega g^2\,dx,
+%\end{align}
+%where $u=u(g)$ is given by the solution of
+%\begin{align}
+%-\nabla\cdot(k(x)\nabla u) &= g \:\:\text{ in } \Omega,\label{eq:optcon2}\\
+%u &= 0  \:\:\text{ on } \partial\Omega,\label{eq:optcon3}
+%\end{align}
+%\end{subequations}
+%where $k(x)>0$ is given and $\alpha>0$ is the regularization parameter.
+%\begin{enumerate}
+%\item Give the Lagrangian functional using the weak form of
+%  \eqref{eq:optcon2} and \eqref{eq:optcon3}.
+%\item Derive the gradient of $J$ with respect to $g$. Give both the
+%  strong as well as the weak forms for state, the adjoint and the
+%  gradient equation.
+%\item Since the state, the adjoint and the gradient equation are
+%  linear, the solution of \eqref{eq:optcon} can be obtained by solving
+%  a large linear system\footnote{This system can be understood as
+%    Newton step---for linear problems, Newton's method converges in a
+%    single step.}. Use COMSOL to solve the problem for
+%  $\Omega=[0,1]\times[0,1]$, $u^{obs}\equiv 1$ and $k(x)\equiv 1$:
+%  introduce finite element basis functions for $u$, $p$ and $g$, sum
+%  the weak forms for the state, adjoint and gradient equation, and use
+%  the linear solver \verb+femlin+ to solve the linear system. Plot the
+%  solution $u$ for a series of decreasing values of regularization
+%  parameters $\alpha$ and discuss the results. Can $u$ be equal to
+%  $u^{obs}$, which would make the misfit term zero?
+%\end{enumerate}
+%
+
+\end{enumerate}
+
+
+
+
+
+%% \item The image registration problem is to find a mapping of a
+%%   ``patient'' image
+%% of intensity $\mathcal{I}_p(\boldsymbol{x})$ to a ``template'' image of intensity
+%% $\mathcal{I}_t(\boldsymbol{x})$. This can be formulated as finding the displacement
+%% vector $\boldsymbol{u}$ that minimizes the least squares error functional 
+%% \bdm
+%% \mathcal{F} := \frac{1}{2} \int_\Omega \! 
+%% [\mathcal{I}_t(\boldsymbol{x}) - \mathcal{I}_p(\boldsymbol{x}+ \boldsymbol{u})]^2 \;
+%% \boldsymbol{dx} 
+%% % + \frac{\alpha}{2} \int_\Omega \! \left[\frac{\lambda}{\mu} |\nabla \gbf{u}
+%% % + \nabla \gbf{u}^T|^2 + |\Div \gbf{u}|^2 \right] \; \gbf{dx}
+%% \edm
+%% \ben
+%% \item Derive the first order optimality condition in weak and strong
+%%   form. Show that for piecewise-homogeneous images, the optimality
+%%   condition implies that it is only the edge regions of the (patient)
+%%   image that determine the registration.  (Use $\hat{\boldsymbol{u}}$
+%%   to denote the variation of $\boldsymbol{u}$.)
+%% 
+%% \item Derive an expression for the Newton step   $\tilde{\boldsymbol{u}}$ in
+%%   both weak and strong form. Show that the Hessian contains
+%%   information only in directions normal to image contours, in
+%%   situations when the misfit between images, i.e.\ $\mathcal{I}_t(\boldsymbol{x}) -
+%%   \mathcal{I}_p(\boldsymbol{x}+ \boldsymbol{u})$, is negligible (such as near an
+%%   optimum). Thus, the Hessian is singular with respect to tangential
+%%   directions, and the problem of minimizing $\mathcal{F}$ is
+%%   ill-posed. 
+%% 
+%% \item Suggest a regularization term that can be added to $\mathcal{F}$
+%%   to render the problem
+%%   well-posed. 
+%% \een
+%\een
+
+
+\end{document}
+
+
+
+
+
+
+
+\item Consider the unconstrained optimization problem
+\bdm
+\min f(x,y) \equiv - \cos x \cos y/10.
+\edm
+\ben
+\item Find and classify all stationary points in the region 
+$-\pi/2 \leq x \leq \pi/2, -10\pi/2 \leq y \leq 10\pi/2$
+% $-\pi/2 \leq x,y \leq \pi/2$.
+\item There is a portion of the problem region  
+% $-\pi/2 \leq x,y \leq \pi/2$
+within which the Hessian matrix of $f(x,y)$ is positive definite.
+Give expressions for this portion. You should be able to do this
+analytically.
+\item Derive expressions for the search directions associated with the
+steepest descent and Newton methods. 
+\item Write a program that performs both iterations, both without a
+  line search and with an exact line search.  Note that you will not
+  be able to find the value of the optimal step length analytically;
+  instead, determine it numerically. {\em Suggestion:} use a built-in
+  one-dimensional minimization function such as {\tt FindMinimum} or
+  {\tt FindRoot} in {\sc Mathematica} or {\tt fzero} in {\sc Matlab}.
+\item Run your program for various initial guesses within the region.
+% $-\pi/2 \leq x,y \leq \pi/2$. 
+Verify the following:
+\ben
+\item Steepest descent converges to the minimum $x^*$ for any starting
+point within the region.
+\item Newton's method with line search converges to the minimum only
+for initial points for which the Hessian matrix is positive definite.
+\item Newton's method without line search has an even more restricted
+radius of convergence. {\em Optional:} Determine that radius of
+convergence.
+\een
+\item What do you observe about the convergence rate in these cases?
+{\em Optional:} Verify the observed convergence rate analytically.
+
+\een
+% \item Repeat the above for the problem
+% \bdm
+% \min f(x,y) \equiv - \cos x \cos (y/3)
+% \edm
+% and the region $-\pi/2 \leq x \leq \pi/2, -3\pi/2 \leq y \leq
+% 3\pi/2$.
+% \een
+
+% defer to linear constraints homework
+
+\newpage
+
+\item Write a program that implements the inexact Newton-conjugate
+  gradient method as described in class\footnote{Reference:
+    S.C. Eisenstat and H.F Walker, {\em Globally convergent inexact
+      Newton's method}, SIAM Journal on Optimization, Vol.\ 4,
+    p.393--422, 1994.}  and use it to solve the following problem
+  (known as the multidimensional Rosenbrock's function):
+%
+\bdm
+\min f(x_1, x_2, \ldots, x_n) := \sum_{i=1}^{n/2} \left[ 100 (x_{2i-1}^2 - x_{2i})^2
+  + (x_{2i-1} - 1)^2 \right]
+\edm
+%  \bdm \min f(x,y) \equiv 100(y - x^2)^2 + (1-x)^2 \edm 
+Your implementation should have the following features:
+%
+\bit
+\item Terminate the CG iterations when $|| H_k p_k + g_k || \le \eta
+  ||g_k|| $, and implement the following three options for $\eta $:
+\bit
+\item $\eta_k = 0.5$
+\item $\eta_k = \min(0.5, \sqrt{||g_k||})$
+\item $\eta_k = \min(0.5, ||g_k||)$
+\eit
+%
+\item Also terminate the CG iterations when a direction of negative
+  curvature is detected within the CG iteration.
+
+\item For a line search, implement a backtracking Armijo line search
+  as described in class. 
+
+\eit
+\ben
+
+\item Compare the performance of Newton and steepest descent for $n=2$
+  (i.e.\ in two dimensions). Plot the sequence of iterates for each
+  method on top of the contour plot of $f(\bs{x})$. 
+
+\item Experiment with the different choices of $\eta$ 
+% and with different initial guesses, 
+for $n=100$. Verify the theoretical convergence rates for
+the different choices of $\eta$.  
+
+\item What do you observe about the number of iterations taken by
+  Newton as the problem dimension increases from $n=10$ to $n=100$ to
+  $n=1000$? [use the consistent starting point ($-1.2, 1.0, -1.2, 1.0,
+  -1.2, 1.0$, etc.)].
+
+\een
+\een
+
+\end{document}
+
+
+
