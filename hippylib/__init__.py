@@ -32,5 +32,5 @@ from cgsampler import CGSampler
 from traceEstimator import TraceEstimator
 from expression import code_AnisTensor2D, code_Mollifier
 from PDEProblem import PDEProblem, PDEVariationalProblem
-from misfit import DistributedStateObservation, PointwiseStateObservation
+from misfit import ContinuousStateObservation, PointwiseStateObservation
 from model import Model
