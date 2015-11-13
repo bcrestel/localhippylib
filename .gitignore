@@ -2,6 +2,8 @@
 *~
 *.swp
 notebooks/.ipynb_checkpoints/*
+teaching/assignement/TotalVariation/.ipynb_checkpoints/
+teaching/notebooks/.ipynb_checkpoints/
 .project
 .pydevproject
 hippylib/unit_test/results_cg
@@ -11,4 +13,5 @@ applications/ad_diff/samples
 applications/poisson/hmisfit
 applications/poisson/results
 applications/poisson/samples
+teaching/python/ad_diff/results/
 doc/.build
