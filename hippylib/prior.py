@@ -119,7 +119,7 @@ class _Prior:
 
 class LaplacianPrior(_Prior):
     """
-    This class implement a Prior model with covariance matrix
+    This class implements a Prior model with covariance matrix
     C = (\delta I + \gamma \Delta) ^ {-1}.
     
     The magnitude of \gamma governs the variance of the samples, while

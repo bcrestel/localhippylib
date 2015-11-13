@@ -1,21 +1,41 @@
 import dolfin as dl
 from assemblePointwiseObservation import assemblePointwiseObservation
 from variables import STATE
+
 class Misfit:
+    """Abstract class to model the misfit componenet of the cost functional.
+    In the following x will denote the variable [u, a, p], denoting respectively
+    the state u, the parameter a, and the adjoint variable p.
+    
+    The methods in the class misfit will usually access the state u and possibly the
+    parameter a. The adjoint variables will never be accessed. 
+    """
     def cost(self,x):
-        """Given x evaluate the cost functional"""
+        """Given x evaluate the cost functional.
+        Only the state u and (possibly) the parameter a are accessed. """
+        
         
     def adj_rhs(self,x,rhs):
-        """Evaluate the RHS for the adjoint problem"""
+        """Evaluate the RHS for the adjoint problem.
+        Only the state u and (possibly) the parameter a are accessed. """
     
     def setLinearizationPoint(self,x):
-        """Set the point for linearization. """
+        """Set the point for linearization."""
         
     def apply_ij(self,i,j, dir, out):
-        """ apply \delta_ij cost in direction dir. """
+        """Apply the second variation \delta_ij (i,j = STATE,PARAMETER) of the cost in direction dir."""
         
 class PointwiseStateObservation(Misfit):
+    """This class implements pointwise state observations at given locations.
+    It assumes that the state variable is a scalar function.
+    """
     def __init__(self, Vh, obs_points):
+        """
+        Constructor:
+        - Vh is the finite element space for the state variable
+        - obs_points is a 2D array number of points by geometric dimensions that stores
+          the location of the observations.
+        """
         self.B = assemblePointwiseObservation(Vh, obs_points)
         self.d = dl.Vector()
         self.B.init_vector(self.d, 0)
@@ -45,8 +65,22 @@ class PointwiseStateObservation(Misfit):
         else:
             out.zero()
             
-class DistributedStateObservation(Misfit):
+class ContinuousStateObservation(Misfit):
+    """This class implements continuous state observations in a
+       subdomain X \subset \Omega or X \subset \partial\Omega.
+    """
     def __init__(self, Vh, dX, bc, form = None):
+        """
+        Constructor:
+        - Vh: the finite element space for the state variable.
+        - dX: the integrator on subdomain X where observation are presents.
+        E.g. dX = dl.dx means observation on all \Omega and dX = dl.ds means observations on all \partial \Omega.
+        - bc: If the forward problem imposes Dirichlet boundary conditions u = u_D on \Gamma_D;
+              bc is a dl.DirichletBC object that prescribes homogeneuos Dirichlet conditions u = 0 on \Gamma_D.
+        - form: if form = None we compute the L^2(X) misfit:
+          \int_X (u - ud)^2 dX,
+          otherwise the integrand specified in form will be used.
+        """
         if form is None:
             u, v = dl.TrialFunction(Vh), dl.TestFunction(Vh)
             self.W = dl.assemble(dl.inner(u,v)*dX)

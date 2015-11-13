@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 def modelVerify(model,a0, innerTol):
     """
     Verify the reduced Gradient and the Hessian of a model.
+    It will produce two loglog plots of the finite difference checks
+    for the gradient and for the Hessian.
+    It will also check for symmetry of the Hessian.
     """
     
     h = model.generate_vector(PARAMETER)

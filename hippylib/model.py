@@ -15,6 +15,12 @@ class Model:
     """
     
     def __init__(self, problem, prior,misfit):
+        """
+        Create a model given:
+        - problem: the description of the forward/adjoint problem and all the sensitivities
+        - prior: the prior component of the cost functional
+        - misfit: the misfit componenent of the cost functional
+        """
         self.problem = problem
         self.prior = prior
         self.misfit = misfit
