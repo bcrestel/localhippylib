@@ -5,6 +5,7 @@ from traceEstimator import TraceEstimator
 from assemblePointwiseObservation import assemblePointwiseObservation
 import math
 from expression import code_Mollifier
+from cgsampler import CGSampler
 
 
 class _RinvM:
@@ -103,10 +104,22 @@ class _Prior:
         
         return pw_var
     
+    def cost(self,a):
+        d = self.mean.copy()
+        d.axpy(-1., a)
+        Rd = dl.Vector()
+        self.init_vector(Rd,0)
+        self.R.mult(d,Rd)
+        return .5*Rd.inner(d)
+    
+    def grad(self,a, out):
+        d = a.copy()
+        d.axpy(-1., self.mean)
+        self.R.mult(d,out)
 
 class LaplacianPrior(_Prior):
     """
-    This class implement a Prior model with covariance matrix
+    This class implements a Prior model with covariance matrix
     C = (\delta I + \gamma \Delta) ^ {-1}.
     
     The magnitude of \gamma governs the variance of the samples, while
@@ -131,11 +144,11 @@ class LaplacianPrior(_Prior):
         trial = dl.TrialFunction(Vh)
         test  = dl.TestFunction(Vh)
         
-        varfL = gamma*dl.inner(dl.nabla_grad(trial), dl.nabla_grad(test))*dl.dx
-        varfM = delta*dl.inner(trial,test)*dl.dx
+        varfL = dl.inner(dl.nabla_grad(trial), dl.nabla_grad(test))*dl.dx
+        varfM = dl.inner(trial,test)*dl.dx
         
         self.M = dl.assemble(varfM)
-        self.R = dl.assemble(varfL + varfM)
+        self.R = dl.assemble(gamma*varfL + delta*varfM)
         
         self.Rsolver = dl.PETScKrylovSolver("cg", amg_method())
         self.Rsolver.set_operator(self.R)
@@ -143,6 +156,13 @@ class LaplacianPrior(_Prior):
         self.Rsolver.parameters["relative_tolerance"] = rel_tol
         self.Rsolver.parameters["error_on_nonconvergence"] = True
         self.Rsolver.parameters["nonzero_initial_guess"] = False
+        
+        self.Msolver = dl.PETScKrylovSolver("cg", "jacobi")
+        self.Msolver.set_operator(self.M)
+        self.Msolver.parameters["maximum_iterations"] = max_iter
+        self.Msolver.parameters["relative_tolerance"] = rel_tol
+        self.Msolver.parameters["error_on_nonconvergence"] = True
+        self.Msolver.parameters["nonzero_initial_guess"] = False
         
         Q1h = dl.FunctionSpace(Vh.mesh(), 'Quadrature', 2*Vh._FunctionSpace___degree)
         ndim = Vh.mesh().geometry().dim()
@@ -570,4 +590,69 @@ class MollifiedBiLaplacianPrior(_Prior):
             s.axpy(1., self.mean)
 
 
+class LaplaceBeltramiPrior(_Prior):
+    def __init__(self, Vh, gamma, delta, ds, mean=None, rel_tol=1e-12, max_iter=100):
         
+        assert delta != 0., "Intrinsic Gaussian Prior are not supported"
+        self.Vh = Vh
+        trial = dl.TrialFunction(Vh)
+        test  = dl.TestFunction(Vh)
+        
+        n = dl.FacetNormal(Vh.mesh()) 
+        def dir_grad(uh,n):
+            return dl.grad(uh) - dl.dot(dl.outer(n,n), dl.grad(uh))
+        
+        varfL = gamma*dl.inner(dir_grad(trial,n), dir_grad(test,n))*ds
+        varfM = delta*dl.inner(trial,test)*ds
+        
+        self.M = dl.assemble(varfM)
+        self.R = dl.assemble(varfL + varfM)
+            
+        self.M_1 = dl.assemble(varfM, keep_diagonal=True)
+        self.R_1 = dl.assemble(varfL + varfM, keep_diagonal=True)
+        self.M_1.ident_zeros()
+        self.R_1.ident_zeros()
+            
+        self.Rsolver = dl.PETScKrylovSolver("cg", amg_method())
+        self.Rsolver.set_operator(self.R_1)
+        self.Rsolver.parameters["maximum_iterations"] = max_iter
+        self.Rsolver.parameters["relative_tolerance"] = rel_tol
+        self.Rsolver.parameters["error_on_nonconvergence"] = True
+        self.Rsolver.parameters["nonzero_initial_guess"] = False
+        
+        self.Msolver = dl.PETScKrylovSolver("cg", "jacobi")
+        self.Msolver.set_operator(self.M_1)
+        self.Msolver.parameters["maximum_iterations"] = max_iter
+        self.Msolver.parameters["relative_tolerance"] = rel_tol
+        self.Msolver.parameters["error_on_nonconvergence"] = True
+        self.Msolver.parameters["nonzero_initial_guess"] = False
+        
+        self.sampler = CGSampler()
+        self.sampler.set_operator(self.R_1)
+        
+        self.mean = mean
+        
+        if self.mean is None:
+            self.mean = dl.Vector()
+            self.init_vector(self.mean, 0)
+    
+    def init_vector(self,x,dim):
+        """
+        Inizialize a vector x to be compatible with the range/domain of R.
+        If dim == "noise" inizialize x to be compatible with the size of
+        white noise used for sampling.
+        """
+        if dim == "noise":
+            self.R.init_vector(x, 1)
+        else:
+            self.R.init_vector(x,dim)
+            
+    def sample(self, noise, s, add_mean=True):
+        """
+        Given a noise ~ N(0, I) compute a sample s from the prior.
+        If add_mean=True add the prior mean value to s.
+        """
+        self.sampler.sample(noise.array(), s)
+        
+        if add_mean:
+            s.axpy(1., self.mean)         
