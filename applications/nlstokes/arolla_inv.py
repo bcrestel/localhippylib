@@ -103,7 +103,7 @@ if __name__ == "__main__":
     u_test,p_test = dl.TestFunctions(Vh[STATE])
     
     form = dl.inner(u_trial, u_test)*ds(2)
-    misfit = DistributedStateObservation(Vh[STATE], ds(2), None, form)
+    misfit = ContinuousStateObservation(Vh[STATE], ds(2), None, form)
     
     misfit.d.set_local( up_true.array() )
     
