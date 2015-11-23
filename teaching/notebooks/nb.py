@@ -213,6 +213,15 @@ def coarsen_v(fun, nx = 16, ny = 16):
     fun_H =  dl.interpolate(fun, V_H)
     dl.parameters['allow_extrapolation'] = False
     return fun_H
+
+def plot_eigenvalues(d, mytitle = None, subplot_loc=None):
+    k = d.shape[0]
+    if subplot_loc is not None:
+        plt.subplot(subplot_loc)
+    plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
+    plt.yscale('log')
+    if mytitle is not None:
+        plt.title(mytitle)
     
 def plot_eigenvectors(Vh, U, mytitle, which = [0,1,2,5,10,15]):
     assert len(which) % 3 == 0
@@ -226,7 +235,10 @@ def plot_eigenvectors(Vh, U, mytitle, which = [0,1,2,5,10,15]):
     for i in which:
         assert i < U.shape[1]
         Ui = U[:,i]
-        s = 1/np.linalg.norm(Ui, np.inf)
+        if Ui[0] >= 0:
+            s = 1./np.linalg.norm(Ui, np.inf)
+        else:
+            s = -1./np.linalg.norm(Ui, np.inf)
         u.vector().set_local(s*Ui)
         plot(u, subplot_loc=(subplot_loc+counter), mytitle=title_stamp.format(i), vmin=-1, vmax=1)
         counter = counter+1
