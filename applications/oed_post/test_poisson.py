@@ -4,7 +4,21 @@ sys.path.append( "../../" )
 from hippylib import *
 import numpy as np
 import matplotlib.pyplot as plt
-from posteriorDistribution import PosteriorDistribution, GaussianDistribution
+from posteriorDistribution import PosteriorDistribution, GaussianDistribution, check_derivatives_pdf
+
+def exportU(U, Vh, fname, varname = "evect", normalize=1):
+
+        evect = dl.Function(Vh, name=varname)
+        fid = dl.File(fname)
+        
+        for i in range(0,U.shape[1]):
+            Ui = U[:,i]
+            if normalize:
+                s = 1/np.linalg.norm(Ui, np.inf)
+                evect.vector().set_local(s*Ui)
+            else:
+                evect.vector().set_local(Ui)
+            fid << evect
 
 def true_model(Vh, gamma, delta, anis_diff):
     prior = BiLaplacianPrior(Vh, gamma, delta, anis_diff )
@@ -19,6 +33,25 @@ def true_model(Vh, gamma, delta, anis_diff):
 
 def u_boundary(x, on_boundary):
     return on_boundary and ( x[1] < dl.DOLFIN_EPS or x[1] > 1.0 - dl.DOLFIN_EPS)
+
+def marginal_distribution(map, pdf, pdfg, l, dir):   
+    npoints = 50
+    r = np.linspace(-3*l, 3*l, npoints, endpoint=True)
+    ct = np.ndarray(npoints)
+    cg = np.ndarray(npoints)
+    for i in range(npoints):
+        pp = map.copy()
+        pp.axpy(r[i], dir)
+        ct[i] = pdf(pp)
+        cg[i] = pdfg(pp)
+            
+    plt.figure()
+    plt.subplot(1,2,1)
+    plt.plot(r, ct, "-b", r, cg, "--r")
+    plt.title( "Marginal distribution lambda = {0:f}".format(math.pow(l, -2.)-1) )
+    plt.subplot(1,2,2)
+    plt.plot(r, ct-cg, "-b")
+    plt.show()
 
 if __name__ == "__main__":
     dl.set_log_active(False)
@@ -84,8 +117,9 @@ if __name__ == "__main__":
            
     print sep, "Test the gradient and the Hessian of the model", sep
     a0 = dl.interpolate(dl.Expression("sin(x[0])"), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-12)
-    plt.show()
+    if 0:
+        modelVerify(model, a0.vector(), 1e-12)
+        plt.show()
 
     print sep, "Find the MAP point", sep
     a0 = prior.mean.copy()
@@ -118,126 +152,98 @@ if __name__ == "__main__":
     #d, U = singlePassG(Hmisfit, model.R, model.Rsolver, Omega, k, check_Bortho=True, check_Aortho=True, check_residual=True)
     d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, check_Bortho=False, check_Aortho=False, check_residual=False)
     posterior = GaussianLRPosterior(prior, d, U)
-    plt.figure()
-    plt.semilogy(d)
-    posterior.mean = x[PARAMETER]
     
+    if False:
+        plt.figure()
+        plt.semilogy(d, "ob")
+        plt.semilogy(np.ones(d.shape), "-r")
+        plt.title("Generalized Eigenvalues")
+        plt.show()
         
-    noise = model.generate_vector(PARAMETER)
-    noise_size = noise.array().shape[0]
-    
+    posterior.mean = x[PARAMETER]
+        
     start = posterior.mean.copy()
-    
-    dir = model.generate_vector(PARAMETER)
-    noise.set_local( np.random.randn( noise_size ) )
-    posterior.sample(noise, dir, add_mean=False)
-    
+        
     pdf = PosteriorDistribution(model, solver.final_cost)
     pdfg = GaussianDistribution(posterior.Hlr, posterior.mean)
     pdfp = GaussianDistribution(prior.R, posterior.mean)
     
     check_derivatives = False
     if check_derivatives:
-        n = 20
-        all_eps = 1e-3*np.power(2., -np.arange(0,n))
-        err_grad = np.ndarray(all_eps.shape)
-        err_H = np.ndarray(all_eps.shape)
-        grad = model.generate_vector(PARAMETER)
-        pdf.gradient(start, grad)
-        graddir = grad.inner(dir)
-        c = pdf(start)
-        for i in range(n):
-            eps = all_eps[i]
-            aplus = start.copy()
-            aplus.axpy(eps, dir)        
-            cplus = pdf(aplus)
-        
-            err_grad[i] =  np.abs( (cplus-c)/eps - graddir)
-
+        noise = pdf.generate_vector()
+        noise_size = noise.array().shape[0]
+        dir = pdf.generate_vector()
+        noise.set_local( np.random.randn( noise_size ) )
+        posterior.sample(noise, dir, add_mean=False)
+        check_derivatives_pdf(pdf,start, dir)
+        check_derivatives_pdf(pdfg,start, dir)
     
-        Hdir = model.generate_vector(PARAMETER)
-        pdf.hessian_apply(start, dir, Hdir)
-        grad_plus = model.generate_vector(PARAMETER)
-        for i in range(n):
-            eps = all_eps[i]
-            aplus = start.copy()
-            aplus.axpy(eps, dir)        
-            pdf.gradient(aplus, grad_plus)        
-            err = grad_plus.copy()
-            err.axpy(-1, grad)
-            err *= 1/eps
-            err.axpy(-1, Hdir)
-            err_H[i] = err.norm("linf")
-        
-        err_gradg = np.ndarray(all_eps.shape)
-        err_Hg = np.ndarray(all_eps.shape)
-        pdfg.gradient(start, grad)
-        graddir = grad.inner(dir)
-        c = pdf(start)
-        for i in range(n):
-            eps = all_eps[i]
-            aplus = start.copy()
-            aplus.axpy(eps, dir)        
-            cplus = pdfg(aplus)
-        
-            err_gradg[i] =  np.abs( (cplus-c)/eps - graddir)
-
-        pdfg.hessian_apply(start, dir, Hdir)
-        grad_plus = model.generate_vector(PARAMETER)
-        for i in range(n):
-            eps = all_eps[i]
-            aplus = start.copy()
-            aplus.axpy(eps, dir)        
-            pdfg.gradient(aplus, grad_plus)        
-            err = grad_plus.copy()
-            err.axpy(-1, grad)
-            err *= 1/eps
-            err.axpy(-1, Hdir)
-            err_Hg[i] = err.norm("linf")
-        
-        plt.figure()
-        plt.subplot(221)
-        plt.loglog(all_eps, err_grad)
-        plt.ylabel("Err Grad Post")
-        plt.subplot(222)
-        plt.loglog(all_eps, err_H)
-        plt.ylabel("Err H Post")
-        plt.subplot(223)
-        plt.loglog(all_eps, err_gradg)
-        plt.ylabel("Err Grad Gaussian")
-        plt.subplot(224)
-        plt.loglog(all_eps, err_Hg)
-        plt.ylabel("Err H Gaussian")
+    check_along_eigenfunctions = False
+    check_random_eigen_combination = False
+    check_random_dir = False
     
-    iact = np.where(d > .1)
-    alpha = np.zeros(d.shape)
-    alpha[iact] = np.random.randn( iact[0].shape[0] )
-    print alpha
-    dir = model.generate_vector(PARAMETER)
-    dir.set_local( np.dot(U, alpha) )
-#    l = 1/math.sqrt(1+d[i])
-#    dir = model.generate_vector(PARAMETER)
-#    noise.set_local( np.random.randn( noise_size ) )
-#    posterior.sample(noise, dir, add_mean=False)
-    H = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=False)
-    l = 1/math.sqrt(H.inner(dir, dir));
+    if check_along_eigenfunctions:
+        iact = np.where(d > .1)
+        for i in iact[0]:
+            dir = model.generate_vector(PARAMETER)
+            dir.set_local(U[:,i])
+            l = 1./math.sqrt(1.+d[i])
+            marginal_distribution(posterior.mean, pdf, pdfg, l, dir)
+            
+    if check_random_eigen_combination:
+        iact = np.where(d > .1)
+        alpha = np.zeros(d.shape)
+        alpha[iact] = np.random.randn( iact[0].shape[0] )
+        alpha *= 1./np.linalg.norm(alpha)
+        dir = model.generate_vector(PARAMETER)
+        dir.set_local( np.dot(U, alpha) )
+        H = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=False)
+        l = 1./math.sqrt(H.inner(dir, dir))
+        marginal_distribution(posterior.mean, pdf, pdfg, l, dir)
+        
+    if check_random_dir:
+        noise = model.generate_vector(PARAMETER)
+        noise_size = noise.array().shape[0]
+        noise.set_local( np.random.randn( noise_size ) )
+        dir = model.generate_vector(PARAMETER)
+        posterior.sample(noise, dir, add_mean=False)
+        H = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=False)
+        l = 1./math.sqrt(H.inner(dir, dir))
+        marginal_distribution(posterior.mean, pdf, pdfg, l, dir)
     
-    npoints = 100
-    d = np.linspace(-3*l, 3*l, npoints, endpoint=True)
-    ct = np.ndarray(npoints)
-    cg = np.ndarray(npoints)
-    for i in range(npoints):
-        pp = posterior.mean.copy()
-        pp.axpy(d[i], dir)
-        ct[i] = pdf(pp)
-        cg[i] = pdfg(pp)
-
+    class MyOperator:
+        def __init__(self, op,op2):
+            self.op = op
+            self.op2 = op2
+            
+        def init_vector(self,x,dim):
+            self.op2.init_vector(x,1)
+            
+        def mult(self,x,y):
+            op2x = dl.Vector()
+            z = dl.Vector()
+            self.op2.init_vector(op2x,0)
+            self.op.init_vector(z,0)
+            self.op2.mult(x,op2x)
+            self.op.solve(z,x)
+            self.op2.mult(z,y)
+    
+    k1 = 20#Vh[PARAMETER].dim()/2
+    print k1
+    Omega = np.random.randn(x[PARAMETER].array().shape[0], k1+p)
+    d1, U1 = doublePassG(MyOperator(posterior.Hlr, prior.M), prior.M, prior.Msolver, Omega, k1)
+    exportU(U1, Vh[PARAMETER], "Eigen_Post.pvd")
         
     plt.figure()
-    plt.subplot(1,2,1)
-    plt.plot(d, ct, "-b")
-    plt.plot(d, cg, "--r")
-    plt.subplot(1,2,2)
-    plt.plot(d, ct-cg, "-b")
+    plt.semilogy(d1, "ob")
+    plt.semilogy(np.ones(d.shape), "-r")
+    plt.title("Posterior Eigenvalues")
     plt.show()
-
+    
+    
+    for i in range(d1.shape[0]):
+        dir = model.generate_vector(PARAMETER)
+        dir.set_local(U1[:,i])
+        l = 1./math.sqrt(posterior.Hlr.inner(dir,dir))
+        marginal_distribution(posterior.mean, pdf, pdfg, l, dir)
+    

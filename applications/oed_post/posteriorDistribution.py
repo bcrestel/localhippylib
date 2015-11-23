@@ -11,6 +11,11 @@ class GaussianDistribution:
     def __init__(self, H, a0):
         self.H = H
         self.a0 = a0
+        
+    def generate_vector(self):
+        out = dl.Vector()
+        self.H.init_vector(out, 0)
+        return out
   
     def __call__(self,a):
         r = a - self.a0
@@ -43,6 +48,11 @@ class PosteriorDistribution:
         self.H = ReducedHessian(self.model, 1e-15)
         self.cmap = cmap
         
+    def generate_vector(self):
+        out = dl.Vector()
+        self.H.init_vector(out, 0)
+        return out
+        
     def __call__(self, a):
         self.x[PARAMETER] = a.copy()
         self.model.solveFwd(self.x[STATE], self.x, 1e-15)
@@ -68,3 +78,49 @@ class PosteriorDistribution:
         dout.axpy(-self.mg.inner(da), self.mg)
         dout *= -math.exp( -(c-self.cmap) )
     
+def check_derivatives_pdf(pdf,start, dir):
+                
+    n = 32
+    all_eps = 1e-1*np.power(2., -np.arange(0,n))
+    err_grad = np.zeros(n)
+    err_H = np.zeros(n)
+    grad = pdf.generate_vector()
+    pdf.gradient(start, grad)
+    graddir = grad.inner(dir)
+    c = pdf(start)
+    for i in range(n):
+        eps = all_eps[i]
+        aplus = start.copy()
+        aplus.axpy(eps, dir)        
+        cplus = pdf(aplus)
+        err_grad[i] =  np.abs( (cplus-c)/eps - graddir)
+
+    
+    Hdir = pdf.generate_vector()
+    pdf.hessian_apply(start, dir, Hdir)
+    grad_plus = pdf.generate_vector()
+    for i in range(n):
+        eps = all_eps[i]
+        aplus = start.copy()
+        aplus.axpy(eps, dir)        
+        pdf.gradient(aplus, grad_plus)        
+        err = grad_plus.copy()
+        err.axpy(-1, grad)
+        err *= 1./eps
+        err.axpy(-1., Hdir)
+        err_H[i] = err.norm("linf")
+               
+    plt.figure()
+    plt.subplot(121)
+    plt.loglog(all_eps, err_grad, "-ob", all_eps, all_eps, "--k")
+    plt.ylabel("Error")
+    plt.xlabel("eps")
+    plt.title("Finite Difference check (Gradient)")
+    plt.subplot(122)
+    plt.loglog(all_eps, err_H,"-ob", all_eps, all_eps, "--k")
+    plt.ylabel("Error")
+    plt.xlabel("eps")
+    plt.title("Finite Difference check (Hessian)")
+    plt.show()
+
+
