@@ -50,15 +50,32 @@ def to_dense(A):
     Convert a sparse matrix A to dense.
     For debugging only.
     """
-    n  = A.size(0)
-    m  = A.size(1)
-    print n,m
-    B = np.zeros( (n,m), dtype=np.float64)
-    for i in range(0,n):
-        [j, val] = A.getrow(i)
-        B[i,j] = val
+    if hasattr(A, "getrow"):
+        n  = A.size(0)
+        m  = A.size(1)
+        print n,m
+        B = np.zeros( (n,m), dtype=np.float64)
+        for i in range(0,n):
+            [j, val] = A.getrow(i)
+            B[i,j] = val
         
-    return B
+        return B
+    else:
+        x = Vector()
+        Ax = Vector()
+        A.init_vector(x,1)
+        A.init_vector(Ax,0)
+        
+        n = Ax.array().shape[0]
+        m = x.array().shape[0]
+        B = np.zeros( (n,m), dtype=np.float64) 
+        for i in range(0,m):
+            x[i] = 1.
+            A.mult(x,Ax)
+            B[:,i] = Ax.array()
+            x[i] = 0.
+            
+        return B
 
 def getColoring(A,k):
     """

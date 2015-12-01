@@ -75,7 +75,7 @@ class GaussianLRPosterior:
     then we have:
     
     - low-rank Hessian apply:
-      y = ( R + U D U^T) x
+      y = ( R + RU D U^TR) x
       
     - low-rank Hessian solve:
       y = (R^-1 - U (I + D^{-1})^{-1} U^T) x
