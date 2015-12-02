@@ -25,7 +25,7 @@ def true_model(Vh, gamma, delta, anis_diff):
 def u_boundary(x, on_boundary):
     return on_boundary and ( x[1] < dl.DOLFIN_EPS or x[1] > 1.0 - dl.DOLFIN_EPS)
 
-if __name__ == "__main__":
+def run():
     dl.set_log_active(False)
     sep = "\n"+"#"*80+"\n"
     print sep, "Set up the mesh and finite element spaces", sep
@@ -89,6 +89,7 @@ if __name__ == "__main__":
     server = Server(model)
     if 1:
         server.start()
+        print "Restarting server..."
     else:
         success = server.ComputeMapPoint()
         if not success:
@@ -97,12 +98,12 @@ if __name__ == "__main__":
         dl.plot(dl.Function(Vh[PARAMETER],server.x_map[PARAMETER], name="Map"))
         k = server.KLE_GaussianPost()
         eta = np.random.randn(k)
-        out = server.Eval(eta)
-        sample = model.generate_vector(PARAMETER)
-        sample.set_local(out)
-        dl.plot(dl.Function(Vh[PARAMETER],sample, name="Sample"))
+        negLogPost = server.NegLogPost(eta)
+        print "Negative Log Posterior", negLogPost
         server.quit()
         dl.interactive()
     
-    
+if __name__ == "__main__":
+    while True:
+        run()    
     

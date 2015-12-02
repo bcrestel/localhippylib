@@ -73,14 +73,15 @@ class Server:
                 k = self.KLE_GaussianPost()
                 print "k = ", k
                 kk = np.atleast_1d(k).astype(">f8")
-                print "kk = ", kk
                 k_str = kk.tostring(order="F")
                 print "Sending", k_str
                 conn.send(k_str)
-            elif cmd_class == 'Eval':
+            elif cmd_class == 'NegLogPost':
                 shape_str = conn.recv(30).strip()
                 print "shape_str: ",shape_str
                 shape = tuple(map(int,shape_str.split()))
+                assert( shape[0] == self.d_gaussianPost.shape[0] )
+                assert( shape[1] == 1)
                 n_floats = np.prod(shape)
                 eta_flat = np.zeros(n_floats,'float')        
                 n_read = 0
@@ -89,12 +90,18 @@ class Server:
                     arr = np.fromstring(conn.recv(n_toread*8),dtype='>f8')
                     eta_flat[n_read:n_read+n_toread] = arr
                     n_read += n_toread
-                    print "%i/%i floats read"%(n_read,n_floats)           
-                eta = eta_flat.reshape(shape,order="F")
+                    print "%i/%i floats read"%(n_read,n_floats)
+                if( shape[1] != 1):         
+                    eta = eta_flat.reshape(shape,order="F")
+                else:
+                    eta = eta_flat
+                    
                 print "received array: ",eta
-                val = self.Eval(eta)
-                print "send array: ",val
-                conn.send("{0:1.16e}".format(val))
+                cost = self.NegLogPost(eta)
+                print "NegLogPost = ",cost
+                val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
+                print "Sending", val_str
+                conn.send(val_str)
             elif cmd_class == 'Quit':
                 self.quit()
                 wait = False
@@ -133,7 +140,6 @@ class Server:
         print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
         Omega = np.random.randn(size_param, k+p)
         self.d_misfit, self.U_misfit = doublePassG(Hmisfit, self.model.prior.R, self.model.prior.Rsolver, Omega, k)
-        print "d_misfit \n", self.d_misfit, "\n"
         self.d_misfit[self.d_misfit < 0 ] = 0.
         self.laplace_approx_posterior = GaussianLRPosterior(self.model.prior, self.d_misfit, self.U_misfit)
         self.laplace_approx_posterior.mean = self.x_map[PARAMETER].copy()
@@ -144,19 +150,19 @@ class Server:
         self.d_gaussianPost = self.d_gaussianPost[::-1]
         self.U_gaussianPost = self.U_gaussianPost[:,::-1]
         
-        print "d_gaussianPost \n", self.d_gaussianPost, "\n"
         self.d_gaussianPost[self.d_gaussianPost < 0 ] = 0.
         
         return size_param
     
-    def Eval(self, eta):
-        scaling = eta*np.sqrt(self.d_gaussianPost)
-        return np.dot(self.U_gaussianPost, scaling) + self.x_map[PARAMETER].array()
+    def NegLogPost(self, eta):
+        a_data = self.U_gaussianPost.dot( eta*np.sqrt(self.d_gaussianPost) ) + self.x_map[PARAMETER].array()
+        x = self.model.generate_vector()
+        x[PARAMETER].set_local(a_data)
+        self.model.solveFwd(x[STATE], x)
+        cost = self.model.cost(x)
+        return cost[0]
     
-    def quit(self):
-#        if self.is_started:
-#            self.sock.shutdown(socket.SHUT_RDWR)
-        
+    def quit(self):       
         self.sock.close()
 
                 
