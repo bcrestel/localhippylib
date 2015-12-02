@@ -56,22 +56,27 @@ class Server:
         conn, addr = self.sock.accept() # hangs until other end connects
         print 'Connection address:', addr
         
-        while True:
+        wait = True
+        
+        while wait:
             print "waiting for message"
             cmd_class = conn.recv(32).strip()
             print "cmd_class: ",cmd_class
             if cmd_class == 'ComputeMapPoint':
-                err = self.ComputeMapPoint()
-                print "Sending", err
-                if err:
-                    conn.send("0")
+                ok = self.ComputeMapPoint()
+                print "Sending", ok
+                if ok:
+                    conn.send("{0:32s}".format("true"))
                 else:
-                    conn.send("1")
-                    
-            elif cmd_class == 'KLE_GassianPost':
+                    conn.send("{0:32s}".format("false"))       
+            elif cmd_class == 'KLE_GaussianPost':
                 k = self.KLE_GaussianPost()
-                print "Sending", k
-                conn.send("{0:d}".format(k))
+                print "k = ", k
+                kk = np.atleast_1d(k).astype(">f8")
+                print "kk = ", kk
+                k_str = kk.tostring(order="F")
+                print "Sending", k_str
+                conn.send(k_str)
             elif cmd_class == 'Eval':
                 shape_str = conn.recv(30).strip()
                 print "shape_str: ",shape_str
@@ -90,9 +95,11 @@ class Server:
                 val = self.Eval(eta)
                 print "send array: ",val
                 conn.send("{0:1.16e}".format(val))
-            elif cmd_class == 'quit':
+            elif cmd_class == 'Quit':
                 self.quit()
-                break
+                wait = False
+            else:
+                raise cmd_class
             
     def ComputeMapPoint(self):
         a0 = self.model.prior.mean.copy()
@@ -134,6 +141,8 @@ class Server:
         #Gamma_pre = to_dense( MyOperator(self.model.prior.Rsolver, self.model.prior.M) )
         M_dense = to_dense(self.model.prior.M)
         self.d_gaussianPost, self.U_gaussianPost = eigh(Gamma_post,M_dense)
+        self.d_gaussianPost = self.d_gaussianPost[::-1]
+        self.U_gaussianPost = self.U_gaussianPost[:,::-1]
         
         print "d_gaussianPost \n", self.d_gaussianPost, "\n"
         self.d_gaussianPost[self.d_gaussianPost < 0 ] = 0.
@@ -145,8 +154,8 @@ class Server:
         return np.dot(self.U_gaussianPost, scaling) + self.x_map[PARAMETER].array()
     
     def quit(self):
-        if self.is_started:
-            self.sock.shutdown(socket.SHUT_RDWR)
+#        if self.is_started:
+#            self.sock.shutdown(socket.SHUT_RDWR)
         
         self.sock.close()
 

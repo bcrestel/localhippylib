@@ -3,6 +3,7 @@ import sys
 sys.path.append( "../../" )
 from hippylib import *
 import numpy as np
+from scipy.linalg import eigh
 import matplotlib.pyplot as plt
 from posteriorDistribution import PosteriorDistribution, GaussianDistribution, check_derivatives_pdf
 
@@ -58,8 +59,8 @@ if __name__ == "__main__":
     sep = "\n"+"#"*80+"\n"
     print sep, "Set up the mesh and finite element spaces", sep
     ndim = 2
-    nx = 64
-    ny = 64
+    nx = 16
+    ny = 16
     mesh = dl.UnitSquareMesh(nx, ny)
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
@@ -225,18 +226,19 @@ if __name__ == "__main__":
             self.op2.init_vector(op2x,0)
             self.op.init_vector(z,0)
             self.op2.mult(x,op2x)
-            self.op.solve(z,x)
+            self.op.solve(z,op2x)
             self.op2.mult(z,y)
     
-    k1 = 20#Vh[PARAMETER].dim()/2
-    print k1
-    Omega = np.random.randn(x[PARAMETER].array().shape[0], k1+p)
-    d1, U1 = doublePassG(MyOperator(posterior.Hlr, prior.M), prior.M, prior.Msolver, Omega, k1)
-    exportU(U1, Vh[PARAMETER], "Eigen_Post.pvd")
+    Gamma_post = to_dense( MyOperator(posterior.Hlr, prior.M) )
+    M_dense = to_dense( prior.M )
+    d1, U1 = eigh(Gamma_post,M_dense)
+    d1 = d1[::-1]
+    U1 = U1[:,::-1]
+    exportU(U1, Vh[PARAMETER], "EPost/Eigen_Post.pvd")
         
     plt.figure()
     plt.semilogy(d1, "ob")
-    plt.semilogy(np.ones(d.shape), "-r")
+    plt.semilogy(np.ones(d1.shape), "-r")
     plt.title("Posterior Eigenvalues")
     plt.show()
     
