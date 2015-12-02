@@ -35,10 +35,28 @@ classdef HippyClient
         
         function val = negLogPost(self, eta)
             fwrite(self.conn,sprintf('%32s', 'NegLogPost'));
+            val = self.send_array_receive_value(eta);
+        end
+        
+        function val = negLogLikelihood(self, eta)
+            fwrite(self.conn,sprintf('%32s', 'NegLogLikelihood'));
+            val = self.send_array_receive_value(eta);
+        end
+        
+        function val = negLogPrior(self, eta)
+            fwrite(self.conn,sprintf('%32s', 'NegLogPrior'));
+            val = self.send_array_receive_value(eta);
+        end
+        
+        function val = negLogGaussianPost(self, eta)
+            fwrite(self.conn,sprintf('%32s', 'NegLogGaussianPost'));
+            val = self.send_array_receive_value(eta);
+        end
+        
+        function val = send_array_receive_value(self, eta)
             fwrite(self.conn,sprintf('%30s',num2str(size(eta))));
             n_floats = numel(eta);
-            disp('Sending eta = ');
-            disp(eta);
+            disp('Sending eta');
             n_sent = 0;
             while n_sent < n_floats
                 n_tosend = min(128,n_floats-n_sent);
@@ -48,6 +66,7 @@ classdef HippyClient
             end
             val = fread(self.conn,1,'double');
         end
+            
 
 %         function put(self,name,val)
 %             fwrite(self.conn,sprintf('%10s','put'));

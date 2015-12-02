@@ -137,11 +137,15 @@ if __name__ == "__main__":
     d[d < 0 ] = 0.
     posterior = GaussianLRPosterior(prior, d, U)
     posterior.mean = x[PARAMETER].copy()
+    
+    
+    nsamples = 500
+    my_u = model.generate_vector(STATE)
         
     print sep, "Generate samples from Prior and Posterior\n", sep
     fid_prior = dl.File("samples/sample_prior.pvd")
     fid_post  = dl.File("samples/sample_post.pvd")
-    nsamples = 500
+    cost = np.zeros([nsamples,3])
     noise = dl.Vector()
     posterior.init_vector(noise,"noise")
     noise_size = noise.array().shape[0]
@@ -152,6 +156,8 @@ if __name__ == "__main__":
         posterior.sample(noise, s_prior.vector(), s_post.vector())
         fid_prior << s_prior
         fid_post << s_post
+        model.solveFwd(my_u, [my_u, s_post.vector()])
+        cost[i,0], cost[i,1], cost[i,2] = model.cost([my_u, s_post.vector()])
     
     Gamma_post = to_dense( MyOperator(posterior.Hlr, prior.M) )
     Gamma_prior = to_dense( MyOperator(prior.Rsolver, prior.M) )
@@ -167,10 +173,10 @@ if __name__ == "__main__":
     print sep, "Generate samples from Prior and Posterior using KLE\n", sep
     fid_prior = dl.File("samplesKLE/sample_prior.pvd")
     fid_post  = dl.File("samplesKLE/sample_post.pvd")
-    nsamples = 500
     noise_size = d_gaussianPost.shape[0]
     s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
     s_post = dl.Function(Vh[PARAMETER], name="sample_post")
+    costKLE = np.zeros([nsamples,3])
     for i in range(nsamples):
         eta = np.random.randn(noise_size)
         s_prior_data = U_prior.dot(eta*np.sqrt(d_prior))
@@ -179,5 +185,14 @@ if __name__ == "__main__":
         s_post.vector().set_local(s_post_data)
         fid_prior << s_prior
         fid_post << s_post
+        model.solveFwd(my_u, [my_u, s_post.vector()])
+        costKLE[i,0], costKLE[i,1], costKLE[i,2] = model.cost([my_u, s_post.vector()])
+        
+    plt.figure()
+    plt.subplot(121)
+    plt.plot(cost)
+    plt.subplot(122)
+    plt.plot(costKLE)
+    plt.show()
 
 

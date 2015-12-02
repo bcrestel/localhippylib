@@ -38,6 +38,9 @@ class Server:
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((TCP_IP, TCP_PORT))
         
+        self.conn = []
+        self.addr = []
+        
         self.x_map = []
         self.d_misfit = []
         self.U_misfit = []
@@ -53,60 +56,95 @@ class Server:
         self.sock.listen(1)
         
         print "waiting for connection"
-        conn, addr = self.sock.accept() # hangs until other end connects
-        print 'Connection address:', addr
+        self.conn, self.addr = self.sock.accept() # hangs until other end connects
+        print 'Connection address:', self.addr
         
         wait = True
         
         while wait:
             print "waiting for message"
-            cmd_class = conn.recv(32).strip()
+            cmd_class = self.conn.recv(32).strip()
             print "cmd_class: ",cmd_class
             if cmd_class == 'ComputeMapPoint':
                 ok = self.ComputeMapPoint()
                 print "Sending", ok
                 if ok:
-                    conn.send("{0:32s}".format("true"))
+                    self.conn.send("{0:32s}".format("true"))
                 else:
-                    conn.send("{0:32s}".format("false"))       
+                    self.conn.send("{0:32s}".format("false"))       
             elif cmd_class == 'KLE_GaussianPost':
                 k = self.KLE_GaussianPost()
                 print "k = ", k
                 kk = np.atleast_1d(k).astype(">f8")
                 k_str = kk.tostring(order="F")
                 print "Sending", k_str
-                conn.send(k_str)
+                self.conn.send(k_str)
             elif cmd_class == 'NegLogPost':
-                shape_str = conn.recv(30).strip()
-                print "shape_str: ",shape_str
-                shape = tuple(map(int,shape_str.split()))
-                assert( shape[0] == self.d_gaussianPost.shape[0] )
-                assert( shape[1] == 1)
-                n_floats = np.prod(shape)
-                eta_flat = np.zeros(n_floats,'float')        
-                n_read = 0
-                while n_read < n_floats:
-                    n_toread = min(128,n_floats-n_read)
-                    arr = np.fromstring(conn.recv(n_toread*8),dtype='>f8')
-                    eta_flat[n_read:n_read+n_toread] = arr
-                    n_read += n_toread
-                    print "%i/%i floats read"%(n_read,n_floats)
-                if( shape[1] != 1):         
-                    eta = eta_flat.reshape(shape,order="F")
-                else:
-                    eta = eta_flat
-                    
+                eta_arr = self._receive_double_array()
+                assert(eta_arr.shape[0] == self.d_gaussianPost.shape[0])
+                assert(eta_arr.shape[1] == 1)
+                eta = eta_arr.flatten()
                 print "received array: ",eta
                 cost = self.NegLogPost(eta)
                 print "NegLogPost = ",cost
                 val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
                 print "Sending", val_str
-                conn.send(val_str)
+                self.conn.send(val_str)
+            elif cmd_class == 'NegLogGaussianPost':
+                eta_arr = self._receive_double_array()
+                assert(eta_arr.shape[0] == self.d_gaussianPost.shape[0])
+                assert(eta_arr.shape[1] == 1)
+                eta = eta_arr.flatten()
+                print "received array: ",eta
+                cost = self.NegLogGaussianPost(eta)
+                print "NegLogGaussianPost = ",cost
+                val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
+                print "Sending", val_str
+                self.conn.send(val_str)
+            elif cmd_class == 'NegLogLikelihood':
+                eta_arr = self._receive_double_array()
+                assert(eta_arr.shape[0] == self.d_gaussianPost.shape[0])
+                assert(eta_arr.shape[1] == 1)
+                eta = eta_arr.flatten()
+                print "received array: ",eta
+                cost = self.NegLogLikelihood(eta)
+                print "NegLogLikelihood = ",cost
+                val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
+                print "Sending", val_str
+                self.conn.send(val_str)
+            elif cmd_class == 'NegLogPrior':
+                eta_arr = self._receive_double_array()
+                assert(eta_arr.shape[0] == self.d_gaussianPost.shape[0])
+                assert(eta_arr.shape[1] == 1)
+                eta = eta_arr.flatten()
+                print "received array: ",eta
+                cost = self.NegLogPrior(eta)
+                print "NegLogPrior = ",cost
+                val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
+                print "Sending", val_str
+                self.conn.send(val_str)
             elif cmd_class == 'Quit':
                 self.quit()
                 wait = False
             else:
                 raise cmd_class
+            
+    def _receive_double_array(self):
+        shape_str = self.conn.recv(30).strip()
+        print "shape_str: ",shape_str
+        shape = tuple(map(int,shape_str.split()))
+        n_floats = np.prod(shape)
+        eta_flat = np.zeros(n_floats,'float')        
+        n_read = 0
+        while n_read < n_floats:
+            n_toread = min(128,n_floats-n_read)
+            arr = np.fromstring(self.conn.recv(n_toread*8),dtype='>f8')
+            eta_flat[n_read:n_read+n_toread] = arr
+            n_read += n_toread
+            print "%i/%i floats read"%(n_read,n_floats)
+       
+        return eta_flat.reshape(shape,order="F")
+
             
     def ComputeMapPoint(self):
         a0 = self.model.prior.mean.copy()
@@ -161,6 +199,28 @@ class Server:
         self.model.solveFwd(x[STATE], x)
         cost = self.model.cost(x)
         return cost[0]
+    
+    def NegLogLikelihood(self, eta):
+        a_data = self.U_gaussianPost.dot( eta*np.sqrt(self.d_gaussianPost) ) + self.x_map[PARAMETER].array()
+        x = self.model.generate_vector()
+        x[PARAMETER].set_local(a_data)
+        self.model.solveFwd(x[STATE], x)
+        cost = self.model.cost(x)
+        return cost[2]
+    
+    def NegLogGaussianPost(self, eta):
+        a_data = self.U_gaussianPost.dot( eta*np.sqrt(self.d_gaussianPost) ) + self.x_map[PARAMETER].array()
+        da = self.model.generate_vector(PARAMETER)
+        da.set_local(a_data)
+        da.axpy(-1., self.laplace_approx_posterior.mean)
+        return .5*self.laplace_approx_posterior.Hlr.inner(da,da)
+    
+    def NegLogPrior(self, eta):
+        a_data = self.U_gaussianPost.dot( eta*np.sqrt(self.d_gaussianPost) ) + self.x_map[PARAMETER].array()
+        da = self.model.generate_vector(PARAMETER)
+        da.set_local(a_data)
+        da.axpy(-1., self.model.prior.mean)
+        return .5*self.model.prior.R.inner(da,da)
     
     def quit(self):       
         self.sock.close()
