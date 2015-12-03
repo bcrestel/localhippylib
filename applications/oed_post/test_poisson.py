@@ -160,7 +160,7 @@ if __name__ == "__main__":
         plt.semilogy(np.ones(d.shape), "-r")
         plt.title("Generalized Eigenvalues")
         plt.show()
-        
+                
     posterior.mean = x[PARAMETER]
         
     start = posterior.mean.copy()
@@ -179,13 +179,12 @@ if __name__ == "__main__":
         check_derivatives_pdf(pdf,start, dir)
         check_derivatives_pdf(pdfg,start, dir)
     
-    check_along_eigenfunctions = False
+    check_along_eigenfunctions = True
     check_random_eigen_combination = False
     check_random_dir = False
     
     if check_along_eigenfunctions:
-        iact = np.where(d > .1)
-        for i in iact[0]:
+        for i in range(k):
             dir = model.generate_vector(PARAMETER)
             dir.set_local(U[:,i])
             l = 1./math.sqrt(1.+d[i])
@@ -243,7 +242,7 @@ if __name__ == "__main__":
     plt.show()
     
     
-    for i in range(d1.shape[0]):
+    for i in range(k):
         dir = model.generate_vector(PARAMETER)
         dir.set_local(U1[:,i])
         l = 1./math.sqrt(posterior.Hlr.inner(dir,dir))
