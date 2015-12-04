@@ -62,7 +62,7 @@ class Server:
         wait = True
         
         while wait:
-            print "waiting for message"
+            #print "waiting for message"
             cmd_class = self.conn.recv(32).strip()
             print "cmd_class: ",cmd_class
             if cmd_class == 'ComputeMapPoint':
@@ -77,51 +77,50 @@ class Server:
                 print "k = ", k
                 kk = np.atleast_1d(k).astype(">f8")
                 k_str = kk.tostring(order="F")
-                print "Sending", k_str
                 self.conn.send(k_str)
             elif cmd_class == 'NegLogPost':
                 eta_arr = self._receive_double_array()
                 assert(eta_arr.shape[0] == self.d_gaussianPost.shape[0])
                 assert(eta_arr.shape[1] == 1)
                 eta = eta_arr.flatten()
-                print "received array: ",eta
+                #print "received array: ",eta
                 cost = self.NegLogPost(eta)
                 print "NegLogPost = ",cost
                 val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
-                print "Sending", val_str
                 self.conn.send(val_str)
             elif cmd_class == 'NegLogGaussianPost':
                 eta_arr = self._receive_double_array()
                 assert(eta_arr.shape[0] == self.d_gaussianPost.shape[0])
                 assert(eta_arr.shape[1] == 1)
                 eta = eta_arr.flatten()
-                print "received array: ",eta
+                #print "received array: ",eta
                 cost = self.NegLogGaussianPost(eta)
                 print "NegLogGaussianPost = ",cost
                 val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
-                print "Sending", val_str
                 self.conn.send(val_str)
             elif cmd_class == 'NegLogLikelihood':
                 eta_arr = self._receive_double_array()
                 assert(eta_arr.shape[0] == self.d_gaussianPost.shape[0])
                 assert(eta_arr.shape[1] == 1)
                 eta = eta_arr.flatten()
-                print "received array: ",eta
+                #print "received array: ",eta
                 cost = self.NegLogLikelihood(eta)
                 print "NegLogLikelihood = ",cost
                 val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
-                print "Sending", val_str
                 self.conn.send(val_str)
             elif cmd_class == 'NegLogPrior':
                 eta_arr = self._receive_double_array()
                 assert(eta_arr.shape[0] == self.d_gaussianPost.shape[0])
                 assert(eta_arr.shape[1] == 1)
                 eta = eta_arr.flatten()
-                print "received array: ",eta
+                #print "received array: ",eta
                 cost = self.NegLogPrior(eta)
                 print "NegLogPrior = ",cost
                 val_str = np.atleast_1d(cost).astype(">f8").tostring(order="F")
-                print "Sending", val_str
+                self.conn.send(val_str)
+            elif cmd_class == 'Echo':
+                eta_arr = self._receive_double_array()
+                val_str = np.atleast_1d(0.).astype(">f8").tostring(order="F")
                 self.conn.send(val_str)
             elif cmd_class == 'Quit':
                 self.quit()
@@ -131,7 +130,7 @@ class Server:
             
     def _receive_double_array(self):
         shape_str = self.conn.recv(30).strip()
-        print "shape_str: ",shape_str
+        #print "shape_str: ",shape_str
         shape = tuple(map(int,shape_str.split()))
         n_floats = np.prod(shape)
         eta_flat = np.zeros(n_floats,'float')        
@@ -141,7 +140,7 @@ class Server:
             arr = np.fromstring(self.conn.recv(n_toread*8),dtype='>f8')
             eta_flat[n_read:n_read+n_toread] = arr
             n_read += n_toread
-            print "%i/%i floats read"%(n_read,n_floats)
+            #print "%i/%i floats read"%(n_read,n_floats)
        
         return eta_flat.reshape(shape,order="F")
 

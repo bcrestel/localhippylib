@@ -30,7 +30,7 @@ classdef HippyClient
              fwrite(self.conn,sprintf('%32s', 'KLE_GaussianPost'));
              kdim = fread(self.conn,1,'double');
              assert(~isempty(kdim));
-             disp(kdim);    
+             disp(kdim);
         end
         
         function val = negLogPost(self, eta)
@@ -53,16 +53,21 @@ classdef HippyClient
             val = self.send_array_receive_value(eta);
         end
         
+        function echo(self,eta)
+            fwrite(self.conn,sprintf('%32s', 'Echo'));
+            self.send_array_receive_value(eta);
+        end
+        
         function val = send_array_receive_value(self, eta)
             fwrite(self.conn,sprintf('%30s',num2str(size(eta))));
             n_floats = numel(eta);
-            disp('Sending eta');
+%            disp('Sending eta');
             n_sent = 0;
             while n_sent < n_floats
                 n_tosend = min(128,n_floats-n_sent);
                 fwrite(self.conn,eta((n_sent+1):n_sent+n_tosend),'double');
                 n_sent = n_sent + n_tosend;
-                fprintf('%i/%i floats sent\n',n_sent,n_floats);    
+%                fprintf('%i/%i floats sent\n',n_sent,n_floats);    
             end
             val = fread(self.conn,1,'double');
         end
