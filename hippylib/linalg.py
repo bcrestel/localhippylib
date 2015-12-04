@@ -53,7 +53,6 @@ def to_dense(A):
     if hasattr(A, "getrow"):
         n  = A.size(0)
         m  = A.size(1)
-        print n,m
         B = np.zeros( (n,m), dtype=np.float64)
         for i in range(0,n):
             [j, val] = A.getrow(i)
@@ -70,10 +69,11 @@ def to_dense(A):
         m = x.array().shape[0]
         B = np.zeros( (n,m), dtype=np.float64) 
         for i in range(0,m):
-            x[i] = 1.
+            i_ind = np.array([i], dtype=np.intc)
+            x.set_local(np.ones(i_ind.shape), i_ind)
             A.mult(x,Ax)
             B[:,i] = Ax.array()
-            x[i] = 0.
+            x.set_local(np.zeros(i_ind.shape), i_ind)
             
         return B
 
