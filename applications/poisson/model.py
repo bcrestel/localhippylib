@@ -30,7 +30,6 @@ class Poisson:
         self.bc0 = DirichletBC(self.Vh[STATE], self.u_bdr0, u_boundary)
         
         # Assemble constant matrices      
-        self.M = self.assembleM()
         self.Prior = Prior
         self.Wuu = self.assembleWuu()
         
@@ -112,17 +111,7 @@ class Poisson:
 #        print "||c||", x[PARAMETER].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
         self.bc0.zero(C)
         return C
-   
-    def assembleM(self):
-        """
-        Assemble the mass matrix in the parameter space.
-        This is needed in evalGradientParameter to compute the L2 norm of the gradient
-        """
-        trial = TrialFunction(self.Vh[PARAMETER])
-        test  = TestFunction(self.Vh[PARAMETER])
-        varf = inner(trial, test)*dx
-        return assemble(varf)
-    
+       
     def assembleWuu(self):
         """
         Assemble the misfit operator
@@ -257,9 +246,7 @@ class Poisson:
         g = Vector()
         self.Prior.init_vector(g,1)
         
-        solver = PETScKrylovSolver("cg", "jacobi")
-        solver.set_operator(self.M)
-        solver.solve(g, mg)
+        self.Prior.Msolver.solve(g, mg)
         g_norm = sqrt( g.inner(mg) )
         
         return g_norm
@@ -305,7 +292,7 @@ class Poisson:
     def applyCt(self, dp, out):
         self.C.transpmult(dp,out)
     
-    def applyWuu(self, du, out):
+    def applyWuu(self, du, out, gn_approx=False):
         self.Wuu.mult(du, out)
     
     def applyWua(self, da, out):

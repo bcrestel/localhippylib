@@ -29,7 +29,6 @@ class Poisson:
         self.bc0 = dl.DirichletBC(self.Vh[STATE], self.u_bdr0, u_boundary)
                 
         # Assemble constant matrices      
-        self.M = self.assembleM()
         self.prior = prior
         self.B = assemblePointwiseObservation(self.Vh[STATE],targets)
                 
@@ -116,16 +115,6 @@ class Poisson:
 #        print "||c||", x[PARAMETER].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
         self.bc0.zero(C)
         return C
-        
-    def assembleM(self):
-        """
-        Assemble the mass matrix in the parameter space.
-        This is needed in evalGradientParameter to compute the L2 norm of the gradient
-        """
-        trial = dl.TrialFunction(self.Vh[PARAMETER])
-        test  = dl.TestFunction(self.Vh[PARAMETER])
-        varf = dl.inner(trial, test)*dl.dx
-        return dl.assemble(varf)
         
     def assembleWau(self, x):
         """
@@ -253,9 +242,7 @@ class Poisson:
         g = dl.Vector()
         self.prior.init_vector(g,1)
         
-        solver = dl.PETScKrylovSolver("cg", "jacobi")
-        solver.set_operator(self.M)
-        solver.solve(g, mg)
+        self.prior.Msolver.solve(g, mg)
         g_norm = dl.sqrt( g.inner(mg) )
         
         return g_norm
@@ -301,7 +288,7 @@ class Poisson:
     def applyCt(self, dp, out):
         self.C.transpmult(dp,out)
     
-    def applyWuu(self, du, out):
+    def applyWuu(self, du, out, gn_approx=False):
         help = dl.Vector()
         self.B.init_vector(help, 0)
         self.B.mult(du, help)

@@ -197,10 +197,7 @@ class TimeDependentAD:
         g = dl.Vector()
         self.M.init_vector(g,1)
         
-        s = dl.PETScKrylovSolver("cg", "jacobi")
-        s.parameters["relative_tolerance"] = 1e-9
-        s.set_operator(self.M)
-        s.solve(g,mg)
+        self.Prior.Msolver.solve(g,mg)
         
         
         grad_norm = g.inner(mg)
@@ -285,7 +282,7 @@ class TimeDependentAD:
         self.Mt_stab.mult(dp0, out)
 
     
-    def applyWuu(self, du, out):
+    def applyWuu(self, du, out, gn_approx=False):
         out.zero()
         myout = dl.Vector()
         self.Q.init_vector(myout,0)
