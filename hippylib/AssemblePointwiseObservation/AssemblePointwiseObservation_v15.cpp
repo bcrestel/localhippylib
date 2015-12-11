@@ -24,8 +24,6 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 	 std::size_t ntargets = targets.size() / gdim;
 	 assert(ntargets*gdim == targets.size() );
 
-	 std::shared_ptr<const FiniteElement> element( Vh.element() );
-
 	 std::vector<Point> points(0);
 	 points.reserve(ntargets);
 
@@ -33,6 +31,11 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 		 points.push_back( Point(gdim, targets.data()+i*gdim) );
 
 	 std::shared_ptr<BoundingBoxTree> bbt = mesh.bounding_box_tree();
+
+	 std::shared_ptr<const FiniteElement> element( Vh.element() );
+	 //Check that value_rank is either 0 (scalar FE or 1 vector FE)
+	 assert(element->value_rank() == 0 || element->value_rank() == 1);
+	 int value_dim = element->value_dimension(0);
 
 	 std::shared_ptr<const GenericDofMap> dofmap = Vh.dofmap();
 	 PetscInt global_dof_dimension = dofmap->global_dimension();
@@ -43,7 +46,7 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 	 std::vector<PetscInt> LGtargets(0);
 	 LGtargets.reserve(global_ntargets);
 	 PetscInt lt = 0;
-	 for(int gt = 0; gt < ntargets; ++ gt)
+	 for(int gt = 0; gt < global_ntargets; ++gt)
 		 if( bbt->collides_entity(points[gt]) )
 		 {
 			 LGtargets.push_back(lt);
@@ -51,23 +54,29 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 		 }
 	 PetscInt local_ntargets  = lt;
 
+	 PetscInt global_nrows = global_ntargets*value_dim;
+	 PetscInt local_nrows = local_ntargets*value_dim;
+	 std::vector<PetscInt> LGrows(local_nrows);
+	 int counter = 0;
+
+	 for(int lt = 0; lt < local_ntargets; ++lt)
+		 for(int ival = 0; ival < value_dim; ++ival, ++ counter)
+			 LGrows[counter] = lt*value_dim + ival;
+
 	 MatCreate(comm,&mat);
-	 MatSetSizes(mat,local_ntargets,local_dof_dimension,global_ntargets,global_dof_dimension);
+	 MatSetSizes(mat,local_nrows,local_dof_dimension,global_nrows,global_dof_dimension);
 	 MatSetType(mat,MATAIJ);
 	 MatSetUp(mat);
 	 ISLocalToGlobalMapping rmapping, cmapping;
 	 PetscCopyMode mode = PETSC_COPY_VALUES;
-	 ISLocalToGlobalMappingCreate(comm, LGtargets.size(), &LGtargets[0], mode, &rmapping);
+	 ISLocalToGlobalMappingCreate(comm, LGrows.size(), &LGrows[0], mode, &rmapping);
 	 ISLocalToGlobalMappingCreate(comm, LGdofs.size(),&LGdofs[0],mode,&cmapping);
 	 MatSetLocalToGlobalMapping(mat,rmapping,cmapping);
 
-	 //Not sure what value_rank is. But for scalar FE should be 0.
-	 assert(element->value_rank() == 0);
 	 //Space dimension is the local number of Dofs
 	 std::size_t sdim = element->space_dimension();
-
-
-	 std::vector<double> basis_matrix(sdim);
+	 std::vector<double> basis_matrix(sdim*value_dim);
+	 std::vector<double> basis_matrix_row_major(sdim*value_dim);
 	 std::vector<PetscInt> cols(sdim);
 
 	 for(int lt = 0; lt < local_ntargets; ++lt)
@@ -81,7 +90,11 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 		 element->evaluate_basis_all(&basis_matrix[0], points[gt].coordinates(), &coords[0], cell.orientation());
 		 const std::vector<dolfin::la_index>& cell_dofs = dofmap->cell_dofs(cell_id);
 		 std::copy(cell_dofs.begin(), cell_dofs.end(), cols.begin());
-		 MatSetValues(mat,1,&lt,sdim, &cols[0],&basis_matrix[0],INSERT_VALUES);
+		 for(int i = 0; i < sdim; ++i)
+			 for(int j = 0; j < value_dim; ++j)
+				 basis_matrix_row_major[i+j*sdim] = basis_matrix[value_dim*i+j];
+
+		 MatSetValues(mat,value_dim,&LGrows[value_dim*gt],sdim, &cols[0],&basis_matrix_row_major[0],INSERT_VALUES);
 	 }
 
 	 MatAssemblyBegin(mat,MAT_FINAL_ASSEMBLY);
