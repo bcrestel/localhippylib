@@ -14,7 +14,7 @@ $$/   $$/ $$$$$$/ $$/       $$/           $$/     $$/ $$/ $$$$$$$/
                                                                     
                                                                     
 
-                           <hippylib_website>
+                           https://hippylib.github.io
 
 hIPPYlib implements state-of-the-art scalable algorithms for PDE-based
 deterministic and Bayesian inverse problems. It builds on FEniCS (a
