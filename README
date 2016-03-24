@@ -1,5 +1,5 @@
-                 Inverse Problem PYthon library
-                         version <hippylib_version>
+                        Inverse Problem PYthon library
+                                 version 1.0
 
 
  __        ______  _______   _______   __      __  __  __  __       
@@ -14,7 +14,7 @@ $$/   $$/ $$$$$$/ $$/       $$/           $$/     $$/ $$/ $$$$$$$/
                                                                     
                                                                     
 
-                           https://hippylib.github.io
+                          https://hippylib.github.io
 
 hIPPYlib implements state-of-the-art scalable algorithms for PDE-based
 deterministic and Bayesian inverse problems. It builds on FEniCS (a
