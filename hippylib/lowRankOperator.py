@@ -60,11 +60,12 @@ class LowRankOperator:
         
     def trace(self,W=None):
         """
-        Compute the weighted trace of A.
-        
+        Compute the trace of A.
+        If the weight W is given compute the trace of W^1/2AW^1/2.
+        This is equivalent to
         tr_W(A) = \sum_i lambda_i,
         where lambda_i are the generalized eigenvalues of
-        A x = lambda W x.
+        A x = lambda W^-1 x.
         
         Note if U is a W-orthogonal matrix then
         tr_W(A) = \sum_i D(i,i). 

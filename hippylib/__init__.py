@@ -33,8 +33,7 @@ from modelVerify import *
 from NewtonCG import *
 from modelTemplate import *
 from pd_activeset import *
-from assemblePointwiseObservation import assemblePointwiseObservation
-from exportPointwiseObservation import exportPointwiseObservation
+from pointwiseObservation import assemblePointwiseObservation, exportPointwiseObservation
 from linalg import MatMatMult, MatPtAP, to_dense, trace, get_diagonal, estimate_diagonal_inv_coloring, estimate_diagonal_inv2, getColoring, randn_perturb, amg_method
 from timeDependentVector import TimeDependentVector
 from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePassG

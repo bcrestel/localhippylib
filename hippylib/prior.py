@@ -15,7 +15,7 @@ import dolfin as dl
 import numpy as np
 from linalg import MatPtAP, MatMatMult, MatAtB, get_diagonal, estimate_diagonal_inv_coloring, getColoring, to_dense, amg_method
 from traceEstimator import TraceEstimator
-from assemblePointwiseObservation import assemblePointwiseObservation
+from pointwiseObservation import assemblePointwiseObservation
 import math
 from expression import code_Mollifier
 from cgsampler import CGSampler

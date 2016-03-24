@@ -12,7 +12,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 import dolfin as dl
-from assemblePointwiseObservation import assemblePointwiseObservation
+from pointwiseObservation import assemblePointwiseObservation
 from variables import STATE
 
 class Misfit:
