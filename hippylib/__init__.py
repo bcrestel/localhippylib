@@ -1,3 +1,16 @@
+# Copyright (c) 2016, The University of Texas at Austin & University of
+# California, Merced.
+#
+# All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the hIPPYlib library. For more information and source code
+# availability see https://hippylib.github.io.
+#
+# hIPPYlib is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
 """
 hIPPYlib implements state-of-the-art scalable algorithms for PDE-based
 deterministic and Bayesian inverse problems. It builds on FEniCS (a 
@@ -20,8 +33,7 @@ from modelVerify import *
 from NewtonCG import *
 from modelTemplate import *
 from pd_activeset import *
-from assemblePointwiseObservation import assemblePointwiseObservation
-from exportPointwiseObservation import exportPointwiseObservation
+from pointwiseObservation import assemblePointwiseObservation, exportPointwiseObservation
 from linalg import MatMatMult, MatPtAP, to_dense, trace, get_diagonal, estimate_diagonal_inv_coloring, estimate_diagonal_inv2, getColoring, randn_perturb, amg_method
 from timeDependentVector import TimeDependentVector
 from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePassG

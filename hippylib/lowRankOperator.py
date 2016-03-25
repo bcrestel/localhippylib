@@ -1,3 +1,16 @@
+# Copyright (c) 2016, The University of Texas at Austin & University of
+# California, Merced.
+#
+# All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the hIPPYlib library. For more information and source code
+# availability see https://hippylib.github.io.
+#
+# hIPPYlib is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
 from dolfin import Vector
 import numpy as np
 
@@ -47,11 +60,12 @@ class LowRankOperator:
         
     def trace(self,W=None):
         """
-        Compute the weighted trace of A.
-        
+        Compute the trace of A.
+        If the weight W is given compute the trace of W^1/2AW^1/2.
+        This is equivalent to
         tr_W(A) = \sum_i lambda_i,
         where lambda_i are the generalized eigenvalues of
-        A x = lambda W x.
+        A x = lambda W^-1 x.
         
         Note if U is a W-orthogonal matrix then
         tr_W(A) = \sum_i D(i,i). 
