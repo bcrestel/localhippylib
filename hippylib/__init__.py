@@ -46,3 +46,4 @@ from expression import code_AnisTensor2D, code_Mollifier
 from PDEProblem import PDEProblem, PDEVariationalProblem
 from misfit import ContinuousStateObservation, PointwiseStateObservation
 from model import Model
+from server import Server
