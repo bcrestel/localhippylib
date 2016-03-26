@@ -32,7 +32,6 @@ from variables import *
 from modelVerify import *
 from NewtonCG import *
 from modelTemplate import *
-from pd_activeset import *
 from pointwiseObservation import assemblePointwiseObservation, exportPointwiseObservation
 from linalg import MatMatMult, MatPtAP, to_dense, trace, get_diagonal, estimate_diagonal_inv2, randn_perturb, amg_method, Solver2Operator
 from timeDependentVector import TimeDependentVector
@@ -46,4 +45,3 @@ from expression import code_AnisTensor2D, code_Mollifier
 from PDEProblem import PDEProblem, PDEVariationalProblem
 from misfit import ContinuousStateObservation, PointwiseStateObservation
 from model import Model
-from server import Server

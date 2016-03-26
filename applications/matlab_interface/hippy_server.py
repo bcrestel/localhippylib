@@ -9,6 +9,7 @@ sys.path.append( "../../" )
 from hippylib import *
 import numpy as np
 import matplotlib.pyplot as plt
+from server import Server
 
 
 def true_model(Vh, gamma, delta, anis_diff):

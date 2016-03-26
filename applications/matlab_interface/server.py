@@ -1,14 +1,24 @@
+# Copyright (c) 2016, The University of Texas at Austin & University of
+# California, Merced.
+#
+# All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the hIPPYlib library. For more information and source code
+# availability see https://hippylib.github.io.
+#
+# hIPPYlib is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
 import numpy as np
 import socket
 from time import sleep
 
-from fenics import Vector
-from posterior import *
-from randomizedEigensolver import *
-from variables import *
-from NewtonCG import ReducedSpaceNewtonCG
-from reducedHessian import ReducedHessian
-from linalg import to_dense
+from dolfin import Vector
+import sys
+sys.path.append( "../")
+from hippylib import *
 
 from scipy.linalg import eigh
 

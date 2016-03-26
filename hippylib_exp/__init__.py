@@ -12,3 +12,5 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 from coloring import *
+from pd_activeset import *
+from reducedHessian_ActiveSet import *

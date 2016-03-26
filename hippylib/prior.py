@@ -13,7 +13,7 @@
 
 import dolfin as dl
 import numpy as np
-from linalg import MatPtAP, MatMatMult, MatAtB, get_diagonal, to_dense, amg_method
+from linalg import MatMatMult, MatAtB, get_diagonal, amg_method
 from traceEstimator import TraceEstimator
 from pointwiseObservation import assemblePointwiseObservation
 import math

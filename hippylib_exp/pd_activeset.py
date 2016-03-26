@@ -13,9 +13,10 @@
 
 import math
 import numpy as np
-from variables import PARAMETER
-from cgsolverSteihaug import CGSolverSteihaug
-from reducedHessian import ReducedHessianActiveSet
+import sys
+sys.path.append( "../")
+from hippylib import *
+from reducedHessian_ActiveSet import *
 
 
 class PDActiveSet:
