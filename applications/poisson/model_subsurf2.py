@@ -100,7 +100,6 @@ if __name__ == "__main__":
     print sep, "Test the gradient and the Hessian of the model", sep
     a0 = dl.interpolate(dl.Expression("sin(x[0])"), Vh[PARAMETER])
     modelVerify(model, a0.vector(), 1e-12)
-    plt.show()
 
     print sep, "Find the MAP point", sep
     a0 = prior.mean.copy()
