@@ -13,7 +13,7 @@
 
 import dolfin as dl
 import numpy as np
-from linalg import MatPtAP, MatMatMult, MatAtB, get_diagonal, estimate_diagonal_inv_coloring, getColoring, to_dense, amg_method
+from linalg import MatPtAP, MatMatMult, MatAtB, get_diagonal, to_dense, amg_method
 from traceEstimator import TraceEstimator
 from pointwiseObservation import assemblePointwiseObservation
 import math
@@ -93,25 +93,11 @@ class _Prior:
         
         - If method=="Exact" we compute the diagonal entries of R^{-1} entry by entry. 
           This requires to solve n linear system in R (not scalable, but ok for illustration purposes).
-          
-        - If method=="ProbingEstimator" we use a probing algorithm to approximate the diagonal entries of R^{-1}.
-          The number of linear system in R to solve depends on the sparsity pattern of R.
-          Even if the computational cost is much lower than the exact method, the complexity still increase linearly
-          with the size of the problem. path_len represent the power of R used to compute the adjacency matrix for the
-          graph coloring algorithm. See function estimate_diagonal_inv_coloring for details.
         """
         pw_var = dl.Vector()
         self.init_vector(pw_var,0)
         if method == "Exact":
             get_diagonal(self.Rsolver, pw_var, solve_mode=True)
-        elif method == "ProbingEstimator":
-            if type(self.R) == dl.Matrix:
-                coloring = getColoring(self.R, path_len)
-            else:
-                Rsparsity = MatPtAP(self.M, self.A)
-                coloring = getColoring(Rsparsity, path_len)
-                
-            estimate_diagonal_inv_coloring(self.Rsolver, coloring, pw_var)
         else:
             raise NameError("Unknown method")
         

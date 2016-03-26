@@ -34,12 +34,12 @@ from NewtonCG import *
 from modelTemplate import *
 from pd_activeset import *
 from pointwiseObservation import assemblePointwiseObservation, exportPointwiseObservation
-from linalg import MatMatMult, MatPtAP, to_dense, trace, get_diagonal, estimate_diagonal_inv_coloring, estimate_diagonal_inv2, getColoring, randn_perturb, amg_method
+from linalg import MatMatMult, MatPtAP, to_dense, trace, get_diagonal, estimate_diagonal_inv2, randn_perturb, amg_method, Solver2Operator
 from timeDependentVector import TimeDependentVector
 from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePassG
 from lowRankOperator import LowRankOperator
 from prior import LaplacianPrior, BiLaplacianPrior, ConstrainedBiLaplacianPrior, MollifiedBiLaplacianPrior, LaplaceBeltramiPrior
-from posterior import GaussianLRPosterior
+from posterior import GaussianLRPosterior, LowRankHessian
 from cgsampler import CGSampler
 from traceEstimator import TraceEstimator
 from expression import code_AnisTensor2D, code_Mollifier

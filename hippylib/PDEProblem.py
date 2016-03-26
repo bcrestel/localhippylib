@@ -23,6 +23,12 @@ class PDEProblem:
         
     def generate_state(self):
         """ return a vector in the shape of the state """
+        
+    def generate_parameter(self):
+        """ return a vector in the shape of the parameter """
+        
+    def init_parameter(self, a):
+        """ initialize the parameter """
     
     def solveFwd(self, state, x, tol):
         """ Solve the possibly nonlinear Fwd Problem:
@@ -77,6 +83,15 @@ class PDEVariationalProblem(PDEProblem):
     def generate_state(self):
         """ return a vector in the shape of the state """
         return dl.Function(self.Vh[STATE]).vector()
+    
+    def generate_parameter(self):
+        """ return a vector in the shape of the parameter """
+        return dl.Function(self.Vh[PARAMETER]).vector()
+    
+    def init_parameter(self, a):
+        """ initialize the parameter """
+        dummy = self.generate_parameter()
+        a.init( dummy.mpi_comm(), dummy.local_range() )
     
     def solveFwd(self, state, x, tol):
         """ Solve the possibly nonlinear Fwd Problem:

@@ -90,12 +90,6 @@ def to_dense(A):
             
         return B
 
-def getColoring(A,k):
-    """
-    Apply a coloring algorithm the adjacency graph of A^k.
-    """
-    return cpp_module.Coloring(A,k)
-
 
 def trace(A):
     """
@@ -137,39 +131,6 @@ def get_diagonal(A, d, solve_mode=True):
     d.set_local(da)
 
       
-def estimate_diagonal_inv_coloring(Asolver, coloring, d):
-    """
-    Use a probing algorithm to estimate the diagonal of A^{-1}.
-    - Asolver:  a linear solver for the operator A.
-    - coloring: a coloring based on the adjacency graph of A^k,
-                for some power k. The number of linear system to
-                be solved is equal to the number of colors.
-    - d:        the estimated diagonal of A^{-1}.
-    
-    REFERENCE:
-    Jok M Tang and Yousef Saad,
-    A probing method for computing the diagonal of a matrix inverse,
-    Numerical Linear Algebra with Applications, 19 (2012), pp. 485-501
-    """
-    
-    x, b = Vector(), Vector()
-    
-    if hasattr(Asolver, "init_vector"):
-        Asolver.init_vector(x,1)
-        Asolver.init_vector(b,0)
-    else:       
-        Asolver.get_operator().init_vector(x,1)
-        Asolver.get_operator().init_vector(b,0)
-    
-    ncolors = coloring.numberOfColors()
-    print ncolors
-    
-    d.zero()
-    for color in range(ncolors):
-        coloring.markcolor(color, b, 1.)
-        x.zero()
-        Asolver.solve(x,b)
-        coloring.x_dot_mult_b(color, x, b, d)
 
 
 def estimate_diagonal_inv2(Asolver, k, d):
@@ -214,3 +175,23 @@ def randn_perturb(x, std_dev):
     n = x.array().shape[0]
     noise = np.random.normal(0, 1, n)
     x.set_local(x.array() + std_dev*noise)
+    
+class Solver2Operator:
+    def __init__(self,S):
+        self.S = S
+        self.tmp = Vector()
+        
+    def init_vector(self, x, dim):
+        if hasattr(self.S, "init_vector"):
+            self.S.init_vector(x,dim)
+        elif hasattr(self.S, "operator"):
+            self.S.operator().init_vector(x,dim)
+        else:
+            raise
+        
+    def mult(self,x,y):
+        self.S.solve(y,x)
+        
+    def inner(self, x, y):
+        self.S.solve(self.tmp,y)
+        return self.tmp.inner(x)
