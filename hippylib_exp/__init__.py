@@ -14,3 +14,4 @@
 from coloring import *
 from pd_activeset import *
 from reducedHessian_ActiveSet import *
+from prior import *
