@@ -12,11 +12,13 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 from dolfin import *
+import numpy as np
+import matplotlib.pyplot as plt
+
 import sys
 sys.path.append( "../../" )
 from hippylib import *
-import numpy as np
-import matplotlib.pyplot as plt
+
 
 def u_boundary(x, on_boundary):
     return on_boundary

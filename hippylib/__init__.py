@@ -28,20 +28,31 @@ Conceptually, hIPPYlib can be viewed as a toolbox that provides
 the building blocks for experimenting new ideas and developing scalable
 algorithms for PDE-based deterministic and Bayesian inverse problems.
 """
-from variables import *
-from modelVerify import *
-from NewtonCG import *
-from modelTemplate import *
-from pointwiseObservation import assemblePointwiseObservation, exportPointwiseObservation
-from linalg import MatMatMult, MatPtAP, to_dense, trace, get_diagonal, estimate_diagonal_inv2, randn_perturb, amg_method, Solver2Operator
-from timeDependentVector import TimeDependentVector
-from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePassG
-from lowRankOperator import LowRankOperator
-from prior import LaplacianPrior, BiLaplacianPrior, ConstrainedBiLaplacianPrior, MollifiedBiLaplacianPrior, LaplaceBeltramiPrior
-from posterior import GaussianLRPosterior, LowRankHessian
-from cgsampler import CGSampler
-from traceEstimator import TraceEstimator
+
+# utils
 from expression import code_AnisTensor2D, code_Mollifier
+from linalg import MatMatMult, MatPtAP, to_dense, trace, get_diagonal, estimate_diagonal_inv2, randn_perturb, amg_method, Solver2Operator
+from pointwiseObservation import assemblePointwiseObservation, exportPointwiseObservation
+from timeDependentVector import TimeDependentVector
+
+
+# hIPPYlib model
+from variables import *
 from PDEProblem import PDEProblem, PDEVariationalProblem
+from prior import LaplacianPrior, BiLaplacianPrior, MollifiedBiLaplacianPrior
 from misfit import ContinuousStateObservation, PointwiseStateObservation
 from model import Model
+from modelTemplate import ModelTemplate, modelVerify 
+
+# hIPPYlib algorithms
+from cgsolverSteihaug import CGSolverSteihaug
+from NewtonCG import ReducedSpaceNewtonCG
+from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePassG
+from lowRankOperator import LowRankOperator
+from traceEstimator import TraceEstimator
+from cgsampler import CGSampler
+
+
+# hIPPYlib outputs
+from reducedHessian import ReducedHessian
+from posterior import GaussianLRPosterior, LowRankHessian

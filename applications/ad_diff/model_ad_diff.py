@@ -13,10 +13,12 @@
 
 import dolfin as dl
 import numpy as np
+import matplotlib.pyplot as plt
+
 import sys
 sys.path.append( "../../" )
 from hippylib import *
-import matplotlib.pyplot as plt
+
 
 class TimeDependentAD:    
     def __init__(self, mesh, Vh, t_init, t_final, t_1, dt, wind_velocity, gls_stab, Prior):
@@ -421,7 +423,7 @@ if __name__ == "__main__":
     
     print sep, "Test the gradient and the Hessian of the model", sep
     a0 = true_initial_condition.copy()
-    modelVerify(problem, a0, 1e-12)
+    modelVerify(problem, a0, 1e-12, is_quadratic = True)
     
     print sep, "Compute the reduced gradient and hessian", sep
     [u,a,p] = problem.generate_vector()

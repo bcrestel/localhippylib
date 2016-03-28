@@ -12,11 +12,14 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 import dolfin as dl
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+
 import sys
 sys.path.append( "../../" )
 from hippylib import *
-import numpy as np
-import matplotlib.pyplot as plt
+
 
 def u_boundary(x, on_boundary):
     return on_boundary and ( x[1] < dl.DOLFIN_EPS or x[1] > 1.0 - dl.DOLFIN_EPS)
