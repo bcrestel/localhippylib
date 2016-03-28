@@ -13,11 +13,11 @@
 
 import numpy as np
 import socket
-from time import sleep
 
 from dolfin import Vector
 import sys
 sys.path.append( "../")
+
 from hippylib import *
 
 from scipy.linalg import eigh

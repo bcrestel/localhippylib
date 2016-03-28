@@ -1,10 +1,24 @@
+# Copyright (c) 2016, The University of Texas at Austin & University of
+# California, Merced.
+#
+# All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the hIPPYlib library. For more information and source code
+# availability see https://hippylib.github.io.
+#
+# hIPPYlib is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
 import dolfin as dl
-import sys
-sys.path.append( "../../" )
-from hippylib import *
 import numpy as np
 from scipy.linalg import eigh
 import matplotlib.pyplot as plt
+
+import sys
+sys.path.append( "../../" )
+from hippylib import *
 from posteriorDistribution import PosteriorDistribution, GaussianDistribution, check_derivatives_pdf
 
 def exportU(U, Vh, fname, varname = "evect", normalize=1):
