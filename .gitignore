@@ -1,7 +1,7 @@
 *.pyc
 *~
 *.swp
-notebooks/.ipynb_checkpoints/*
+tutorial/.ipynb_checkpoints/*
 teaching/assignement/TotalVariation/.ipynb_checkpoints/
 teaching/notebooks/.ipynb_checkpoints/
 .project

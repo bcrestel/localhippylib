@@ -83,8 +83,14 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 	 MatSetUp(mat);
 	 ISLocalToGlobalMapping rmapping, cmapping;
 	 PetscCopyMode mode = PETSC_COPY_VALUES;
+#if PETSC_VERSION_LT(3,5,0)
 	 ISLocalToGlobalMappingCreate(comm, LGrows.size(), &LGrows[0], mode, &rmapping);
 	 ISLocalToGlobalMappingCreate(comm, LGdofs.size(),&LGdofs[0],mode,&cmapping);
+#else
+	 PETScInt bs = 1;
+	 ISLocalToGlobalMappingCreate(comm, bs, LGrows.size(), &LGrows[0], mode, &rmapping);
+	 ISLocalToGlobalMappingCreate(comm, bs, LGdofs.size(),&LGdofs[0],mode,&cmapping);
+#endif
 	 MatSetLocalToGlobalMapping(mat,rmapping,cmapping);
 
 	 //Space dimension is the local number of Dofs
