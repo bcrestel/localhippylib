@@ -87,7 +87,7 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 	 ISLocalToGlobalMappingCreate(comm, LGrows.size(), &LGrows[0], mode, &rmapping);
 	 ISLocalToGlobalMappingCreate(comm, LGdofs.size(),&LGdofs[0],mode,&cmapping);
 #else
-	 PETScInt bs = 1;
+	 PetscInt bs = 1;
 	 ISLocalToGlobalMappingCreate(comm, bs, LGrows.size(), &LGrows[0], mode, &rmapping);
 	 ISLocalToGlobalMappingCreate(comm, bs, LGdofs.size(),&LGdofs[0],mode,&cmapping);
 #endif
