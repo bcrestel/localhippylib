@@ -158,7 +158,8 @@ class ReducedSpaceNewtonCG:
             
             while descent == 0 and n_backtrack < max_backtracking_iter:
                 # update a and u
-                a = a0
+                a.zero()
+                a.axpy(1., a0)
                 a.axpy(alpha, ahat)
                 self.model.solveFwd(u, [u, a, p], innerTol)
                 
@@ -168,7 +169,8 @@ class ReducedSpaceNewtonCG:
                 if (cost_new < cost_old + alpha * c_armijo * mg_ahat) or (-mg_ahat <= self.parameters["gda_tolerance"]):
                     cost_old = cost_new
                     descent = 1
-                    a0 =a
+                    a0.zero()
+                    a0.axpy(1., a)
                 else:
                     n_backtrack += 1
                     alpha *= 0.5
