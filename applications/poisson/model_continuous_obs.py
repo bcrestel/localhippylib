@@ -135,9 +135,9 @@ class Poisson:
         test = TestFunction(self.Vh[STATE])
         varf = inner(trial, test)*dx
         Wuu = assemble(varf)
-        dummy = Vector()
-        Wuu.init_vector(dummy,0)
-        self.bc0.zero_columns(Wuu, dummy)
+        Wuu_t = Transpose(Wuu)
+        self.bc0.zero(Wuu_t)
+        Wuu = Transpose(Wuu_t)
         self.bc0.zero(Wuu)
         return Wuu
     
@@ -151,9 +151,9 @@ class Poisson:
         c = Function(self.Vh[PARAMETER], x[PARAMETER])
         varf = inner(exp(c)*nabla_grad(trial),nabla_grad(a))*test*dx
         Wau = assemble(varf)
-        dummy = Vector()
-        Wau.init_vector(dummy,0)
-        self.bc0.zero_columns(Wau, dummy)
+        Wau_t = Transpose(Wau)
+        self.bc0.zero(Wau_t)
+        Wau = Transpose(Wau_t)
         return Wau
     
     def assembleRaa(self, x):

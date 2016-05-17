@@ -76,4 +76,18 @@ Matrix cpp_linalg::MatAtB(const GenericMatrix & A, const GenericMatrix & B)
     return Matrix(CCC);
 }
 
+Matrix cpp_linalg::Transpose(const GenericMatrix & A)
+{
+	const PETScMatrix* Ap = &as_type<const PETScMatrix>(A);
+	Mat At;
+	MatTranspose(Ap->mat(), MAT_INITIAL_MATRIX, &At);
+
+	ISLocalToGlobalMapping rmappingA;
+	ISLocalToGlobalMapping cmappingA;
+	MatGetLocalToGlobalMapping(Ap->mat(),&rmappingA, &cmappingA);
+	MatSetLocalToGlobalMapping(At, cmappingA, rmappingA);
+
+	return Matrix(PETScMatrix(At));
+}
+
 }

@@ -58,6 +58,14 @@ def MatAtB(A,B):
     s = cpp_module.cpp_linalg()
     return s.MatAtB(A,B)
 
+def Transpose(A):
+    """
+    Compute the matrix transpose
+    """
+    s = cpp_module.cpp_linalg()
+    return s.Transpose(A)
+    
+
 def to_dense(A):
     """
     Convert a sparse matrix A to dense.

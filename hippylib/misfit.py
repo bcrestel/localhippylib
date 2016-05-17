@@ -100,10 +100,10 @@ class ContinuousStateObservation(Misfit):
         else:
             self.W = dl.assemble( form )
                 
-        dummy = dl.Vector()
         if bc is not None:
-            self.W.init_vector(dummy,0)
-            self.bc.zero_columns(self.W, dummy)
+            Wt = Transpose(self.W)
+            self.bc.zero(Wt)
+            self.W = Transpose(Wt)
             self.bc.zero(self.W)
         self.d = dl.Vector()
         self.W.init_vector(self.d,1)

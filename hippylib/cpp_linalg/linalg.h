@@ -29,6 +29,8 @@ public:
 	Matrix MatPtAP(const GenericMatrix & A, const GenericMatrix & P);
 	//out = At*B
 	Matrix MatAtB(const GenericMatrix & A, const GenericMatrix & B);
+	//out = At
+	Matrix Transpose(const GenericMatrix & A);
 };
 
 }

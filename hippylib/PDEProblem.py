@@ -13,6 +13,7 @@
 
 import dolfin as dl
 from variables import STATE, PARAMETER, ADJOINT
+from linalg import Transpose
 
 class PDEProblem:
     """ Consider the PDE Problem:
@@ -150,11 +151,15 @@ class PDEVariationalProblem(PDEProblem):
         self.C = dl.assemble(dl.derivative(g_form[ADJOINT],a))
         self.bc0.zero(self.C)
         self.Wau = dl.assemble(dl.derivative(g_form[PARAMETER],u))
-        self.bc0.zero_columns(self.Wau, dummy)
+        Wau_t = Transpose(self.Wau)
+        self.bc0.zero(Wau_t)
+        self.Wau = Transpose(Wau_t)
         
         self.Wuu = dl.assemble(dl.derivative(g_form[STATE],u))
         self.bc0.zero(self.Wuu)
-        self.bc0.zero_columns(self.Wuu, dummy)
+        Wuu_t = Transpose(self.Wuu)
+        self.bc0.zero(Wuu_t)
+        self.Wuu = Transpose(Wuu_t)
         
         self.Waa = dl.assemble(dl.derivative(g_form[PARAMETER],a))
         

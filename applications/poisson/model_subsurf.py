@@ -181,9 +181,9 @@ class Poisson:
         c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
         varf = dl.inner(dl.exp(c)*dl.nabla_grad(trial),dl.nabla_grad(a))*test*dl.dx
         Wau = dl.assemble(varf)
-        dummy = dl.Vector()
-        Wau.init_vector(dummy,0)
-        self.bc0.zero_columns(Wau, dummy)
+        Wau_t = Transpose(Wau)
+        self.bc0.zero(Wau_t)
+        Wau = Transpose(Wau_t)
         return Wau
     
     def assembleRaa(self, x):
