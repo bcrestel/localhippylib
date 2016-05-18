@@ -11,7 +11,7 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-from dolfin import compile_extension_module, Vector, PETScKrylovSolver
+from dolfin import compile_extension_module, Vector, PETScKrylovSolver, Function
 import os
 import numpy as np
 
@@ -203,3 +203,14 @@ class Solver2Operator:
     def inner(self, x, y):
         self.S.solve(self.tmp,y)
         return self.tmp.inner(x)
+    
+def vector2Function(x,Vh, **kwargs):
+    """
+    Wrap a finite element vector x into a finite element function in the space Vh.
+    kwargs is optional keywords arguments to be passed to the construction of a dolfin Function
+    """
+    fun = Function(Vh,**kwargs)
+    fun.vector().zero()
+    fun.vector().axpy(1., x)
+    
+    return fun
