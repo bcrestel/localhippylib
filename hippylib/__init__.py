@@ -39,7 +39,7 @@ from timeDependentVector import TimeDependentVector
 # hIPPYlib model
 from variables import *
 from PDEProblem import PDEProblem, PDEVariationalProblem
-from prior import LaplacianPrior, BiLaplacianPrior, MollifiedBiLaplacianPrior
+from prior import _Prior, LaplacianPrior, BiLaplacianPrior, MollifiedBiLaplacianPrior
 from misfit import ContinuousStateObservation, PointwiseStateObservation
 from model import Model
 from modelTemplate import ModelTemplate, modelVerify 
