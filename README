@@ -27,7 +27,7 @@ For building instructions, see the file INSTALL. Copyright information
 and licensing restrictions can be found in the file COPYRIGHT.
 
 The best starting point for new users interested in hIPPYlib's
-features are the interactive tutorials in the notebooks folder.
+features are the interactive tutorials in the tutorial folder.
 
 Conceptually, hIPPYlib can be viewed as a toolbox that provides the
 building blocks for experimenting new ideas and developing scalable
