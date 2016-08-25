@@ -132,12 +132,12 @@ toc("Exact Elapsed: %s s")
 print ( pointwise_var - pointwise_var_exact).norm("linf") / ( pointwise_var_exact).norm("linf")
 print ( pointwise_var_2 - pointwise_var_exact).norm("linf") / ( pointwise_var_exact).norm("linf")
 
-dl.plot(dl.Function(Vh, pointwise_var_exact - pointwise_var) )
-dl.plot(dl.Function(Vh, pointwise_var_exact - pointwise_var_2) )
+dl.plot(vector2Function(pointwise_var_exact - pointwise_var, Vh) )
+dl.plot(vector2Function(pointwise_var_exact - pointwise_var_2, Vh) )
 dl.interactive()
 
-dl.File("marginal_variance.pvd") << dl.Function(Vh, pointwise_var, name="pointwise_variance") << \
-dl.Function(Vh, pointwise_var_2, name="pointwise_variance") << dl.Function(Vh, pointwise_var_exact, name="pointwise_variance")
+dl.File("marginal_variance.pvd") << vector2Function(pointwise_var, Vh, name="pointwise_variance") << \
+vector2Function(pointwise_var_2, Vh, name="pointwise_variance") << vector2Function(pointwise_var_exact, Vh, name="pointwise_variance")
 
 exit()
 
@@ -165,7 +165,7 @@ Prior.init_vector(marginal_variance_RinvM,0)
 get_diagonal(RinvM(), marginal_variance_RinvM, solve_mode=False)
 print "trace using true diagonal R^-1M: ", np.sum( marginal_variance_RinvM.array() )
 
-dl.File("marginal_variance_RinvM.pvd") << dl.Function(Vh, marginal_variance_RinvM, name="marginal_variance_RinvM")
+dl.File("marginal_variance_RinvM.pvd") << vector2Function(marginal_variance_RinvM, Vh, name="marginal_variance_RinvM")
 
 marginal_variance_MRinv = dl.Vector()
 Prior.init_vector(marginal_variance_MRinv,0)
@@ -195,9 +195,9 @@ marginal_sample_variance /= nsamples
 tmp = dl.Function(Vh)
 tmp.vector().set_local(marginal_sample_variance)
 
-dl.plot(dl.Function(Vh, marginal_variance) )
+dl.plot(vector2Function(marginal_variance, Vh) )
 dl.plot( tmp )
-dl.plot( tmp - dl.Function(Vh, marginal_variance) )
+dl.plot( tmp - vector2Function(marginal_variance, Vh) )
   
 
 exp_tr = sum_tr/nsamples

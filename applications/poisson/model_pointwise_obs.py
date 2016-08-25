@@ -96,14 +96,14 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[STATE])
         test = dl.TestFunction(self.Vh[STATE])
-        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
         Avarf = dl.inner(dl.exp(c)*dl.nabla_grad(trial), dl.nabla_grad(test))*dl.dx
         if not assemble_adjoint:
             bform = dl.inner(self.f, test)*dl.dx
             Matrix, rhs = dl.assemble_system(Avarf, bform, self.bc)
         else:
             # Assemble the adjoint of A (i.e. the transpose of A)
-            s = dl.Function(self.Vh[STATE], x[STATE])
+            s = vector2Function(x[STATE], self.Vh[STATE])
             bform = dl.inner(dl.Constant(0.), test)*dl.dx
             Matrix, _ = dl.assemble_system(dl.adjoint(Avarf), bform, self.bc0)
             Bu = -(self.B*x[STATE])
@@ -124,8 +124,8 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test = dl.TestFunction(self.Vh[STATE])
-        s = dl.Function(Vh[STATE], x[STATE])
-        c = dl.Function(Vh[PARAMETER], x[PARAMETER])
+        s = vector2Function(x[STATE], Vh[STATE])
+        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
         Cvarf = dl.inner(dl.exp(c) * trial * dl.nabla_grad(s), dl.nabla_grad(test)) * dl.dx
         C = dl.assemble(Cvarf)
 #        print "||c||", x[PARAMETER].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
@@ -138,8 +138,8 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[STATE])
         test  = dl.TestFunction(self.Vh[PARAMETER])
-        a = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
-        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        a = vector2Function(x[ADJOINT], Vh[ADJOINT])
+        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
         varf = dl.inner(dl.exp(c)*dl.nabla_grad(trial),dl.nabla_grad(a))*test*dl.dx
         Wau = dl.assemble(varf)
         Wau_t = Transpose(Wau)
@@ -153,9 +153,9 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test  = dl.TestFunction(self.Vh[PARAMETER])
-        s = dl.Function(self.Vh[STATE], x[STATE])
-        c = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
-        a = dl.Function(self.Vh[ADJOINT], x[ADJOINT])
+        s = vector2Function(x[STATE], Vh[STATE])
+        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
+        a = vector2Function(x[ADJOINT], Vh[ADJOINT])
         varf = dl.inner(dl.nabla_grad(a),dl.exp(c)*dl.nabla_grad(s))*trial*test*dl.dx
         return dl.assemble(varf)
 
@@ -413,12 +413,12 @@ if __name__ == "__main__":
 
     print sep, "Save State, Parameter, Adjoint, and observation in paraview", sep
     xxname = ["State", "exp(Parameter)", "Adjoint"]
-    xx = [dl.Function(Vh[i], x[i], name=xxname[i]) for i in range(len(Vh))]
+    xx = [vector2Function(x[i], Vh[i], name=xxname[i]) for i in range(len(Vh))]
     dl.File("results/poisson_state.pvd") << xx[STATE]
     expc = dl.project( dl.exp( xx[PARAMETER] ), Vh[PARAMETER] )
     expc.rename("exp(Parameter)", "ignore_this")
     dl.File("results/poisson_parameter.pvd") << expc
-    expc = dl.project( dl.exp( dl.Function(Vh[PARAMETER], model.atrue) ), Vh[PARAMETER])
+    expc = dl.project( dl.exp( vector2Function(model.atrue, Vh[PARAMETER]) ), Vh[PARAMETER])
     expc.rename("exp(Parameter)", "ignore_this")
     dl.File("results/poisson_parameter_true.pvd") << expc
     dl.File("results/poisson_adjoint.pvd") << xx[ADJOINT]
@@ -426,9 +426,9 @@ if __name__ == "__main__":
     exportPointwiseObservation(targets, model.u_o, "results/poisson_observation.vtp")
     
     fid = dl.File("results/pointwise_variance.pvd")
-    fid << dl.Function(Vh[PARAMETER], post_pw_variance, name="Posterior")
-    fid << dl.Function(Vh[PARAMETER], pr_pw_variance, name="Prior")
-    fid << dl.Function(Vh[PARAMETER], corr_pw_variance, name="Correction")
+    fid << vector2Function(post_pw_variance, Vh[PARAMETER], name="Posterior")
+    fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
+    fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
     
     
     print sep, "Generate samples from Prior and Posterior\n","Export generalized Eigenpairs", sep
