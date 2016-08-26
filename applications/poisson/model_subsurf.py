@@ -62,7 +62,7 @@ if __name__ == "__main__":
     def pde_varf(u,a,p):
         return dl.exp(a)*dl.inner(dl.nabla_grad(u), dl.nabla_grad(p))*dl.dx - f*p*dl.dx
     
-    pde = PDEVariationalProblem(Vh, pde_varf, bc, bc0)
+    pde = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
  
     ntargets = 300
     np.random.seed(seed=1)
