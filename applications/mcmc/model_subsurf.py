@@ -17,10 +17,36 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import sys
+from hippylib.mcmc_samplers import MALAKernel
 sys.path.append( "../../" )
 from hippylib import *
 
+class FluxQOI(object):
+    def __init__(self, Vh, dsGamma):
+        self.Vh = Vh
+        self.dsGamma = dsGamma
+        self.n = dl.Constant((0.,1.))#dl.FacetNormal(Vh[STATE].mesh())
+        
+        self.u = None
+        self.m = None
+        self.L = {}
+        
+    def form(self, x):
+        return dl.avg(dl.exp(x[PARAMETER])*dl.dot( dl.grad(x[STATE]), self.n) )*self.dsGamma
+    
+    def eval(self, x):
+        """
+        Given x evaluate the cost functional.
+        Only the state u and (possibly) the parameter a are accessed.
+        """
+        u = dl.Function(self.Vh[STATE], x[STATE])
+        m = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        return dl.assemble(self.form([u,m]))
 
+class GammaCenter(dl.SubDomain):
+    def inside(self, x, on_boundary):
+        return ( abs(x[1]-.5) < dl.DOLFIN_EPS )
+       
 def u_boundary(x, on_boundary):
     return on_boundary and ( x[1] < dl.DOLFIN_EPS or x[1] > 1.0 - dl.DOLFIN_EPS)
 
@@ -43,8 +69,8 @@ if __name__ == "__main__":
     sep = "\n"+"#"*80+"\n"
     print sep, "Set up the mesh and finite element spaces", sep
     ndim = 2
-    nx = 256  
-    ny = 256
+    nx = 64  
+    ny = 64
     mesh = dl.UnitSquareMesh(nx, ny)
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
@@ -121,20 +147,29 @@ if __name__ == "__main__":
     print "Final gradient norm: ", solver.final_grad_norm
     print "Final cost: ", solver.final_cost
     
-    y = np.zeros(5)
-    dt = np.zeros(5)
-    for t in range(0,5):
-        np.random.seed(seed=10)
-        sampler = MALA(model)
-        sampler.parameters["burn_in"] = 100
-        sampler.parameters["number_of_samples"] = 1000
-        sampler.parameters["print_progress"] = 10
-        sampler.parameters["delta_t"] = 0.25*1e-4*math.pow(2,t)
-        y[t] = sampler.run(x, prior)
-        dt[t] = 0.25*1e-4*math.pow(2,t)
-        print y[t]
+    GC = GammaCenter()
+    marker = dl.FacetFunction("size_t", mesh)
+    marker.set_all(0)
+    GC.mark(marker, 1)
+    dss = dl.Measure("dS")[marker]
+    qoi = FluxQOI(Vh,dss(1))
     
-    print dt    
-    print y
+    np.random.seed(seed=10)
+    kernel = MALAKernel(model)
+    kernel.parameters["delta_t"] = 0.25*1e-4
+    #kernel = pCNKernel(model)
+    #kernel.parameters["s"] = 0.01
+    chain = MCMC(kernel)
+    chain.parameters["burn_in"] = 100
+    chain.parameters["number_of_samples"] = 1000
+    chain.parameters["print_progress"] = 10
+    tracer = QoiTracer(chain.parameters["number_of_samples"])
+    
+    n_accept = chain.run(x[PARAMETER], qoi, tracer)
+    print "Number accepted = {0}".format(n_accept)
+    print "E[q] = {0}".format(chain.sum_q/float(chain.parameters["number_of_samples"]))
+    
+    plt.plot(tracer.qs)
+    plt.show()
         
     
