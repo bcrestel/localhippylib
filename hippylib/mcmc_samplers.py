@@ -143,7 +143,7 @@ class MALAKernel:
         noise.set_local( np.random.randn( noise_size ) )
         w = dl.Vector()
         self.model.prior.init_vector(w, 0)
-        self.model.prior.sample(noise,w)
+        self.model.prior.sample(noise,w, add_mean=False)
         delta_tp2 = 2 + delta_t
         d_gam = (2-delta_t)/(2+delta_t) * current.m  - (2*delta_t)/(delta_tp2)*gradient_term + math.sqrt(8*delta_t)/delta_tp2 * w
         return d_gam
