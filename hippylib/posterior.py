@@ -51,6 +51,32 @@ class LowRankHessian:
         self.LowRankHinv.mult(rhs, self.help)
         sol.axpy(-1, self.help)
         
+class LowRankHessianMisfit:
+    """
+    Operator that represents the action of the low rank approx
+    of the Hessian misfit and of its inverse.
+    """
+    def __init__(self, prior, d, U):
+        self.prior = prior
+        self.LowRankH = LowRankOperator(d, U)
+        self.help = Vector()
+        self.init_vector(self.help, 0)
+        
+    def init_vector(self,x, dim):
+        self.prior.init_vector(x,dim)
+    
+    def inner(self,x,y):
+        Hx = Vector()
+        self.init_vector(Hx, 0)
+        self.mult(x, Hx)
+        return Hx.inner(y)
+        
+    def mult(self, x, y):
+        self.prior.R.mult(x,y)
+        self.LowRankH.mult(y, self.help)
+        self.prior.R.mult(self.help,y)
+
+        
 class LowRankPosteriorSampler:
     """
     Object to sample from the low-rank approximation

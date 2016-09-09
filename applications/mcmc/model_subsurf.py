@@ -17,7 +17,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import sys
-from hippylib.mcmc_samplers import MALAKernel
 sys.path.append( "../../" )
 from hippylib import *
 
@@ -147,6 +146,18 @@ if __name__ == "__main__":
     print "Final gradient norm: ", solver.final_grad_norm
     print "Final cost: ", solver.final_cost
     
+    ## Build the low rank approximation of the posterior
+    model.setPointForHessianEvaluations(x)
+    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=True, misfit_only=True)
+    k = 50
+    p = 20
+    print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
+    Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
+    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k)
+    nu = GaussianLRPosterior(prior, d, U)
+    nu.mean = x[PARAMETER]
+
+    ## Define the QOI
     GC = GammaCenter()
     marker = dl.FacetFunction("size_t", mesh)
     marker.set_all(0)
@@ -154,22 +165,32 @@ if __name__ == "__main__":
     dss = dl.Measure("dS")[marker]
     qoi = FluxQOI(Vh,dss(1))
     
-    np.random.seed(seed=10)
-    kernel = MALAKernel(model)
-    kernel.parameters["delta_t"] = 0.25*1e-4
-    #kernel = pCNKernel(model)
-    #kernel.parameters["s"] = 0.01
-    chain = MCMC(kernel)
-    chain.parameters["burn_in"] = 100
-    chain.parameters["number_of_samples"] = 1000
-    chain.parameters["print_progress"] = 10
-    tracer = QoiTracer(chain.parameters["number_of_samples"])
+    kMALA = MALAKernel(model)
+    kMALA.parameters["delta_t"] = 0.5*1e-4
     
-    n_accept = chain.run(x[PARAMETER], qoi, tracer)
-    print "Number accepted = {0}".format(n_accept)
-    print "E[q] = {0}".format(chain.sum_q/float(chain.parameters["number_of_samples"]))
+    kpCN = pCNKernel(model)
+    kpCN.parameters["s"] = 0.01
     
-    plt.plot(tracer.qs)
+    kgpCN = gpCNKernel(model,nu)
+    kgpCN.parameters["s"] = 0.1
+    
+    for kernel in [kMALA, kpCN, kgpCN]:
+        np.random.seed(seed=10)
+        print kernel.name()
+        chain = MCMC(kernel)
+        chain.parameters["burn_in"] = 100
+        chain.parameters["number_of_samples"] = 1000
+        chain.parameters["print_progress"] = 10
+        tracer = QoiTracer(chain.parameters["number_of_samples"])
+        
+        n_accept = chain.run(x[PARAMETER], qoi, tracer)
+        print "Number accepted = {0}".format(n_accept)
+        print "E[q] = {0}".format(chain.sum_q/float(chain.parameters["number_of_samples"]))
+        
+        plt.figure()
+        plt.plot(tracer.qs)
+        np.savetxt(kernel.name()+".txt", tracer.qs)
+        
     plt.show()
         
     

@@ -1,5 +1,6 @@
 import math
 from variables import STATE, PARAMETER, ADJOINT
+from posterior import LowRankHessianMisfit
 import numpy as np
 import dolfin as dl
 
@@ -111,6 +112,9 @@ class MALAKernel:
         self.parameters["inner_rel_tolerance"]   = 1e-9
         self.parameters["delta_t"]               = 0.25*1e-4
         
+    def name(self):
+        return "inf-MALA"
+        
     def derivativeInfo(self):
         return 1
 
@@ -167,6 +171,9 @@ class pCNKernel:
         self.parameters = {}
         self.parameters["inner_rel_tolerance"]   = 1e-9
         self.parameters["s"]                     = 0.1
+        
+    def name(self):
+        return "pCN"
 
     def derivativeInfo(self):
         return 0
@@ -203,6 +210,72 @@ class pCNKernel:
         w.axpy(np.sqrt(1. - s*s), current.m - self.model.prior.mean)
         
         return w
+    
+class gpCNKernel:
+    """
+    F. J. PINSKI, G. SIMPOSN, A. STUART, H. WEBER
+    Algorithms for Kullback-Leibler Approximation of Probability Measures in Infinite Dimensions
+    http://arxiv.org/pdf/1408.1920v1.pdf
+    Alg. 5.2
+    """
+    def __init__(self, model, nu):
+        self.model = model
+        self.nu = nu
+        self.prior = model.prior
+        self.Hm = LowRankHessianMisfit(self.prior, nu.d, nu.U)
+        self.parameters = {}
+        self.parameters["inner_rel_tolerance"]   = 1e-9
+        self.parameters["s"]                     = 0.1
+        
+    def name(self):
+        return "gpCN"
+
+    def derivativeInfo(self):
+        return 0
+
+    def init_sample(self, current):
+        inner_tol = self.parameters["inner_rel_tolerance"]
+        self.model.solveFwd(current.u, [current.u,current.m,None], inner_tol)
+        current.cost = self.model.cost([current.u,current.m,None])[2]
+        
+    def sample(self, current, proposed): 
+        proposed.m = self.proposal(current)
+        self.init_sample(proposed)
+        al = self.delta(current) - self.delta(proposed)
+        if(al > math.log(np.random.rand())):
+            current.assign(proposed)
+            return 1
+        else:
+            return 0
+        
+    def delta(self,sample):
+        dm = sample.m - self.nu.mean
+        d_mean = self.nu.prior.mean - self.nu.mean
+        phi_mu = sample.cost
+        phi_nu = - self.prior.R.inner(dm, d_mean) + .5*self.Hm.inner(dm, dm)
+        return phi_mu - phi_nu
+        
+
+    def proposal(self, current):
+        #Generate sample from the prior
+        noise = dl.Vector()
+        self.nu.init_vector(noise, "noise")
+        noise_size = noise.array().shape[0]
+        noise.set_local( np.random.randn( noise_size ) )
+        noise.apply("")
+        w_prior = dl.Vector()
+        self.nu.init_vector(w_prior, 0)
+        w = dl.Vector()
+        self.nu.init_vector(w, 0)
+        self.nu.sample(noise, w_prior, w, add_mean=False)
+        # do pCN linear combination with current sample
+        s = self.parameters["s"]
+        w *= s
+        w.axpy(1., self.nu.mean)
+        w.axpy(np.sqrt(1. - s*s), current.m - self.nu.mean)
+        
+        return w
+
 
 
 
