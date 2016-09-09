@@ -108,6 +108,7 @@ class MCMC(object):
 class MALAKernel:
     def __init__(self, model):
         self.model = model
+        self.pr_mean = model.prior.mean
         self.parameters = {}
         self.parameters["inner_rel_tolerance"]   = 1e-9
         self.parameters["delta_t"]               = 0.25*1e-4
@@ -149,13 +150,13 @@ class MALAKernel:
         self.model.prior.init_vector(w, 0)
         self.model.prior.sample(noise,w, add_mean=False)
         delta_tp2 = 2 + delta_t
-        d_gam = (2-delta_t)/(2+delta_t) * current.m  - (2*delta_t)/(delta_tp2)*gradient_term + math.sqrt(8*delta_t)/delta_tp2 * w
+        d_gam = self.pr_mean + (2-delta_t)/(2+delta_t) * (current.m -self.pr_mean) - (2*delta_t)/(delta_tp2)*gradient_term + math.sqrt(8*delta_t)/delta_tp2 * w
         return d_gam
 
     def acceptance_ratio(self, origin, destination):
         delta_t = self.parameters["delta_t"]
         m_m = destination.m - origin.m
-        p_m = destination.m + origin.m
+        p_m = destination.m + origin.m - 2.*self.pr_mean
         priori = dl.Vector()
         self.model.prior.Rsolver.solve(priori, origin.g)
         temp = priori.inner(origin.g)
