@@ -174,16 +174,26 @@ if __name__ == "__main__":
     kgpCN = gpCNKernel(model,nu)
     kgpCN.parameters["s"] = 0.1
     
+    noise = dl.Vector()
+    nu.init_vector(noise, "noise")
+    size = noise.array().shape[0]
+    noise.set_local(np.random.randn(size))
+    noise.apply("")
+    pr_s = model.generate_vector(PARAMETER)
+    post_s = model.generate_vector(PARAMETER)
+    
+    nu.sample(noise, pr_s, post_s, add_mean=True)
+    
     for kernel in [kMALA, kpCN, kgpCN]:
         np.random.seed(seed=10)
         print kernel.name()
         chain = MCMC(kernel)
-        chain.parameters["burn_in"] = 100
-        chain.parameters["number_of_samples"] = 1000
+        chain.parameters["burn_in"] = 0
+        chain.parameters["number_of_samples"] = 10000
         chain.parameters["print_progress"] = 10
         tracer = QoiTracer(chain.parameters["number_of_samples"])
         
-        n_accept = chain.run(x[PARAMETER], qoi, tracer)
+        n_accept = chain.run(post_s, qoi, tracer)
         print "Number accepted = {0}".format(n_accept)
         print "E[q] = {0}".format(chain.sum_q/float(chain.parameters["number_of_samples"]))
         
