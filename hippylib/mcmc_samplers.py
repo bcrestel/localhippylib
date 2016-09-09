@@ -276,6 +276,59 @@ class gpCNKernel:
         w.axpy(np.sqrt(1. - s*s), current.m - self.nu.mean)
         
         return w
+    
+    
+class ISKernel:
+    def __init__(self, model, nu):
+        self.model = model
+        self.nu = nu
+        self.prior = model.prior
+        self.parameters = {}
+        self.parameters["inner_rel_tolerance"]   = 1e-9
+        
+    def name(self):
+        return "IS"
+
+    def derivativeInfo(self):
+        return 0
+
+    def init_sample(self, current):
+        inner_tol = self.parameters["inner_rel_tolerance"]
+        self.model.solveFwd(current.u, [current.u,current.m,None], inner_tol)
+        current.cost = self.model.cost([current.u,current.m,None])[2]
+        
+    def sample(self, current, proposed): 
+        proposed.m = self.proposal(current)
+        self.init_sample(proposed)
+        al = self.delta(current) - self.delta(proposed)
+        if(al > math.log(np.random.rand())):
+            current.assign(proposed)
+            return 1
+        else:
+            return 0
+        
+    def delta(self,sample):
+        dm_nu = sample.m - self.nu.mean
+        dm_pr = sample.m - self.prior.mean
+
+        return sample.cost + .5*self.prior.R.inner(dm_pr, dm_pr) - .5*self.nu.Hlr.inner(dm_nu, dm_nu)
+        
+
+    def proposal(self, current):
+        #Generate sample from the prior
+        noise = dl.Vector()
+        self.nu.init_vector(noise, "noise")
+        noise_size = noise.array().shape[0]
+        noise.set_local( np.random.randn( noise_size ) )
+        noise.apply("")
+        w_prior = dl.Vector()
+        self.nu.init_vector(w_prior, 0)
+        w = dl.Vector()
+        self.nu.init_vector(w, 0)
+        self.nu.sample(noise, w_prior, w, add_mean=True)
+        
+        return w
+
 
 
 

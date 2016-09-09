@@ -166,13 +166,15 @@ if __name__ == "__main__":
     qoi = FluxQOI(Vh,dss(1))
     
     kMALA = MALAKernel(model)
-    kMALA.parameters["delta_t"] = 0.5*1e-4
+    kMALA.parameters["delta_t"] = 1e-4
     
     kpCN = pCNKernel(model)
     kpCN.parameters["s"] = 0.01
     
     kgpCN = gpCNKernel(model,nu)
     kgpCN.parameters["s"] = 0.1
+    
+    kIS = ISKernel(model,nu)
     
     noise = dl.Vector()
     nu.init_vector(noise, "noise")
@@ -184,12 +186,12 @@ if __name__ == "__main__":
     
     nu.sample(noise, pr_s, post_s, add_mean=True)
     
-    for kernel in [kMALA, kpCN, kgpCN]:
+    for kernel in [kIS, kMALA, kpCN, kgpCN]:
         np.random.seed(seed=10)
         print kernel.name()
         chain = MCMC(kernel)
         chain.parameters["burn_in"] = 0
-        chain.parameters["number_of_samples"] = 10000
+        chain.parameters["number_of_samples"] = 1000
         chain.parameters["print_progress"] = 10
         tracer = QoiTracer(chain.parameters["number_of_samples"])
         
