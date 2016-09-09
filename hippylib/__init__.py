@@ -51,7 +51,7 @@ from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePas
 from lowRankOperator import LowRankOperator
 from traceEstimator import TraceEstimator
 from cgsampler import CGSampler
-from mcmc_samplers import MCMC, MALAKernel, pCNKernel, QoiTracer
+from mcmc_samplers import MCMC, MALAKernel, pCNKernel, gpCNKernel, QoiTracer
 
 
 # hIPPYlib outputs
