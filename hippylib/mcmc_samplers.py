@@ -103,6 +103,13 @@ class MCMC(object):
                 print "{0:2.1f} % completed, Acceptance ratio {1:2.1f} %".format(float(sample_count)/float(number_of_samples)*100,
                                                                          float(naccept)/float(sample_count)*100 )        
         return naccept
+    
+    def consume_random(self):
+        number_of_samples = self.parameters["number_of_samples"]
+        burn_in = self.parameters["burn_in"]
+        
+        for ii in xrange(number_of_samples+burn_in):
+            self.kernel.consume_random()
 
 
 class MALAKernel:
@@ -112,6 +119,10 @@ class MALAKernel:
         self.parameters = {}
         self.parameters["inner_rel_tolerance"]   = 1e-9
         self.parameters["delta_t"]               = 0.25*1e-4
+        
+        noise = dl.Vector()
+        self.model.prior.init_vector(noise, "noise")
+        self.noise_size = noise.array.shape[0]
         
     def name(self):
         return "inf-MALA"
@@ -164,6 +175,11 @@ class MALAKernel:
                 0.25*delta_t*origin.g.inner(p_m) + \
                 0.25*delta_t*temp
         return rho_uv
+    
+    def consume_random(self):
+        np.random.randn( self.noise_size ) 
+        np.random.rand()
+        
         
 
 class pCNKernel:
@@ -172,6 +188,10 @@ class pCNKernel:
         self.parameters = {}
         self.parameters["inner_rel_tolerance"]   = 1e-9
         self.parameters["s"]                     = 0.1
+        
+        noise = dl.Vector()
+        self.model.prior.init_vector(noise, "noise")
+        self.noise_size = noise.array.shape[0]
         
     def name(self):
         return "pCN"
@@ -198,8 +218,7 @@ class pCNKernel:
         #Generate sample from the prior
         noise = dl.Vector()
         self.model.prior.init_vector(noise, "noise")
-        noise_size = noise.array().shape[0]
-        noise.set_local( np.random.randn( noise_size ) )
+        noise.set_local( np.random.randn( self.noise_size ) )
         noise.apply("")
         w = dl.Vector()
         self.model.prior.init_vector(w, 0)
@@ -211,6 +230,10 @@ class pCNKernel:
         w.axpy(np.sqrt(1. - s*s), current.m - self.model.prior.mean)
         
         return w
+    
+    def consume_random(self):
+        np.random.randn( self.noise_size ) 
+        np.random.rand() 
     
 class gpCNKernel:
     """
@@ -227,6 +250,10 @@ class gpCNKernel:
         self.parameters = {}
         self.parameters["inner_rel_tolerance"]   = 1e-9
         self.parameters["s"]                     = 0.1
+        
+        self.noise = dl.Vector()
+        self.nu.init_vector(self.noise, "noise")
+        self.noise_size = self.noise.array().shape[0]
         
     def name(self):
         return "gpCN"
@@ -259,16 +286,14 @@ class gpCNKernel:
 
     def proposal(self, current):
         #Generate sample from the prior
-        noise = dl.Vector()
-        self.nu.init_vector(noise, "noise")
-        noise_size = noise.array().shape[0]
-        noise.set_local( np.random.randn( noise_size ) )
-        noise.apply("")
+        self.noise.zero()
+        self.noise.set_local( np.random.randn( self.noise_size ) )
+        self.noise.apply("")
         w_prior = dl.Vector()
         self.nu.init_vector(w_prior, 0)
         w = dl.Vector()
         self.nu.init_vector(w, 0)
-        self.nu.sample(noise, w_prior, w, add_mean=False)
+        self.nu.sample(self.noise, w_prior, w, add_mean=False)
         # do pCN linear combination with current sample
         s = self.parameters["s"]
         w *= s
@@ -276,6 +301,10 @@ class gpCNKernel:
         w.axpy(np.sqrt(1. - s*s), current.m - self.nu.mean)
         
         return w
+    
+    def consume_random(self):
+        np.random.randn( self.noise_size ) 
+        np.random.rand() 
     
     
 class ISKernel:
@@ -285,6 +314,10 @@ class ISKernel:
         self.prior = model.prior
         self.parameters = {}
         self.parameters["inner_rel_tolerance"]   = 1e-9
+        
+        self.noise = dl.Vector()
+        self.nu.init_vector(self.noise, "noise")
+        self.noise_size = self.noise.array().shape[0]
         
     def name(self):
         return "IS"
@@ -316,18 +349,20 @@ class ISKernel:
 
     def proposal(self, current):
         #Generate sample from the prior
-        noise = dl.Vector()
-        self.nu.init_vector(noise, "noise")
-        noise_size = noise.array().shape[0]
-        noise.set_local( np.random.randn( noise_size ) )
-        noise.apply("")
+        self.noise.zero()
+        self.noise.set_local( np.random.randn( self.noise_size ) )
+        self.noise.apply("")
         w_prior = dl.Vector()
         self.nu.init_vector(w_prior, 0)
         w = dl.Vector()
         self.nu.init_vector(w, 0)
-        self.nu.sample(noise, w_prior, w, add_mean=True)
+        self.nu.sample(self.noise, w_prior, w, add_mean=True)
         
         return w
+    
+    def consume_random(self):
+        np.random.randn( self.noise_size ) 
+        np.random.rand() 
 
 
 
