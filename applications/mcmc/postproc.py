@@ -24,16 +24,18 @@ def acorr_vs_lag(samples, max_lag = 500):
         
     return lags, acorrs
 
-names = ['gpCN', 'pCN', 'inf-MALA']
-style = ['-b', '-r', '-g']
+folder = './'
+names = ['gpCN', 'pCN', 'inf-MALA', 'IS']
+style = ['-b', '-r', '-g', '-k']
 
-q = [np.loadtxt(name+'.txt') for name in names]
+q = [np.loadtxt(folder+name+'.txt') for name in names]
 plt.figure()
 [plt.plot(q[i], style[i], label=names[i]) for i in range(len(names)) ]
 plt.legend()
 plt.figure()
 for i in range(len(names)):
-    lags, acorrs = acorr_vs_lag(q[i],1000)
+    max_lag = q[i].shape[0] / 10
+    lags, acorrs = acorr_vs_lag(q[i], max_lag)
     plt.plot(lags, acorrs, style[i], label=names[i]) 
 plt.legend()
 
