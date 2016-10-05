@@ -183,6 +183,7 @@ def randn_perturb(x, std_dev):
     n = x.array().shape[0]
     noise = np.random.normal(0, 1, n)
     x.set_local(x.array() + std_dev*noise)
+    x.apply("add_values")
     
 class Solver2Operator:
     def __init__(self,S):

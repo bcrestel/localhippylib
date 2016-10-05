@@ -423,7 +423,7 @@ if __name__ == "__main__":
     dl.File("results/poisson_parameter_true.pvd") << expc
     dl.File("results/poisson_adjoint.pvd") << xx[ADJOINT]
     
-    exportPointwiseObservation(targets, model.u_o, "results/poisson_observation.vtp")
+    exportPointwiseObservation(Vh[STATE], model.B, model.u_o, "results/poisson_observation.vtp")
     
     fid = dl.File("results/pointwise_variance.pvd")
     fid << vector2Function(post_pw_variance, Vh[PARAMETER], name="Posterior")
