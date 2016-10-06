@@ -70,6 +70,7 @@ class TimeDependentVector:
         for d in self.data:
             noise = std_dev * np.random.normal(0, 1, len(d.array()))
             d.set_local(d.array() + noise)
+            d.apply("add_values")
     
     def axpy(self, a, other):
         """
