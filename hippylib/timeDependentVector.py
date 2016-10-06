@@ -97,7 +97,8 @@ class TimeDependentVector:
             
         assert abs(t - self.times[i]) < self.tol
         
-        self.data[i].set_local( u.array() )
+        self.data[i].zero()
+        self.data[i].axpy(1., u )
         
     def retrieve(self, u, t):
         """
@@ -110,7 +111,8 @@ class TimeDependentVector:
             
         assert abs(t - self.times[i]) < self.tol
         
-        u.set_local( self.data[i].array() )
+        u.zero()
+        u.axpy(1., self.data[i] )
         
     def norm(self, time_norm, space_norm):
         """
