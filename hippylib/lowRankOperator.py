@@ -42,6 +42,7 @@ class LowRankOperator:
         Utx = np.dot( self.U.T, x.array() )
         dUtx = self.d*Utx
         y.set_local(np.dot(self.U, dUtx))
+        y.apply("add_values")
         
     def inner(self, x, y):
         Utx = np.dot( self.U.T, x.array() )
@@ -56,6 +57,7 @@ class LowRankOperator:
         Utx = np.dot( self.U.T, rhs.array() )
         dinvUtx = Utx / self.d
         sol.set_local(np.dot(self.U, dinvUtx))
+        sol.apply("add_values")
         
     def get_diagonal(self, diag):
         """
@@ -63,6 +65,7 @@ class LowRankOperator:
         """
         V = self.U * self.d
         diag.set_local(np.sum(V*self.U, 1))
+        diag.apply("add_values")
         
     def trace(self,W=None):
         """

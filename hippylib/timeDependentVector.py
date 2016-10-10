@@ -12,6 +12,7 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import Vector
+from random import Random
 import numpy as np
 
 class TimeDependentVector:
@@ -68,9 +69,10 @@ class TimeDependentVector:
         to each snapshots.
         """
         for d in self.data:
-            noise = std_dev * np.random.normal(0, 1, len(d.array()))
-            d.set_local(d.array() + noise)
-            d.apply("add_values")
+            Random.normal(d, std_dev, False)
+            # noise = std_dev * np.random.normal(0, 1, len(d.array()))
+            # d.set_local(d.array() + noise)
+            # d.apply("add_values")
     
     def axpy(self, a, other):
         """

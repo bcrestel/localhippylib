@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 
 from variables import STATE, PARAMETER, ADJOINT
 from reducedHessian import ReducedHessian
+from random import Random
 
 class ModelTemplate:
     """
@@ -251,8 +252,9 @@ def modelVerify(model,a0, innerTol, is_quadratic = False, verbose = True):
     """
     
     h = model.generate_vector(PARAMETER)
-    h.set_local(np.random.normal(0, 1, len( h.array() )) )
-    h.apply("add_values")
+    Random.normal(h, 1., True)
+    #h.set_local(np.random.normal(0, 1, len( h.array() )) )
+    #h.apply("add_values")
     
     x = model.generate_vector()
     x[PARAMETER] = a0
@@ -315,11 +317,13 @@ def modelVerify(model,a0, innerTol, is_quadratic = False, verbose = True):
             plt.title("FD Hessian Check")
     
     xx = model.generate_vector(PARAMETER)
-    xx.set_local( np.random.normal(0, 1, len( xx.array() )) )
-    xx.apply("add_values")
+    Random.normal(xx, 1., True)
+    #xx.set_local( np.random.normal(0, 1, len( xx.array() )) )
+    #xx.apply("add_values")
     yy = model.generate_vector(PARAMETER)
-    yy.set_local( np.random.normal(0, 1, len( yy.array() )) )
-    yy.apply("add_values")
+    Random.normal(yy, 1., True)
+    #yy.set_local( np.random.normal(0, 1, len( yy.array() )) )
+    #yy.apply("add_values")
     
     ytHx = H.inner(yy,xx)
     xtHy = H.inner(xx,yy)

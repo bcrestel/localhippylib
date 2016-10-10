@@ -12,6 +12,7 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import compile_extension_module, Vector, PETScKrylovSolver, Function
+from random import Random
 import os
 import numpy as np
 
@@ -168,22 +169,24 @@ def estimate_diagonal_inv2(Asolver, k, d):
     den = np.zeros(num.shape, dtype = num.dtype)
     for i in range(k):
         x.zero()
-        b.set_local(np.random.randn(num.shape[0]))
+        Random.normal(b, 1., True)
         Asolver.solve(x,b)
         num = num +  ( x.array() * b.array() )
         den = den +  ( b.array() * b.array() )
         
     d.set_local( num / den )
+    d.apply("add_values")
         
 def randn_perturb(x, std_dev):
     """
     Add a Gaussian random perturbation to x:
     x = x + eta, eta ~ N(0, std_dev^2 I)
     """
-    n = x.array().shape[0]
-    noise = np.random.normal(0, 1, n)
-    x.set_local(x.array() + std_dev*noise)
-    x.apply("add_values")
+    Random.normal(x, std_dev, False)
+#    n = x.array().shape[0]
+#    noise = np.random.normal(0, 1, n)
+#    x.set_local(x.array() + std_dev*noise)
+#    x.apply("add_values")
     
 class Solver2Operator:
     def __init__(self,S):

@@ -12,23 +12,21 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import Vector
+from random import Random
 import numpy as np
 import math
 
-def rademacher_engine(n):
+def rademacher_engine(v):
     """
     Generate a vector of n i.i.d. Rademacher variables.
     """
-    omega = np.random.rand(n)
-    omega[omega < .5 ] = -1.
-    omega[omega >= .5 ] = 1.
-    return omega
+    Random.rademacher(v)
     
-def gaussian_engine(n):
+def gaussian_engine(v):
     """
     Generate a vector of n i.i.d. standard normal variables.
     """
-    return np.random.randn(n)
+    Random.normal(v, 1., True)
 
 class TraceEstimator:
     """
@@ -92,11 +90,10 @@ class TraceEstimator:
         sum_tr = 0
         sum_tr2 = 0
         self.iter = 0
-        size = len(self.z.array())
         
         while self.iter < min_iter:
             self.iter += 1
-            self.z.set_local(self.random_engine(size))
+            self.random_engine(self.z)
             self._apply(self.z, self.Az)
             tr = self.z.inner(self.Az)
             sum_tr += tr
@@ -111,7 +108,7 @@ class TraceEstimator:
         self.converged = True
         while (math.sqrt( var_tr ) > self.accurancy*exp_tr):
             self.iter += 1
-            self.z.set_local(self.random_engine(size))
+            self.random_engine(self.z)
             self._apply(self.z, self.Az)
             tr = self.z.inner(self.Az)
             sum_tr += tr
