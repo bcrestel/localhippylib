@@ -388,6 +388,9 @@ if __name__ == "__main__":
     rank = dl.MPI.rank(mesh.mpi_comm())
     nproc = dl.MPI.size(mesh.mpi_comm())
     
+    if nproc > 1:
+        Random.split(rank, nproc, 1000000, 1)
+    
     if rank == 0:
         print sep, "Set up the mesh and finite element spaces.\n","Compute wind velocity", sep
     Vh = dl.FunctionSpace(mesh, "Lagrange", 2)
@@ -512,11 +515,10 @@ if __name__ == "__main__":
         nsamples = 50
         noise = dl.Vector()
         posterior.init_vector(noise,"noise")
-        noise_size = noise.array().shape[0]
         s_prior = dl.Function(Vh, name="sample_prior")
         s_post = dl.Function(Vh, name="sample_post")
         for i in range(nsamples):
-            noise.set_local( np.random.randn( noise_size ) )
+            Random.normal(noise, 1., True)
             posterior.sample(noise, s_prior.vector(), s_post.vector())
             fid_prior << s_prior
             fid_post << s_post
