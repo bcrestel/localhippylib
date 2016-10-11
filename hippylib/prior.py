@@ -13,12 +13,10 @@
 
 import dolfin as dl
 import numpy as np
-from linalg import MatMatMult, MatAtB, get_diagonal, amg_method
+from linalg import MatMatMult, get_diagonal, amg_method
 from traceEstimator import TraceEstimator
-from pointwiseObservation import assemblePointwiseObservation
 import math
 from expression import code_Mollifier
-from cgsampler import CGSampler
 
 
 class _RinvM:

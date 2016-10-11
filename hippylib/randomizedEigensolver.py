@@ -11,7 +11,7 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-from dolfin import Vector
+from dolfin import Vector, MPI
 import numpy as np
 import math
 import matplotlib.pyplot as plt
@@ -34,6 +34,8 @@ Arvind K. Saibaba, Jonghyun Lee, Peter K. Kitanidis,
 Randomized algorithms for Generalized Hermitian Eigenvalue Problems with application
 to computing Karhunen-Loeve expansion,
 Numerical Linear Algebra with Applications, to appear.
+
+NOTE: This routines are only serial!!
 """
 
 def singlePass(A,Omega,k):
@@ -52,6 +54,11 @@ def singlePass(A,Omega,k):
     y = Vector()
     A.init_vector(w,1)
     A.init_vector(y,0)
+    
+    mpi_comm = w.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    if nprocs > 1:
+        raise Exception("function singlePass is only serial")
     
     nvec  = Omega.shape[1]
     
@@ -100,6 +107,11 @@ def doublePass(A,Omega,k):
     y = Vector()
     A.init_vector(w,1)
     A.init_vector(y,0)
+    
+    mpi_comm = w.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    if nprocs > 1:
+        raise Exception("function doublePass is only serial")
     
     nvec  = Omega.shape[1]
     
@@ -154,6 +166,11 @@ def singlePassG(A, B, Binv, Omega,k, check_Bortho = False, check_Aortho=False, c
     A.init_vector(w,1)
     A.init_vector(y,0)
     A.init_vector(ybar,0)
+    
+    mpi_comm = w.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    if nprocs > 1:
+        raise Exception("function singlePassG is only serial")
     
     nvec  = Omega.shape[1]
     
@@ -226,6 +243,11 @@ def doublePassG(A, B, Binv, Omega,k, check_Bortho = False, check_Aortho=False, c
     A.init_vector(y,0)
     A.init_vector(ybar,0)
     
+    mpi_comm = w.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    if nprocs > 1:
+        raise Exception("function doublePassG is only serial")
+    
     nvec  = Omega.shape[1]
     
     assert(nvec >= k )
@@ -288,6 +310,11 @@ def BorthogonalityTest(B, U):
     B.init_vector(Bu,0)
     B.init_vector(u,1)
     
+    mpi_comm = u.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    if nprocs > 1:
+        raise Exception("function BorthogonalityTest is only serial")
+    
     nvec  = U.shape[1]
     for i in range(0,nvec):
         u.set_local(U[:,i])
@@ -308,6 +335,11 @@ def AorthogonalityCheck(A, U, d):
     v = Vector()
     A.init_vector(Av,0)
     A.init_vector(v,1)
+    
+    mpi_comm = v.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    if nprocs > 1:
+        raise Exception("function AorthogonalityCheck is only serial")
     
     nvec  = U.shape[1]
     for i in range(0,nvec):
@@ -342,6 +374,11 @@ def residualCheck(A,B, U, d):
     A.init_vector(Au, 0)
     B.init_vector(Bu, 0)
     B.init_vector(Binv_r, 0)
+    
+    mpi_comm = u.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    if nprocs > 1:
+        raise Exception("function residualCheck is only serial")
     
     nvec = d.shape[0]
     

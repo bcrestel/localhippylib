@@ -11,7 +11,7 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-from dolfin import Vector
+from dolfin import Vector, MPI
 import numpy as np
 
 class LowRankOperator:
@@ -19,6 +19,8 @@ class LowRankOperator:
     This class model the action of a low rank operator A = U D U^T.
     Here D is a diagonal matrix, and the columns of are orthonormal
     in some weighted inner-product.
+    
+    This class works only in serial!
     """
     def __init__(self,d,U, my_init_vector = None):
         """
@@ -39,12 +41,20 @@ class LowRankOperator:
         """
         Compute y = Ax = U D U^T x
         """
+        mpi_comm = x.mpi_comm()
+        nprocs = MPI.size(mpi_comm)
+        if nprocs > 1:
+            raise Exception("class LowRankOperator is only serial")
         Utx = np.dot( self.U.T, x.array() )
         dUtx = self.d*Utx
         y.set_local(np.dot(self.U, dUtx))
         y.apply("add_values")
         
     def inner(self, x, y):
+        mpi_comm = x.mpi_comm()
+        nprocs = MPI.size(mpi_comm)
+        if nprocs > 1:
+            raise Exception("class LowRankOperator is only serial")
         Utx = np.dot( self.U.T, x.array() )
         Uty = np.dot( self.U.T, y.array() )
         return np.sum(self.d*Utx*Uty)
@@ -54,6 +64,10 @@ class LowRankOperator:
         """
         Compute sol = U D^-1 U^T x
         """
+        mpi_comm = sol.mpi_comm()
+        nprocs = MPI.size(mpi_comm)
+        if nprocs > 1:
+            raise Exception("class LowRankOperator is only serial")
         Utx = np.dot( self.U.T, rhs.array() )
         dinvUtx = Utx / self.d
         sol.set_local(np.dot(self.U, dinvUtx))
@@ -63,6 +77,10 @@ class LowRankOperator:
         """
         Compute the diagonal of A.
         """
+        mpi_comm = diag.mpi_comm()
+        nprocs = MPI.size(mpi_comm)
+        if nprocs > 1:
+            raise Exception("class LowRankOperator is only serial")
         V = self.U * self.d
         diag.set_local(np.sum(V*self.U, 1))
         diag.apply("add_values")

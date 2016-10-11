@@ -11,7 +11,7 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-from dolfin import compile_extension_module, Vector, PETScKrylovSolver, Function
+from dolfin import compile_extension_module, Vector, PETScKrylovSolver, Function, MPI
 from random import Random
 import os
 import numpy as np
@@ -72,6 +72,14 @@ def to_dense(A):
     Convert a sparse matrix A to dense.
     For debugging only.
     """
+    v = Vector()
+    A.init_vector(v)
+    mpi_comm = v.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    
+    if nprocs > 1:
+        raise Exception("to_dense is only serial")
+    
     if hasattr(A, "getrow"):
         n  = A.size(0)
         m  = A.size(1)
@@ -93,9 +101,11 @@ def to_dense(A):
         for i in range(0,m):
             i_ind = np.array([i], dtype=np.intc)
             x.set_local(np.ones(i_ind.shape), i_ind)
+            x.apply("sum_values")
             A.mult(x,Ax)
             B[:,i] = Ax.array()
             x.set_local(np.zeros(i_ind.shape), i_ind)
+            x.apply("sum_values")
             
         return B
 
@@ -104,6 +114,14 @@ def trace(A):
     """
     Compute the trace of a sparse matrix A.
     """
+    v = Vector()
+    A.init_vector(v)
+    mpi_comm = v.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    
+    if nprocs > 1:
+        raise Exception("trace is only serial")
+    
     n  = A.size(0)
     tr = 0.
     for i in range(0,n):
@@ -125,19 +143,28 @@ def get_diagonal(A, d, solve_mode=True):
         A.get_operator().init_vector(ej,1)
         A.get_operator().init_vector(xj,0)
         
+    mpi_comm = xj.mpi_comm()
+    nprocs = MPI.size(mpi_comm)
+    
+    if nprocs > 1:
+        raise Exception("get_diagonal is only serial")
+        
     ncol = ej.size()
     da = np.zeros(ncol, dtype=ej.array().dtype)
     
     for j in range(ncol):
         ej[j] = 1.
+        ej.apply("sum_values")
         if solve_mode:
             A.solve(xj, ej)
         else:
             A.mult(ej,xj)
         da[j] = xj[j]
         ej[j] = 0.
+        ej.apply("sum_values")
         
     d.set_local(da)
+    d.apply("sum_values")
 
       
 

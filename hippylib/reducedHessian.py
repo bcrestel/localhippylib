@@ -12,7 +12,6 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from variables import STATE, PARAMETER, ADJOINT
-from dolfin import Vector, PETScKrylovSolver
 
 class ReducedHessian:
     """

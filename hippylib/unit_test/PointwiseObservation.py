@@ -28,9 +28,7 @@ if __name__ == "__main__":
     targets = np.array([[.3,.3], [.5,.5], [.7,.9]])
     
     Vh = FunctionSpace(mesh, 'Lagrange', 1)
-    print "About to call assemblePointwiseObservation"
     B = assemblePointwiseObservation(Vh,targets)
-    print "Completed assemblePointwiseObservation"
     u = Vector()
     B.init_vector(u,1)
     
@@ -85,4 +83,23 @@ if __name__ == "__main__":
         assert np.abs( o_serial[3*i] - targets[i,0] ) < 1e-10
         assert np.abs( o_serial[3*i+1] - targets[i,1] ) < 1e-10
         assert np.abs( o_serial[3*i+2] - (2.*targets[i,0] + 3.*targets[i,1] + 10.) ) < 1e-10
+        
+    Vh_RT = FunctionSpace(mesh, 'RT', 1)
+    B_RT = assemblePointwiseObservation(Vh_RT,targets)
+    u_RT = Vector()
+    B_RT.init_vector(u_RT,1)
+    
+    o_RT = Vector()
+    B_RT.init_vector(o_RT,0)
+    
+    uh_RT = interpolate(Expression(("x[0]", "x[1]") ), Vh_RT)
+    u_RT.axpy(1., uh_RT.vector())
+        
+    B_RT.mult(u_RT,o_RT)
+    
+    o_serial = o_RT.gather_on_zero()
+    for i in range(o_serial.shape[0]/2):
+        assert np.abs( o_serial[2*i] - targets[i,0] ) < 1e-10
+        assert np.abs( o_serial[2*i+1] - targets[i,1] ) < 1e-10
+
     
