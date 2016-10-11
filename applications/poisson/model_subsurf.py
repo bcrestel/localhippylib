@@ -31,8 +31,7 @@ def true_model(Vh, gamma, delta, anis_diff):
     prior = BiLaplacianPrior(Vh, gamma, delta, anis_diff )
     noise = dl.Vector()
     prior.init_vector(noise,"noise")
-    noise_size = noise.array().shape[0]
-    noise.set_local( np.random.randn( noise_size ) )
+    Random.normal(noise, 1., True)
     atrue = dl.Vector()
     prior.init_vector(atrue, 0)
     prior.sample(noise,atrue)
@@ -48,6 +47,9 @@ if __name__ == "__main__":
     
     rank = dl.MPI.rank(mesh.mpi_comm())
     nproc = dl.MPI.size(mesh.mpi_comm())
+    
+    if nproc > 1:
+        Random.split(rank, nproc, 1000000, 1)
         
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
@@ -192,7 +194,7 @@ if __name__ == "__main__":
         s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
         s_post = dl.Function(Vh[PARAMETER], name="sample_post")
         for i in range(nsamples):
-            noise.set_local( np.random.randn( noise_size ) )
+            Random.normal(noise, 1., True)
             posterior.sample(noise, s_prior.vector(), s_post.vector())
             fid_prior << s_prior
             fid_post << s_post

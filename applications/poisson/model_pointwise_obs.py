@@ -49,7 +49,9 @@ class Poisson:
         self.B = assemblePointwiseObservation(Vh[STATE],targets)
                 
         self.noise_variance = self.computeObservation(self.u_o, rel_noise_level)
-        print "Noise variance:", self.noise_variance
+        rank = dl.MPI.rank(mesh.mpi_comm())
+        if rank == 0:
+            print "Noise variance:", self.noise_variance
                 
         self.A = []
         self.At = []
@@ -165,15 +167,12 @@ class Poisson:
         Compute the syntetic observation
         """
         x = [self.generate_vector(STATE), self.atrue, None]
-        A, b = self.assembleA(x, assemble_rhs = True)
-        
-        dl.solve(A, x[STATE], b)
+        self.solveFwd(x[STATE], x, tol=1e-9)
         
         # Create noisy data, ud
         MAX = x[STATE].norm("linf")
         noise_level = rel_noise_level * MAX
-        noise = noise_level * np.random.normal(0, 1, len(x[STATE].array()))
-        x[STATE].set_local(x[STATE].array() + noise)
+        Random.normal(x[STATE], noise_level, False)
         
         self.B.init_vector(u_o,0)
         self.B.mult(x[STATE], u_o)
@@ -330,21 +329,35 @@ class Poisson:
 if __name__ == "__main__":
     dl.set_log_active(False)
     sep = "\n"+"#"*80+"\n"
-    print sep, "Set up the mesh and finite element spaces", sep
+    
     ndim = 2
     nx = 64
     ny = 64
     mesh = dl.UnitSquareMesh(nx, ny)
+    
+    rank = dl.MPI.rank(mesh.mpi_comm())
+    nproc = dl.MPI.size(mesh.mpi_comm())
+    
+    if nproc > 1:
+        Random.split(rank, nproc, 1000000, 1)
+    
+    if rank == 0:  
+        print sep, "Set up the mesh and finite element spaces", sep
+    
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
-    print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(Vh[STATE].dim(), Vh[PARAMETER].dim(), Vh[ADJOINT].dim())
+    ndofs = [Vh[ii].dim() for ii in [STATE, PARAMETER, ADJOINT]]
+    if rank == 0:
+        print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(*ndofs)
     
-    print sep, "Set up the location of observation, Prior Information, and model", sep
+    if rank == 0:
+        print sep, "Set up the location of observation, Prior Information, and model", sep
     ntargets = 300
     np.random.seed(seed=1)
     targets = np.random.uniform(0.1,0.9, [ntargets, ndim] )
-    print "Number of observation points: {0}".format(ntargets)
+    if rank == 0:
+        print "Number of observation points: {0}".format(ntargets)
     
     orderPrior = 2
         
@@ -356,8 +369,9 @@ if __name__ == "__main__":
         gamma = 2
         delta = 5
         prior = BiLaplacianPrior(Vh[PARAMETER], gamma, delta)
-        
-    print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)    
+    
+    if rank == 0:   
+        print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)    
     
     
     atrue_expression = dl.Expression('log(2+7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2)) - log(10)')
@@ -369,12 +383,13 @@ if __name__ == "__main__":
     rel_noise = 0.01
     model = Poisson(mesh, Vh, atrue, targets, prior, rel_noise )
 
-        
-    print sep, "Test the gradient and the Hessian of the model", sep
+    if rank == 0: 
+        print sep, "Test the gradient and the Hessian of the model", sep
     a0 = dl.interpolate(dl.Expression("sin(x[0])"), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-12)
-
-    print sep, "Find the MAP point", sep
+    modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank == 0))
+    
+    if rank == 0:
+        print sep, "Find the MAP point", sep
     a0 = prior.mean.copy()
     solver = ReducedSpaceNewtonCG(model)
     solver.parameters["rel_tolerance"] = 1e-9
@@ -383,35 +398,40 @@ if __name__ == "__main__":
     solver.parameters["inner_rel_tolerance"] = 1e-15
     solver.parameters["c_armijo"] = 1e-4
     solver.parameters["GN_iter"] = 5
+    if rank != 0:
+        solver.parameters["print_level"] = -1
     
     x = solver.solve(a0)
     
-    if solver.converged:
-        print "\nConverged in ", solver.it, " iterations."
-    else:
-        print "\nNot Converged"
+    if rank == 0:
+        if solver.converged:
+            print "\nConverged in ", solver.it, " iterations."
+        else:
+            print "\nNot Converged"
 
-    print "Termination reason: ", solver.termination_reasons[solver.reason]
-    print "Final gradient norm: ", solver.final_grad_norm
-    print "Final cost: ", solver.final_cost
-    
-    print sep, "Compute the low rank Gaussian Approximation of the posterior", sep
-    model.setPointForHessianEvaluations(x)
-    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-    k = 50
-    p = 20
-    print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
-    Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
-    #d, U = singlePassG(Hmisfit, model.R, model.Rsolver, Omega, k, check_Bortho=True, check_Aortho=True, check_residual=True)
-    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, check_Bortho=False, check_Aortho=False, check_residual=False)
-    posterior = GaussianLRPosterior(prior, d, U)
-    posterior.mean = x[PARAMETER]
-    
-    post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
-    print "Posterior trace {0:5e}; Prior trace {1:5e}; Correction trace {2:5e}".format(post_tr, prior_tr, corr_tr)
-    post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
-
-    print sep, "Save State, Parameter, Adjoint, and observation in paraview", sep
+        print "Termination reason: ", solver.termination_reasons[solver.reason]
+        print "Final gradient norm: ", solver.final_grad_norm
+        print "Final cost: ", solver.final_cost
+        
+    if nproc == 1:
+        print sep, "Compute the low rank Gaussian Approximation of the posterior", sep
+        model.setPointForHessianEvaluations(x)
+        Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
+        k = 50
+        p = 20
+        print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
+        Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
+        #d, U = singlePassG(Hmisfit, model.R, model.Rsolver, Omega, k, check_Bortho=True, check_Aortho=True, check_residual=True)
+        d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, check_Bortho=False, check_Aortho=False, check_residual=False)
+        posterior = GaussianLRPosterior(prior, d, U)
+        posterior.mean = x[PARAMETER]
+        
+        post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
+        print "Posterior trace {0:5e}; Prior trace {1:5e}; Correction trace {2:5e}".format(post_tr, prior_tr, corr_tr)
+        post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
+        
+    if rank == 0:
+        print sep, "Save State, Parameter, Adjoint, and observation in paraview", sep
     xxname = ["State", "exp(Parameter)", "Adjoint"]
     xx = [vector2Function(x[i], Vh[i], name=xxname[i]) for i in range(len(Vh))]
     dl.File("results/poisson_state.pvd") << xx[STATE]
@@ -425,40 +445,40 @@ if __name__ == "__main__":
     
     exportPointwiseObservation(Vh[STATE], model.B, model.u_o, "results/poisson_observation.vtp")
     
-    fid = dl.File("results/pointwise_variance.pvd")
-    fid << vector2Function(post_pw_variance, Vh[PARAMETER], name="Posterior")
-    fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
-    fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
+    if nproc == 1:
+        fid = dl.File("results/pointwise_variance.pvd")
+        fid << vector2Function(post_pw_variance, Vh[PARAMETER], name="Posterior")
+        fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
+        fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
     
     
-    print sep, "Generate samples from Prior and Posterior\n","Export generalized Eigenpairs", sep
-    fid_prior = dl.File("samples/sample_prior.pvd")
-    fid_post  = dl.File("samples/sample_post.pvd")
-    nsamples = 500
-    noise = dl.Vector()
-    posterior.init_vector(noise,"noise")
-    noise_size = noise.array().shape[0]
-    s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
-    s_post = dl.Function(Vh[PARAMETER], name="sample_post")
-    for i in range(nsamples):
-        noise.set_local( np.random.randn( noise_size ) )
-        posterior.sample(noise, s_prior.vector(), s_post.vector())
-        fid_prior << s_prior
-        fid_post << s_post
+        print sep, "Generate samples from Prior and Posterior\n","Export generalized Eigenpairs", sep
+        fid_prior = dl.File("samples/sample_prior.pvd")
+        fid_post  = dl.File("samples/sample_post.pvd")
+        nsamples = 500
+        noise = dl.Vector()
+        posterior.init_vector(noise,"noise")
+        s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
+        s_post = dl.Function(Vh[PARAMETER], name="sample_post")
+        for i in range(nsamples):
+            Random.normal(noise, 1., True )
+            posterior.sample(noise, s_prior.vector(), s_post.vector())
+            fid_prior << s_prior
+            fid_post << s_post
         
-    #Save eigenvalues for printing:
-    posterior.exportU(Vh[PARAMETER], "hmisfit/evect.pvd")
-    np.savetxt("hmisfit/eigevalues.dat", d)
+        #Save eigenvalues for printing:
+        posterior.exportU(Vh[PARAMETER], "hmisfit/evect.pvd")
+        np.savetxt("hmisfit/eigevalues.dat", d)
     
-    print sep, "Visualize results", sep
-    dl.plot(xx[STATE], title = xxname[STATE])
-    dl.plot(dl.exp(xx[PARAMETER]), title = xxname[PARAMETER])
-    dl.plot(xx[ADJOINT], title = xxname[ADJOINT])
+        print sep, "Visualize results", sep
+        dl.plot(xx[STATE], title = xxname[STATE])
+        dl.plot(dl.exp(xx[PARAMETER]), title = xxname[PARAMETER])
+        dl.plot(xx[ADJOINT], title = xxname[ADJOINT])
     
-    plt.figure()
-    plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
-    plt.yscale('log')
+        plt.figure()
+        plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
+        plt.yscale('log')
         
-    plt.show()    
-    dl.interactive()
+        plt.show()    
+        dl.interactive()
     

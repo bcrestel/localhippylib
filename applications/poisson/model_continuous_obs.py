@@ -334,6 +334,9 @@ if __name__ == "__main__":
     rank = MPI.rank(mesh.mpi_comm())
     nproc = MPI.size(mesh.mpi_comm())
     
+    if nproc > 1:
+        Random.split(rank, nproc, 1000000, 1)
+    
     Vh2 = FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
