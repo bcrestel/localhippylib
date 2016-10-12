@@ -23,7 +23,7 @@ class PointwiseObservation
 {
 public:
 	PointwiseObservation(const FunctionSpace & Vh, const Array<double> & targets);
-	Matrix GetMatrix();
+	std::shared_ptr<Matrix> GetMatrix();
 
 private:
 	PetscInt computeLGtargets(MPI_Comm comm, std::shared_ptr<BoundingBoxTree> bbt,
