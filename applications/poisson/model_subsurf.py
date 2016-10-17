@@ -148,19 +148,25 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
         
-    if nproc == 1:
+    if rank == 0:
         print sep, "Compute the low rank Gaussian Approximation of the posterior", sep
-        model.setPointForHessianEvaluations(x)
-        Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-        k = 50
-        p = 20
-        print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
-        Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
-        #d, U = singlePassG(Hmisfit, model.R, model.Rsolver, Omega, k, check_Bortho=True, check_Aortho=True, check_residual=True)
-        d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, check_Bortho=False, check_Aortho=False, check_residual=False)
-        posterior = GaussianLRPosterior(prior, d, U)
-        posterior.mean = x[PARAMETER]
     
+    model.setPointForHessianEvaluations(x)
+    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
+    k = 50
+    p = 20
+    if rank == 0:
+        print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
+    
+    Omega = MultiVector(x[PARAMETER], k+p)
+    for i in range(k+p):
+        Random.normal(Omega[i], 1., True)
+
+    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, s=2, check=True)
+    posterior = GaussianLRPosterior(prior, d, U)
+    posterior.mean = x[PARAMETER]
+    
+    if nproc == 1:
         post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
         print "Posterior trace {0:5e}; Prior trace {1:5e}; Correction trace {2:5e}".format(post_tr, prior_tr, corr_tr)
         post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
@@ -183,34 +189,37 @@ if __name__ == "__main__":
         
     exportPointwiseObservation(Vh[STATE], misfit.B, misfit.d, "results/poisson_observation.vtp")
     
-    if nproc == 1:
+    if rank == 0:
         print sep, "Generate samples from Prior and Posterior\n","Export generalized Eigenpairs", sep
-        fid_prior = dl.File("samples/sample_prior.pvd")
-        fid_post  = dl.File("samples/sample_post.pvd")
-        nsamples = 500
-        noise = dl.Vector()
-        posterior.init_vector(noise,"noise")
-        noise_size = noise.array().shape[0]
-        s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
-        s_post = dl.Function(Vh[PARAMETER], name="sample_post")
-        for i in range(nsamples):
-            Random.normal(noise, 1., True)
-            posterior.sample(noise, s_prior.vector(), s_post.vector())
-            fid_prior << s_prior
-            fid_post << s_post
+    fid_prior = dl.File("samples/sample_prior.pvd")
+    fid_post  = dl.File("samples/sample_post.pvd")
+    nsamples = 500
+    noise = dl.Vector()
+    posterior.init_vector(noise,"noise")
+    s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
+    s_post = dl.Function(Vh[PARAMETER], name="sample_post")
+    for i in range(nsamples):
+        Random.normal(noise, 1., True)
+        posterior.sample(noise, s_prior.vector(), s_post.vector())
+        fid_prior << s_prior
+        fid_post << s_post
         
-        #Save eigenvalues for printing:
-        posterior.exportU(Vh[PARAMETER], "hmisfit/evect.pvd")
+    #Save eigenvalues for printing:
+    
+    U.export(Vh[PARAMETER], "hmisfit/evect.pvd", varname = "gen_evects", normalize = True)
+    if rank == 0:
         np.savetxt("hmisfit/eigevalues.dat", d)
     
+    if nproc == 1:
         print sep, "Visualize results", sep
         dl.plot(xx[STATE], title = xxname[STATE])
         dl.plot(dl.exp(xx[PARAMETER]), title = xxname[PARAMETER])
         dl.plot(xx[ADJOINT], title = xxname[ADJOINT])
+        dl.interactive()
     
+    if rank == 0:
         plt.figure()
         plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
         plt.yscale('log')
-        
         plt.show()    
-        dl.interactive()
+        

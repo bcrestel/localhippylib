@@ -12,6 +12,7 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import Vector, MPI
+from linalg import MultiVector
 import numpy as np
 
 class LowRankOperator:
@@ -41,49 +42,38 @@ class LowRankOperator:
         """
         Compute y = Ax = U D U^T x
         """
-        mpi_comm = x.mpi_comm()
-        nprocs = MPI.size(mpi_comm)
-        if nprocs > 1:
-            raise Exception("class LowRankOperator is only serial")
-        Utx = np.dot( self.U.T, x.array() )
-        dUtx = self.d*Utx
-        y.set_local(np.dot(self.U, dUtx))
-        y.apply("add_values")
+        Utx = self.U.dot_v(x)
+        dUtx = self.d*Utx   #elementwise mult
+        y.zero()
+        self.U.reduce(y, dUtx)
         
     def inner(self, x, y):
-        mpi_comm = x.mpi_comm()
-        nprocs = MPI.size(mpi_comm)
-        if nprocs > 1:
-            raise Exception("class LowRankOperator is only serial")
-        Utx = np.dot( self.U.T, x.array() )
-        Uty = np.dot( self.U.T, y.array() )
-        return np.sum(self.d*Utx*Uty)
-        
+        Utx = self.U.dot_v(x)
+        Uty = self.U.dot_v(y)
+        return np.sum(self.d*Utx*Uty)        
         
     def solve(self, sol, rhs):
         """
         Compute sol = U D^-1 U^T x
         """
-        mpi_comm = sol.mpi_comm()
-        nprocs = MPI.size(mpi_comm)
-        if nprocs > 1:
-            raise Exception("class LowRankOperator is only serial")
-        Utx = np.dot( self.U.T, rhs.array() )
-        dinvUtx = Utx / self.d
-        sol.set_local(np.dot(self.U, dinvUtx))
-        sol.apply("add_values")
+        Utr = self.U.dot_v(rhs)
+        dinvUtr = Utr / self.d
+        sol.zero()
+        self.U.reduce(sol, dinvUtr)
+
         
     def get_diagonal(self, diag):
         """
         Compute the diagonal of A.
         """
-        mpi_comm = diag.mpi_comm()
-        nprocs = MPI.size(mpi_comm)
-        if nprocs > 1:
-            raise Exception("class LowRankOperator is only serial")
-        V = self.U * self.d
-        diag.set_local(np.sum(V*self.U, 1))
-        diag.apply("add_values")
+        diag.zero()
+        tmp = self.U[0].copy()
+        for i in range(self.U.nvec()):
+            tmp.zero()
+            tmp.axpy(1., self.U[i] )
+            tmp*= self.U[i]
+            diag.axpy(self.d[i], tmp)
+
         
     def trace(self,W=None):
         """
