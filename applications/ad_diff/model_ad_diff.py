@@ -450,16 +450,23 @@ if __name__ == "__main__":
     if rank == 0:    
         print "(g,g) = ", grad_norm
     
-    H = ReducedHessian(problem, 1e-12, gauss_newton_approx=False, misfit_only=True) 
+    if rank == 0:
+        print sep, "Compute the low rank Gaussian Approximation of the posterior", sep  
     
-    if nproc == 1:
-        print sep, "Compute the low rank Gaussian Approximation of the posterior", sep   
-        k = 80
-        p = 20
+    H = ReducedHessian(problem, 1e-12, gauss_newton_approx=False, misfit_only=True) 
+    k = 80
+    p = 20
+    if rank == 0:
         print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
-        Omega = np.random.randn(a.array().shape[0], k+p)
-        d, U = singlePassG(H, prior.R, prior.Rsolver, Omega, k, check_Bortho=False, check_Aortho=False, check_residual=False)
-        posterior = GaussianLRPosterior( prior, d, U )
+    
+    Omega = MultiVector(x[PARAMETER], k+p)
+    for i in range(k+p):
+        Random.normal(Omega[i], 1., True)
+
+    d, U = doublePassG(H, prior.R, prior.Rsolver, Omega, k, s=1, check=False)
+    posterior = GaussianLRPosterior(prior, d, U)
+    
+    if True:
         P = posterior.Hlr
     else:
         P = prior.Rsolver
@@ -503,36 +510,35 @@ if __name__ == "__main__":
         fid << vector2Function(pr_pw_variance, Vh, name="Prior")
         fid << vector2Function(corr_pw_variance, Vh, name="Correction")
     
-    if nproc == 1:
-        posterior.exportU(Vh, "hmisfit/evect.pvd")
+    U.export(Vh, "hmisfit/evect.pvd", varname = "gen_evect", normalize = True)
+    if rank == 0:
         np.savetxt("hmisfit/eigevalues.dat", d)
     
     
-    if nproc == 1:
+    if rank == 0:
         print sep, "Generate samples from Prior and Posterior", sep
-        fid_prior = dl.File("samples/sample_prior.pvd")
-        fid_post  = dl.File("samples/sample_post.pvd")
-        nsamples = 50
-        noise = dl.Vector()
-        posterior.init_vector(noise,"noise")
-        s_prior = dl.Function(Vh, name="sample_prior")
-        s_post = dl.Function(Vh, name="sample_post")
-        for i in range(nsamples):
-            Random.normal(noise, 1., True)
-            posterior.sample(noise, s_prior.vector(), s_post.vector())
-            fid_prior << s_prior
-            fid_post << s_post
+    fid_prior = dl.File("samples/sample_prior.pvd")
+    fid_post  = dl.File("samples/sample_post.pvd")
+    nsamples = 50
+    noise = dl.Vector()
+    posterior.init_vector(noise,"noise")
+    s_prior = dl.Function(Vh, name="sample_prior")
+    s_post = dl.Function(Vh, name="sample_post")
+    for i in range(nsamples):
+        Random.normal(noise, 1., True)
+        posterior.sample(noise, s_prior.vector(), s_post.vector())
+        fid_prior << s_prior
+        fid_post << s_post
     
     if rank == 0:
         print sep, "Visualize results", sep 
-        
-    if nproc == 1:
         plt.figure()
         plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
         plt.yscale('log')
+        plt.show()
     
-    dl.plot(vector2Function(a, Vh, name = "Initial Condition"))
-    plt.show()
-    dl.interactive()
+    if nproc == 1:
+        dl.plot(vector2Function(a, Vh, name = "Initial Condition"))
+        dl.interactive()
 
     
