@@ -12,7 +12,7 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import Vector, MPI
-from linalg import MultiVector
+from linalg import MultiVector, MatMvMult
 import numpy as np
 
 class LowRankOperator:
@@ -88,18 +88,16 @@ class LowRankOperator:
         tr_W(A) = \sum_i D(i,i). 
         """
         if W is None:
-            diagUtU = np.sum(self.U*self.U,0)
-            tr = np.sum(self.d*diagUtU)
+            tmp = self.U[0].copy()
+            tmp.zero()
+            self.U.reduce(tmp, np.sqrt(self.d))
+            tr = tmp.inner(tmp)
         else:
-            WU = np.zeros(self.U.shape, dtype=self.U.dtype)
-            u, wu = Vector(), Vector()
-            W.init_vector(u,1)
-            W.init_vector(wu,0)
-            for i in range(self.U.shape[1]):
-                u.set_local(self.U[:,i])
-                W.mult(u,wu)
-                WU[:,i] = wu.array()
-            diagWUtU = np.sum(WU*self.U,0)
+            WU = MultiVector(self.U[0], self.U.nvec())
+            MatMvMult(W,self.U,WU)
+            diagWUtU = np.zeros_like(self.d)
+            for i in range(self.d.shape[0]):
+                diagWUtU[i] = WU[i].inner(self.U[i])
             tr = np.sum(self.d*diagWUtU)
             
         return tr
@@ -118,19 +116,14 @@ class LowRankOperator:
         tr_W(A) = \sum_i D(i,i)^2. 
         """
         if W is None:
-            UtU = np.dot(self.U.T, self.U)
+            UtU = self.U.dot_mv(self.U)
             dUtU = self.d[:,None] * UtU #diag(d)*UtU.
             tr2 = np.sum(dUtU*dUtU)
         else:
+            WU = MultiVector(self.U[0], self.U.nvec())
+            MatMvMult(W,self.U,WU)
             WU = np.zeros(self.U.shape, dtype=self.U.dtype)
-            u, wu = Vector(), Vector()
-            W.init_vector(u,1)
-            W.init_vector(wu,0)
-            for i in range(self.U.shape[1]):
-                u.set_local(self.U[:,i])
-                W.mult(u,wu)
-                WU[:,i] = wu.array()
-            UtWU = np.dot(self.U.T, WU)
+            UtWU = self.U.dot_mv(WU)
             dUtWU = self.d[:,None] * UtWU #diag(d)*UtU.
             tr2 = np.power(np.linalg.norm(dUtWU),2)
             

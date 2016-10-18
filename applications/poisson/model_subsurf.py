@@ -166,9 +166,11 @@ if __name__ == "__main__":
     posterior = GaussianLRPosterior(prior, d, U)
     posterior.mean = x[PARAMETER]
     
-    if nproc == 1:
-        post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
+    
+    post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
+    if rank == 0:
         print "Posterior trace {0:5e}; Prior trace {1:5e}; Correction trace {2:5e}".format(post_tr, prior_tr, corr_tr)
+    if nproc == 1:
         post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
         
         fid = dl.File("results/pointwise_variance.pvd")

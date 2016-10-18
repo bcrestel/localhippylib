@@ -48,7 +48,7 @@ class MultiVector(cpp_module.MultiVector):
         shape = (self.nvec(),mv.nvec())
         m = DoubleArray(shape[0]*shape[1])
         self.dot(mv, m)
-        return np.zeros(shape) + m.array().reshape(shape, order='F')
+        return np.zeros(shape) + m.array().reshape(shape, order='C')
     
     def norm(self, norm_type):
         shape = self.nvec()
@@ -71,6 +71,21 @@ class MultiVector(cpp_module.MultiVector):
         Note: self is overwritten by Q    
         """
         return self._mgs_stable(B)
+    
+    def orthogonalize(self):
+        """ 
+        Returns QR decomposition of self.
+        Q and R satisfy the following relations in exact arithmetic
+        1. QR        = Z
+        2. Q^*Q     = I
+        3. Q^*Z    = R 
+        4. ZR^{-1}  = Q
+        
+        Returns
+        r : ndarray: The r of the QR decomposition
+        Note: self is overwritten by Q    
+        """
+        return self._mgs_reortho()
     
     def _mgs_stable(self, B):
         """ 
@@ -129,6 +144,43 @@ class MultiVector(cpp_module.MultiVector):
             Bq.scale(k, tt)
             
         return Bq, r 
+    
+    def _mgs_reortho(self):
+        n = self.nvec()
+        r  = np.zeros((n,n), dtype = 'd')
+        reorth = np.zeros((n,), dtype = 'd')
+        eps = np.finfo(np.float64).eps
+        
+        for k in np.arange(n):
+            t = np.sqrt( self[k].inner(self[k]))
+            
+            nach = 1;    u = 0;
+            while nach:
+                u += 1
+                for i in np.arange(k):
+                    s = self[i].inner(self[k])
+                    r[i,k] += s
+                    self[k].axpy(-s, self[i])
+                    
+                tt = np.sqrt(self[k].inner(self[k]))
+                if tt > t*10.*eps and tt < t/10.:
+                    nach = 1;    t = tt;
+                else:
+                    nach = 0;
+                    if tt < 10.*eps*t:
+                        tt = 0.
+            
+
+            reorth[k] = u
+            r[k,k] = tt
+            if np.abs(tt*eps) > 0.:
+                tt = 1./tt
+            else:
+                tt = 0.
+                
+            self.scale(k, tt)
+            
+        return r
     
     def export(self, Vh, filename, varname = "mv", normalize=False):
         """
@@ -320,18 +372,14 @@ def estimate_diagonal_inv2(Asolver, k, d):
     else:       
         Asolver.get_operator().init_vector(x,1)
         Asolver.get_operator().init_vector(b,0)
-    
-    num = np.zeros(b.array().shape, dtype = b.array().dtype)
-    den = np.zeros(num.shape, dtype = num.dtype)
+        
+    d.zero()
     for i in range(k):
         x.zero()
         Random.normal(b, 1., True)
         Asolver.solve(x,b)
-        num = num +  ( x.array() * b.array() )
-        den = den +  ( b.array() * b.array() )
-        
-    d.set_local( num / den )
-    d.apply("add_values")
+        x *= b
+        d.axpy(1./float(k), x)
         
 def randn_perturb(x, std_dev):
     """

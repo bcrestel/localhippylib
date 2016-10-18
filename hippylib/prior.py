@@ -13,7 +13,7 @@
 
 import dolfin as dl
 import numpy as np
-from linalg import MatMatMult, get_diagonal, amg_method
+from linalg import MatMatMult, get_diagonal, amg_method, estimate_diagonal_inv2
 from traceEstimator import TraceEstimator
 import math
 from expression import code_Mollifier
@@ -85,7 +85,7 @@ class _Prior:
         else:
             raise NameError("Unknown method")
         
-    def pointwise_variance(self, method, path_len = 8):
+    def pointwise_variance(self, method, k = 1000000):
         """
         Compute/Estimate the prior pointwise variance.
         
@@ -96,6 +96,8 @@ class _Prior:
         self.init_vector(pw_var,0)
         if method == "Exact":
             get_diagonal(self.Rsolver, pw_var, solve_mode=True)
+        elif method == "Estimator":
+            estimate_diagonal_inv2(self.Rsolver, k, pw_var)
         else:
             raise NameError("Unknown method")
         

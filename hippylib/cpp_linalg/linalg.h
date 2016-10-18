@@ -80,6 +80,8 @@ public:
 
 	void norm_all(const std::string norm_type, Array<double> & norms);
 
+	void swap(MultiVector & other);
+
 	~MultiVector();
 
 private:

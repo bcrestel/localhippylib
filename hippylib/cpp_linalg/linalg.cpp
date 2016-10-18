@@ -215,6 +215,11 @@ void MultiVector::norm_all(const std::string norm_type, Array<double> & norms)
 		*(data++) = vi->norm(norm_type);
 }
 
+void MultiVector::swap(MultiVector & other)
+{
+	mv.swap(other.mv);
+}
+
 MultiVector::~MultiVector()
 {
 
