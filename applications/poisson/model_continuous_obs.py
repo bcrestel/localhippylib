@@ -183,7 +183,6 @@ class Poisson:
         # Create noisy data, ud
         MAX = u_o.norm("linf")
         randn_perturb(u_o, .01 * MAX)
-        plot(vector2Function(u_o, Vh[STATE]), title = "Observation")
     
     def cost(self, x):
         """
@@ -368,22 +367,27 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
-    plot(xx[STATE], title = "State")
-    plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
-    plot(xx[ADJOINT], title = "Adjoint")
-    
-    if nproc == 1:
-        model.setPointForHessianEvaluations(x)
-        Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-        p = 50
-        k = min( 250, Vh[PARAMETER].dim()-p)
-        Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
-        d, U = singlePassG(Hmisfit, Prior.R, Prior.Rsolver, Omega, k)
+    model.setPointForHessianEvaluations(x)
+    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
+    p = 50
+    k = min( 250, Vh[PARAMETER].dim()-p)
+    Omega = MultiVector(x[PARAMETER], k+p)
+    for i in range(k+p):
+        Random.normal(Omega[i], 1., True)
+
+    d, U = doublePassG(Hmisfit, Prior.R, Prior.Rsolver, Omega, k, s=1, check=False)
+
+    if rank == 0:
         plt.figure()
         plt.plot(range(0,k), d, 'b*',range(0,k), np.ones(k), '-r')
         plt.yscale('log')
         plt.show()
-        interactive()
     
+    if nproc == 1:
+        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
+        plot(xx[STATE], title = "State")
+        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
+        plot(xx[ADJOINT], title = "Adjoint")
+        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
+        interactive()
     

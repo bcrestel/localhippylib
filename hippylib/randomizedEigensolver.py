@@ -245,11 +245,11 @@ def check_std(A, U, d):
     
     #A-ortho check
     V = MultiVector(U)
-    scaling = np.power(d, -0.5)
+    scaling = np.power(np.abs(d), -0.5)
     V.scale(scaling)
     AU.scale(scaling)
     VtAV = AU.dot_mv(V)
-    err = VtAV - np.eye(nvec, dtype=VtAV.dtype)
+    err = VtAV - np.diag(np.sign(d))#np.eye(nvec, dtype=VtAV.dtype)
     err_Aortho = np.linalg.norm(err, 'fro')
     
     mpi_comm = U[0].mpi_comm()
@@ -286,7 +286,7 @@ def check_g(A,B, U, d):
     
     #A-ortho check
     V = MultiVector(U)
-    scaling = np.power(d, -0.5)
+    scaling = np.power(np.abs(d), -0.5)
     V.scale(scaling)
     AU.scale(scaling)
     VtAV = AU.dot_mv(V)

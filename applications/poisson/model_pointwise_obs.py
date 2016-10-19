@@ -413,22 +413,34 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
         
-    if nproc == 1:
+    if rank == 0:
         print sep, "Compute the low rank Gaussian Approximation of the posterior", sep
-        model.setPointForHessianEvaluations(x)
-        Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-        k = 50
-        p = 20
+    
+    model.setPointForHessianEvaluations(x)
+    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
+    k = 50
+    p = 20
+    if rank == 0:
         print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
-        Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
-        #d, U = singlePassG(Hmisfit, model.R, model.Rsolver, Omega, k, check_Bortho=True, check_Aortho=True, check_residual=True)
-        d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, check_Bortho=False, check_Aortho=False, check_residual=False)
-        posterior = GaussianLRPosterior(prior, d, U)
-        posterior.mean = x[PARAMETER]
+
+    Omega = MultiVector(x[PARAMETER], k+p)
+    for i in range(k+p):
+        Random.normal(Omega[i], 1., True)
+
+    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, s=1, check=False)
+    posterior = GaussianLRPosterior(prior, d, U)
+    posterior.mean = x[PARAMETER]
         
-        post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
+    post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
+    if rank == 0:
         print "Posterior trace {0:5e}; Prior trace {1:5e}; Correction trace {2:5e}".format(post_tr, prior_tr, corr_tr)
+    
+    if nproc == 1:
         post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
+        fid = dl.File("results/pointwise_variance.pvd")
+        fid << vector2Function(post_pw_variance, Vh[PARAMETER], name="Posterior")
+        fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
+        fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
         
     if rank == 0:
         print sep, "Save State, Parameter, Adjoint, and observation in paraview", sep
@@ -445,40 +457,38 @@ if __name__ == "__main__":
     
     exportPointwiseObservation(Vh[STATE], model.B, model.u_o, "results/poisson_observation.vtp")
     
-    if nproc == 1:
-        fid = dl.File("results/pointwise_variance.pvd")
-        fid << vector2Function(post_pw_variance, Vh[PARAMETER], name="Posterior")
-        fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
-        fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
     
-    
+    if rank == 0:
         print sep, "Generate samples from Prior and Posterior\n","Export generalized Eigenpairs", sep
-        fid_prior = dl.File("samples/sample_prior.pvd")
-        fid_post  = dl.File("samples/sample_post.pvd")
-        nsamples = 500
-        noise = dl.Vector()
-        posterior.init_vector(noise,"noise")
-        s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
-        s_post = dl.Function(Vh[PARAMETER], name="sample_post")
-        for i in range(nsamples):
-            Random.normal(noise, 1., True )
-            posterior.sample(noise, s_prior.vector(), s_post.vector())
-            fid_prior << s_prior
-            fid_post << s_post
-        
-        #Save eigenvalues for printing:
-        posterior.exportU(Vh[PARAMETER], "hmisfit/evect.pvd")
-        np.savetxt("hmisfit/eigevalues.dat", d)
     
+    fid_prior = dl.File("samples/sample_prior.pvd")
+    fid_post  = dl.File("samples/sample_post.pvd")
+    nsamples = 500
+    noise = dl.Vector()
+    posterior.init_vector(noise,"noise")
+    s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
+    s_post = dl.Function(Vh[PARAMETER], name="sample_post")
+    for i in range(nsamples):
+        Random.normal(noise, 1., True )
+        posterior.sample(noise, s_prior.vector(), s_post.vector())
+        fid_prior << s_prior
+        fid_post << s_post
+        
+    #Save eigenvalues for printing:
+    U.export(Vh[PARAMETER], "hmisfit/evect.pvd", varname = "gen_evects", normalize = True)
+    if rank == 0:
+        np.savetxt("hmisfit/eigevalues.dat", d)
+        
+    if nproc == 1:
         print sep, "Visualize results", sep
         dl.plot(xx[STATE], title = xxname[STATE])
         dl.plot(dl.exp(xx[PARAMETER]), title = xxname[PARAMETER])
         dl.plot(xx[ADJOINT], title = xxname[ADJOINT])
+        dl.interactive()
     
+    if rank == 0:
         plt.figure()
         plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
         plt.yscale('log')
-        
-        plt.show()    
-        dl.interactive()
+        plt.show()  
     

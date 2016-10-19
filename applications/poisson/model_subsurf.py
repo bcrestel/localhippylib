@@ -162,7 +162,7 @@ if __name__ == "__main__":
     for i in range(k+p):
         Random.normal(Omega[i], 1., True)
 
-    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, s=2, check=True)
+    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, s=1, check=False)
     posterior = GaussianLRPosterior(prior, d, U)
     posterior.mean = x[PARAMETER]
     
