@@ -178,13 +178,11 @@ class Poisson:
         A, b = self.assembleA(x, assemble_rhs = True)
         
         A.init_vector(u_o, 1)
-        solve(A, u_o, b)
+        solve(A, u_o, b, "cg", amg_method())
         
         # Create noisy data, ud
         MAX = u_o.norm("linf")
-        noise = .01 * MAX * np.random.normal(0, 1, len(u_o.array()))
-        u_o.set_local(u_o.array() + noise)
-        plot(vector2Function(u_o, Vh[STATE]), title = "Observation")
+        randn_perturb(u_o, .01 * MAX)
     
     def cost(self, x):
         """
@@ -331,6 +329,13 @@ if __name__ == "__main__":
     nx = 64
     ny = 64
     mesh = UnitSquareMesh(nx, ny)
+    
+    rank = MPI.rank(mesh.mpi_comm())
+    nproc = MPI.size(mesh.mpi_comm())
+    
+    if nproc > 1:
+        Random.split(rank, nproc, 1000000, 1)
+    
     Vh2 = FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
@@ -339,7 +344,7 @@ if __name__ == "__main__":
     model = Poisson(mesh, Vh, Prior)
         
     a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-12)
+    modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
 
     a0 = interpolate(Expression("0.0"),Vh[PARAMETER])
     solver = ReducedSpaceNewtonCG(model)
@@ -347,34 +352,42 @@ if __name__ == "__main__":
     solver.parameters["inner_rel_tolerance"] = 1e-15
     solver.parameters["c_armijo"] = 1e-4
     solver.parameters["GN_iter"] = 6
+    if rank != 0:
+        solver.parameters["print_level"] = -1
     
     x = solver.solve(a0.vector())
     
-    if solver.converged:
-        print "\nConverged in ", solver.it, " iterations."
-    else:
-        print "\nNot Converged"
+    if rank == 0:
+        if solver.converged:
+            print "\nConverged in ", solver.it, " iterations."
+        else:
+            print "\nNot Converged"
 
-    print "Termination reason: ", solver.termination_reasons[solver.reason]
-    print "Final gradient norm: ", solver.final_grad_norm
-    print "Final cost: ", solver.final_cost
-    
-    xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
-    plot(xx[STATE], title = "State")
-    plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
-    plot(xx[ADJOINT], title = "Adjoint")
-    #interactive()
+        print "Termination reason: ", solver.termination_reasons[solver.reason]
+        print "Final gradient norm: ", solver.final_grad_norm
+        print "Final cost: ", solver.final_cost
     
     model.setPointForHessianEvaluations(x)
     Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
     p = 50
     k = min( 250, Vh[PARAMETER].dim()-p)
-    Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
-    d, U = singlePassG(Hmisfit, Prior.R, Prior.Rsolver, Omega, k)
-    plt.figure()
-    plt.plot(range(0,k), d, 'b*')
-    plt.yscale('log')
+    Omega = MultiVector(x[PARAMETER], k+p)
+    for i in range(k+p):
+        Random.normal(Omega[i], 1., True)
+
+    d, U = doublePassG(Hmisfit, Prior.R, Prior.Rsolver, Omega, k, s=1, check=False)
+
+    if rank == 0:
+        plt.figure()
+        plt.plot(range(0,k), d, 'b*',range(0,k), np.ones(k), '-r')
+        plt.yscale('log')
+        plt.show()
     
-    interactive()
-    plt.show()
+    if nproc == 1:
+        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
+        plot(xx[STATE], title = "State")
+        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
+        plot(xx[ADJOINT], title = "Adjoint")
+        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
+        interactive()
     

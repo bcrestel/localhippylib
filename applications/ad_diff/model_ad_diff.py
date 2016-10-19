@@ -372,7 +372,8 @@ def computeVelocityField(mesh):
            - (q * dl.div(v_test)) + ( dl.div(v) * q_test) ) * dl.dx
            
     dl.solve(F == 0, vq, bcs, solver_parameters={"newton_solver":
-                                         {"relative_tolerance":1e-4, "maximum_iterations":100}})
+                                         {"relative_tolerance":1e-4, "maximum_iterations":100,
+                                          "linear_solver":"default"}})
         
     return v
     
@@ -382,13 +383,23 @@ if __name__ == "__main__":
     dl.set_log_active(False)
     np.random.seed(1)
     sep = "\n"+"#"*80+"\n"
-    print sep, "Set up the mesh and finite element spaces.\n","Compute wind velocity", sep
     mesh = dl.refine( dl.Mesh("ad_20.xml") )
-    wind_velocity = computeVelocityField(mesh)
-    Vh = dl.FunctionSpace(mesh, "Lagrange", 2)
-    print "Number of dofs: {0}".format( Vh.dim() )
     
-    print sep, "Set up Prior Information and model", sep
+    rank = dl.MPI.rank(mesh.mpi_comm())
+    nproc = dl.MPI.size(mesh.mpi_comm())
+    
+    if nproc > 1:
+        Random.split(rank, nproc, 1000000, 1)
+    
+    if rank == 0:
+        print sep, "Set up the mesh and finite element spaces.\n","Compute wind velocity", sep
+    Vh = dl.FunctionSpace(mesh, "Lagrange", 2)
+    ndofs = Vh.dim()
+    if rank == 0:
+        print "Number of dofs: {0}".format( ndofs )
+    
+    if rank == 0:
+        print sep, "Set up Prior Information and model", sep
     
     true_initial_condition = dl.interpolate(dl.Expression('min(0.5,exp(-100*(pow(x[0]-0.35,2) +  pow(x[1]-0.7,2))))'), Vh).vector()
 
@@ -406,11 +417,13 @@ if __name__ == "__main__":
 #    prior.mean = interpolate(Expression('min(0.6,exp(-50*(pow(x[0]-0.34,2) +  pow(x[1]-0.71,2))))'), Vh).vector()
     prior.mean = dl.interpolate(dl.Expression('0.5'), Vh).vector()
     
-    print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)
-
+    if rank == 0:
+        print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)
+    wind_velocity = computeVelocityField(mesh)
     problem = TimeDependentAD(mesh, [Vh,Vh,Vh], 0., 4., 1., .2, wind_velocity, True, prior)
     
-    print sep, "Generate synthetic observation", sep
+    if rank == 0:
+        print sep, "Generate synthetic observation", sep
     rel_noise = 0.001
     utrue = problem.generate_vector(STATE)
     x = [utrue, true_initial_condition, None]
@@ -421,90 +434,111 @@ if __name__ == "__main__":
     problem.ud.randn_perturb(noise_std_dev)
     problem.noise_variance = noise_std_dev*noise_std_dev
     
-    print sep, "Test the gradient and the Hessian of the model", sep
+    if rank == 0:
+        print sep, "Test the gradient and the Hessian of the model", sep
     a0 = true_initial_condition.copy()
     modelVerify(problem, a0, 1e-12, is_quadratic = True)
     
-    print sep, "Compute the reduced gradient and hessian", sep
+    if rank == 0:
+        print sep, "Compute the reduced gradient and hessian", sep
     [u,a,p] = problem.generate_vector()
     problem.solveFwd(u, [u,a,p], 1e-12)
     problem.solveAdj(p, [u,a,p], 1e-12)
     mg = problem.generate_vector(PARAMETER)
     grad_norm = problem.evalGradientParameter([u,a,p], mg)
-        
-    print "(g,g) = ", grad_norm
+    
+    if rank == 0:    
+        print "(g,g) = ", grad_norm
+    
+    if rank == 0:
+        print sep, "Compute the low rank Gaussian Approximation of the posterior", sep  
     
     H = ReducedHessian(problem, 1e-12, gauss_newton_approx=False, misfit_only=True) 
-    
-    print sep, "Compute the low rank Gaussian Approximation of the posterior", sep   
     k = 80
     p = 20
-    print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
-    Omega = np.random.randn(a.array().shape[0], k+p)
-    d, U = singlePassG(H, prior.R, prior.Rsolver, Omega, k, check_Bortho=False, check_Aortho=False, check_residual=False)
-    posterior = GaussianLRPosterior( prior, d, U )
+    if rank == 0:
+        print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
     
-    print sep, "Find the MAP point", sep
+    Omega = MultiVector(x[PARAMETER], k+p)
+    for i in range(k+p):
+        Random.normal(Omega[i], 1., True)
+
+    d, U = doublePassG(H, prior.R, prior.Rsolver, Omega, k, s=1, check=False)
+    posterior = GaussianLRPosterior(prior, d, U)
+    
+    if True:
+        P = posterior.Hlr
+    else:
+        P = prior.Rsolver
+    
+    if rank == 0:
+        print sep, "Find the MAP point", sep
     
     H.misfit_only = False
         
     solver = CGSolverSteihaug()
     solver.set_operator(H)
-    solver.set_preconditioner( posterior.Hlr )
+    solver.set_preconditioner( P )
     solver.parameters["print_level"] = 1
     solver.parameters["rel_tolerance"] = 1e-6
+    if rank != 0:
+        solver.parameters["print_level"] = -1
     solver.solve(a, -mg)
     problem.solveFwd(u, [u,a,p], 1e-12)
  
     total_cost, reg_cost, misfit_cost = problem.cost([u,a,p])
-    print "Total cost {0:5g}; Reg Cost {1:5g}; Misfit {2:5g}".format(total_cost, reg_cost, misfit_cost)
+    if rank == 0:
+        print "Total cost {0:5g}; Reg Cost {1:5g}; Misfit {2:5g}".format(total_cost, reg_cost, misfit_cost)
     
     posterior.mean = a
 
     compute_trace = False
     if compute_trace:
         post_tr, prior_tr, corr_tr = posterior.trace(method="Exact", tol=5e-2, min_iter=20, max_iter=100)
+    if rank == 0:
         print "Posterior trace {0:5g}; Prior trace {1:5g}; Correction trace {2:5g}".format(post_tr, prior_tr, corr_tr)
-        post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
+    post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
     
-    print sep, "Save results", sep  
+    if rank == 0:
+        print sep, "Save results", sep  
     problem.exportState([u,a,p], "results/conc.pvd", "concentration")
     problem.exportState([utrue,true_initial_condition,p], "results/true_conc.pvd", "concentration")
     problem.exportState([problem.ud,true_initial_condition,p], "results/noisy_conc.pvd", "concentration")
 
-    if compute_trace:
-        fid = dl.File("results/pointwise_variance.pvd")
-        fid << vector2Function(post_pw_variance, Vh, name="Posterior")
-        fid << vector2Function(pr_pw_variance, Vh, name="Prior")
-        fid << vector2Function(corr_pw_variance, Vh, name="Correction")
+    fid = dl.File("results/pointwise_variance.pvd")
+    fid << vector2Function(post_pw_variance, Vh, name="Posterior")
+    fid << vector2Function(pr_pw_variance, Vh, name="Prior")
+    fid << vector2Function(corr_pw_variance, Vh, name="Correction")
     
-    posterior.exportU(Vh, "hmisfit/evect.pvd")
-    np.savetxt("hmisfit/eigevalues.dat", d)
+    U.export(Vh, "hmisfit/evect.pvd", varname = "gen_evect", normalize = True)
+    if rank == 0:
+        np.savetxt("hmisfit/eigevalues.dat", d)
     
     
-    
-    print sep, "Generate samples from Prior and Posterior", sep
+    if rank == 0:
+        print sep, "Generate samples from Prior and Posterior", sep
     fid_prior = dl.File("samples/sample_prior.pvd")
     fid_post  = dl.File("samples/sample_post.pvd")
-    nsamples = 500
+    nsamples = 50
     noise = dl.Vector()
     posterior.init_vector(noise,"noise")
-    noise_size = noise.array().shape[0]
     s_prior = dl.Function(Vh, name="sample_prior")
     s_post = dl.Function(Vh, name="sample_post")
     for i in range(nsamples):
-        noise.set_local( np.random.randn( noise_size ) )
+        Random.normal(noise, 1., True)
         posterior.sample(noise, s_prior.vector(), s_post.vector())
         fid_prior << s_prior
         fid_post << s_post
     
+    if rank == 0:
+        print sep, "Visualize results", sep 
+        plt.figure()
+        plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
+        plt.yscale('log')
+        plt.show()
     
-    print sep, "Visualize results", sep 
-    plt.figure()
-    plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
-    plt.yscale('log')
-    dl.plot(vector2Function(a, Vh, name = "Initial Condition"))
-    plt.show()
-    dl.interactive()
+    if nproc == 1:
+        dl.plot(vector2Function(a, Vh, name = "Initial Condition"))
+        dl.interactive()
 
     

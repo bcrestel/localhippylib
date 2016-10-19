@@ -81,8 +81,9 @@ class PDEVariationalProblem(PDEProblem):
         self.Waa = []
         self.Wuu = []
         
-        self.solver_fwd_inc = dl.PETScLUSolver()
-        self.solver_adj_inc = dl.PETScLUSolver()
+        self.solver = None
+        self.solver_fwd_inc = None
+        self.solver_adj_inc = None
         
         self.is_fwd_linear = is_fwd_linear
         
@@ -103,6 +104,8 @@ class PDEVariationalProblem(PDEProblem):
         """ Solve the possibly nonlinear Fwd Problem:
         Given a, find u such that
         \delta_p F(u,a,p;\hat_p) = 0 \for all \hat_p"""
+        if self.solver is None:
+            self.solver = dl.PETScLUSolver()
         if self.is_fwd_linear:
             u = dl.TrialFunction(self.Vh[STATE])
             a = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
@@ -111,9 +114,8 @@ class PDEVariationalProblem(PDEProblem):
             A_form = dl.lhs(res_form)
             b_form = dl.rhs(res_form)
             A, b = dl.assemble_system(A_form, b_form, bcs=self.bc)
-            solver = dl.PETScLUSolver()
-            solver.set_operator(A)
-            solver.solve(state, b)
+            self.solver.set_operator(A)
+            self.solver.solve(state, b)
         else:
             u = vector2Function(x[STATE], self.Vh[STATE])
             a = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
@@ -128,6 +130,9 @@ class PDEVariationalProblem(PDEProblem):
             Given a, u; find p such that
             \delta_u F(u,a,p;\hat_u) = 0 \for all \hat_u
         """
+        if self.solver is None:
+            self.solver = dl.PETScLUSolver()
+            
         u = vector2Function(x[STATE], self.Vh[STATE])
         a = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
         p = dl.Function(self.Vh[ADJOINT])
@@ -136,9 +141,8 @@ class PDEVariationalProblem(PDEProblem):
         varf = self.varf_handler(u,a,p)
         adj_form = dl.derivative( dl.derivative(varf, u, du), p, dp )
         Aadj, dummy = dl.assemble_system(adj_form, dl.Constant(0.)*du*dl.dx, self.bc0)
-        solver = dl.PETScLUSolver()
-        solver.set_operator(Aadj)
-        solver.solve(adj, adj_rhs)
+        self.solver.set_operator(Aadj)
+        self.solver.solve(adj, adj_rhs)
      
     def eval_da(self, x, out):
         """Given u,a,p; eval \delta_a F(u,a,p; \hat_a) \for all \hat_a """
@@ -180,6 +184,10 @@ class PDEVariationalProblem(PDEProblem):
         self.Wuu = Transpose(Wuu_t)
         
         self.Waa = dl.assemble(dl.derivative(g_form[PARAMETER],a))
+        
+        if self.solver_fwd_inc is None:
+            self.solver_fwd_inc = dl.PETScLUSolver()
+            self.solver_adj_inc = dl.PETScLUSolver()
         
         self.solver_fwd_inc.set_operator(self.A)
         self.solver_adj_inc.set_operator(self.At)

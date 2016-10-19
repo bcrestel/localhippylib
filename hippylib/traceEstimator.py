@@ -12,23 +12,22 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import Vector
+from random import Random
 import numpy as np
 import math
+from linalg import Solver2Operator
 
-def rademacher_engine(n):
+def rademacher_engine(v):
     """
     Generate a vector of n i.i.d. Rademacher variables.
     """
-    omega = np.random.rand(n)
-    omega[omega < .5 ] = -1.
-    omega[omega >= .5 ] = 1.
-    return omega
+    Random.rademacher(v)
     
-def gaussian_engine(n):
+def gaussian_engine(v):
     """
     Generate a vector of n i.i.d. standard normal variables.
     """
-    return np.random.randn(n)
+    Random.normal(v, 1., True)
 
 class TraceEstimator:
     """
@@ -58,18 +57,16 @@ class TraceEstimator:
                          range/domain of A
         - random_engine: which type of i.i.d. random variables to use (Rademacher or Gaussian)  
         """
-        self.A = A
+        if solve_mode:
+            self.A = Solver2Operator(A)
+        else:
+            self.A = A
         self.accurancy = accurancy
         self.random_engine = random_engine
         self.iter = 0
         
         self.z = Vector()
         self.Az = Vector()
-        
-        if solve_mode:
-            self._apply = self._apply_solve
-        else:
-            self._apply = self._apply_mult
         
         if init_vector is None:
             A.init_vector(self.z, 0)
@@ -78,12 +75,6 @@ class TraceEstimator:
             init_vector(self.z, 0)
             init_vector(self.Az, 0)
             
-    def _apply_mult(self, z, Az):
-        self.A.mult(z, Az)
-        
-    def _apply_solve(self, z, Az):
-        self.A.solve(Az, z)
-        
     def __call__(self, min_iter=5, max_iter=100):
         """
         Estimate the trace of A (or A^-1) using at least
@@ -92,12 +83,11 @@ class TraceEstimator:
         sum_tr = 0
         sum_tr2 = 0
         self.iter = 0
-        size = len(self.z.array())
         
         while self.iter < min_iter:
             self.iter += 1
-            self.z.set_local(self.random_engine(size))
-            self._apply(self.z, self.Az)
+            self.random_engine(self.z)
+            self.A.mult(self.z, self.Az)
             tr = self.z.inner(self.Az)
             sum_tr += tr
             sum_tr2 += tr*tr
@@ -111,8 +101,8 @@ class TraceEstimator:
         self.converged = True
         while (math.sqrt( var_tr ) > self.accurancy*exp_tr):
             self.iter += 1
-            self.z.set_local(self.random_engine(size))
-            self._apply(self.z, self.Az)
+            self.random_engine(self.z)
+            self.A.mult(self.z, self.Az)
             tr = self.z.inner(self.Az)
             sum_tr += tr
             sum_tr2 += tr*tr

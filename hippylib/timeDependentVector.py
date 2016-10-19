@@ -12,6 +12,7 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import Vector
+from random import Random
 import numpy as np
 
 class TimeDependentVector:
@@ -68,8 +69,10 @@ class TimeDependentVector:
         to each snapshots.
         """
         for d in self.data:
-            noise = std_dev * np.random.normal(0, 1, len(d.array()))
-            d.set_local(d.array() + noise)
+            Random.normal(d, std_dev, False)
+            # noise = std_dev * np.random.normal(0, 1, len(d.array()))
+            # d.set_local(d.array() + noise)
+            # d.apply("add_values")
     
     def axpy(self, a, other):
         """
@@ -96,7 +99,8 @@ class TimeDependentVector:
             
         assert abs(t - self.times[i]) < self.tol
         
-        self.data[i].set_local( u.array() )
+        self.data[i].zero()
+        self.data[i].axpy(1., u )
         
     def retrieve(self, u, t):
         """
@@ -109,7 +113,8 @@ class TimeDependentVector:
             
         assert abs(t - self.times[i]) < self.tol
         
-        u.set_local( self.data[i].array() )
+        u.zero()
+        u.axpy(1., self.data[i] )
         
     def norm(self, time_norm, space_norm):
         """

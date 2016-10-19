@@ -11,7 +11,8 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-from dolfin import Vector
+from dolfin import Vector, MPI
+from linalg import MultiVector, MatMvMult
 import numpy as np
 
 class LowRankOperator:
@@ -19,6 +20,8 @@ class LowRankOperator:
     This class model the action of a low rank operator A = U D U^T.
     Here D is a diagonal matrix, and the columns of are orthonormal
     in some weighted inner-product.
+    
+    This class works only in serial!
     """
     def __init__(self,d,U, my_init_vector = None):
         """
@@ -39,33 +42,38 @@ class LowRankOperator:
         """
         Compute y = Ax = U D U^T x
         """
-        Utx = np.dot( self.U.T, x.array() )
-        dUtx = self.d*Utx
-        y.set_local(np.dot(self.U, dUtx))
-        y.apply("")
+        Utx = self.U.dot_v(x)
+        dUtx = self.d*Utx   #elementwise mult
+        y.zero()
+        self.U.reduce(y, dUtx)
         
     def inner(self, x, y):
-        Utx = np.dot( self.U.T, x.array() )
-        Uty = np.dot( self.U.T, y.array() )
-        return np.sum(self.d*Utx*Uty)
-        
+        Utx = self.U.dot_v(x)
+        Uty = self.U.dot_v(y)
+        return np.sum(self.d*Utx*Uty)        
         
     def solve(self, sol, rhs):
         """
         Compute sol = U D^-1 U^T x
         """
-        Utx = np.dot( self.U.T, rhs.array() )
-        dinvUtx = Utx / self.d
-        sol.set_local(np.dot(self.U, dinvUtx))
-        sol.apply("")
+        Utr = self.U.dot_v(rhs)
+        dinvUtr = Utr / self.d
+        sol.zero()
+        self.U.reduce(sol, dinvUtr)
+
         
     def get_diagonal(self, diag):
         """
         Compute the diagonal of A.
         """
-        V = self.U * self.d
-        diag.set_local(np.sum(V*self.U, 1))
-        diag.apply("")
+        diag.zero()
+        tmp = self.U[0].copy()
+        for i in range(self.U.nvec()):
+            tmp.zero()
+            tmp.axpy(1., self.U[i] )
+            tmp*= self.U[i]
+            diag.axpy(self.d[i], tmp)
+
         
     def trace(self,W=None):
         """
@@ -80,18 +88,16 @@ class LowRankOperator:
         tr_W(A) = \sum_i D(i,i). 
         """
         if W is None:
-            diagUtU = np.sum(self.U*self.U,0)
-            tr = np.sum(self.d*diagUtU)
+            tmp = self.U[0].copy()
+            tmp.zero()
+            self.U.reduce(tmp, np.sqrt(self.d))
+            tr = tmp.inner(tmp)
         else:
-            WU = np.zeros(self.U.shape, dtype=self.U.dtype)
-            u, wu = Vector(), Vector()
-            W.init_vector(u,1)
-            W.init_vector(wu,0)
-            for i in range(self.U.shape[1]):
-                u.set_local(self.U[:,i])
-                W.mult(u,wu)
-                WU[:,i] = wu.array()
-            diagWUtU = np.sum(WU*self.U,0)
+            WU = MultiVector(self.U[0], self.U.nvec())
+            MatMvMult(W,self.U,WU)
+            diagWUtU = np.zeros_like(self.d)
+            for i in range(self.d.shape[0]):
+                diagWUtU[i] = WU[i].inner(self.U[i])
             tr = np.sum(self.d*diagWUtU)
             
         return tr
@@ -110,19 +116,14 @@ class LowRankOperator:
         tr_W(A) = \sum_i D(i,i)^2. 
         """
         if W is None:
-            UtU = np.dot(self.U.T, self.U)
+            UtU = self.U.dot_mv(self.U)
             dUtU = self.d[:,None] * UtU #diag(d)*UtU.
             tr2 = np.sum(dUtU*dUtU)
         else:
+            WU = MultiVector(self.U[0], self.U.nvec())
+            MatMvMult(W,self.U,WU)
             WU = np.zeros(self.U.shape, dtype=self.U.dtype)
-            u, wu = Vector(), Vector()
-            W.init_vector(u,1)
-            W.init_vector(wu,0)
-            for i in range(self.U.shape[1]):
-                u.set_local(self.U[:,i])
-                W.mult(u,wu)
-                WU[:,i] = wu.array()
-            UtWU = np.dot(self.U.T, WU)
+            UtWU = self.U.dot_mv(WU)
             dUtWU = self.d[:,None] * UtWU #diag(d)*UtU.
             tr2 = np.power(np.linalg.norm(dUtWU),2)
             
