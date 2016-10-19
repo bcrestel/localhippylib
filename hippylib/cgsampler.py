@@ -12,6 +12,7 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import Vector
+from random import Random
 import numpy as np
 import math
 
@@ -58,7 +59,7 @@ class CGSampler:
         self.A.init_vector(self.Ap,0)
         
         self.A.init_vector(self.b,0)
-        self.b.set_local(np.random.randn(self.b.array().shape[0]))
+        Random.normal(self.b, 1., True)
                         
     def sample(self, noise, s):
         """

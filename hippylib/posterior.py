@@ -165,27 +165,6 @@ class GaussianLRPosterior:
     def _sample_given_prior(self,s_prior, s_post):
         self.sampler.sample(s_prior, s_post)
     
-    def exportU(self, Vh, fname, varname = "evect", normalize=1):
-        """
-        Export in paraview the generalized eigenvectors U.
-        Inputs:
-        - Vh:        the parameter finite element space
-        - fname:     the name of the paraview output file
-        - varname:   the name of the paraview variable
-        - normalize: if True the eigenvector are rescaled such that || u ||_inf = 1 
-        """
-        evect = Function(Vh, name=varname)
-        fid = File(fname)
-        
-        for i in range(0,self.U.shape[1]):
-            Ui = self.U[:,i]
-            if normalize:
-                s = 1/np.linalg.norm(Ui, np.inf)
-                evect.vector().set_local(s*Ui)
-            else:
-                evect.vector().set_local(Ui)
-            fid << evect
-            
     def trace(self, method="Exact", tol=1e-1, min_iter=20, max_iter=100):
         """
         Compute/Estimate the trace of the posterior, prior distribution

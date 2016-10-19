@@ -11,26 +11,18 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-import dolfin as dl
-import sys
-sys.path.append( "../../" )
-from hippylib import *
-import numpy as np
+from dolfin import compile_extension_module
+import os
 
-dl.set_log_active(False)
-nx = 8
-ny = 8
-mesh = dl.UnitSquareMesh(nx, ny)
+abspath = os.path.dirname( os.path.abspath(__file__) )
+sdir = os.path.join(abspath,"cpp_rand")
+header_file = open(os.path.join(sdir,"PRNG.h"), "r")
+code = header_file.read()
+header_file.close()
+cpp_sources = ["PRNG.cpp"]  
+cpp_module = compile_extension_module(
+code=code, source_directory=sdir, sources=cpp_sources,
+include_dirs=[".",  sdir])
 
-Vh = dl.FunctionSpace(mesh, 'Lagrange', 1)
+Random = cpp_module.Random(1)
 
-uh = dl.TrialFunction(Vh)
-vh = dl.TestFunction(Vh)
-
-A = dl.assemble(uh*vh*dl.dx)
-B = dl.assemble(dl.inner(dl.nabla_grad(uh), dl.nabla_grad(vh))*dl.dx)
-
-C = MatMatMult(A,B)
-D = MatPtAP(A,B)
-E = MatAtB(A,B)
-F = Transpose(A)

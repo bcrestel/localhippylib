@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 
 from variables import STATE, PARAMETER, ADJOINT
 from reducedHessian import ReducedHessian
+from random import Random
 
 class ModelTemplate:
     """
@@ -242,7 +243,7 @@ class ModelTemplate:
         """
         return
     
-def modelVerify(model,a0, innerTol, is_quadratic = False):
+def modelVerify(model,a0, innerTol, is_quadratic = False, verbose = True):
     """
     Verify the reduced Gradient and the Hessian of a model.
     It will produce two loglog plots of the finite difference checks
@@ -251,7 +252,9 @@ def modelVerify(model,a0, innerTol, is_quadratic = False):
     """
     
     h = model.generate_vector(PARAMETER)
-    h.set_local(np.random.normal(0, 1, len( h.array() )) )
+    Random.normal(h, 1., True)
+    #h.set_local(np.random.normal(0, 1, len( h.array() )) )
+    #h.apply("add_values")
     
     x = model.generate_vector()
     x[PARAMETER] = a0
@@ -277,7 +280,7 @@ def modelVerify(model,a0, innerTol, is_quadratic = False):
         my_eps = eps[i]
         
         x_plus = model.generate_vector()
-        x_plus[PARAMETER].set_local( a0.array() )
+        x_plus[PARAMETER].axpy(1., a0 )
         x_plus[PARAMETER].axpy(my_eps, h)
         model.solveFwd(x_plus[STATE],   x_plus, innerTol)
         model.solveAdj(x_plus[ADJOINT], x_plus,innerTol)
@@ -295,32 +298,37 @@ def modelVerify(model,a0, innerTol, is_quadratic = False):
         
         err_H[i] = err.norm('linf')
     
-    if is_quadratic:
-        plt.figure()
-        plt.subplot(121)
-        plt.loglog(eps, err_grad, "-ob", eps, eps*(err_grad[0]/eps[0]), "-.k")
-        plt.title("FD Gradient Check")
-        plt.subplot(122)
-        plt.loglog(eps[0], err_H[0], "-ob", [10*eps[0], eps[0], 0.1*eps[0]], [err_H[0],err_H[0],err_H[0]], "-.k")
-        plt.title("FD Hessian Check")
-    else:  
-        plt.figure()
-        plt.subplot(121)
-        plt.loglog(eps, err_grad, "-ob", eps, eps*(err_grad[0]/eps[0]), "-.k")
-        plt.title("FD Gradient Check")
-        plt.subplot(122)
-        plt.loglog(eps, err_H, "-ob", eps, eps*(err_H[0]/eps[0]), "-.k")
-        plt.title("FD Hessian Check")
+    if verbose:
+        if is_quadratic:
+            plt.figure()
+            plt.subplot(121)
+            plt.loglog(eps, err_grad, "-ob", eps, eps*(err_grad[0]/eps[0]), "-.k")
+            plt.title("FD Gradient Check")
+            plt.subplot(122)
+            plt.loglog(eps[0], err_H[0], "-ob", [10*eps[0], eps[0], 0.1*eps[0]], [err_H[0],err_H[0],err_H[0]], "-.k")
+            plt.title("FD Hessian Check")
+        else:  
+            plt.figure()
+            plt.subplot(121)
+            plt.loglog(eps, err_grad, "-ob", eps, eps*(err_grad[0]/eps[0]), "-.k")
+            plt.title("FD Gradient Check")
+            plt.subplot(122)
+            plt.loglog(eps, err_H, "-ob", eps, eps*(err_H[0]/eps[0]), "-.k")
+            plt.title("FD Hessian Check")
     
-        
     xx = model.generate_vector(PARAMETER)
-    xx.set_local( np.random.normal(0, 1, len( xx.array() )) )
+    Random.normal(xx, 1., True)
+    #xx.set_local( np.random.normal(0, 1, len( xx.array() )) )
+    #xx.apply("add_values")
     yy = model.generate_vector(PARAMETER)
-    yy.set_local( np.random.normal(0, 1, len( yy.array() )) )
+    Random.normal(yy, 1., True)
+    #yy.set_local( np.random.normal(0, 1, len( yy.array() )) )
+    #yy.apply("add_values")
     
     ytHx = H.inner(yy,xx)
     xtHy = H.inner(xx,yy)
     rel_symm_error = 2*abs(ytHx - xtHy)/(ytHx + xtHy)
-    print "(yy, H xx) - (xx, H yy) = ", rel_symm_error
-    if(rel_symm_error > 1e-10):
-        print "HESSIAN IS NOT SYMMETRIC!!"
+    if verbose:
+        print "(yy, H xx) - (xx, H yy) = ", rel_symm_error
+        if rel_symm_error > 1e-10:
+            print "HESSIAN IS NOT SYMMETRIC!!"
