@@ -14,7 +14,7 @@
 
 #include <dolfin/la/GenericMatrix.h>
 #include <dolfin/la/Matrix.h>
-#include <dolfin/la/Vector.h>
+#include <dolfin/la/GenericVector.h>
 #include <dolfin/la/PETScMatrix.h>
 #include <dolfin/common/Array.h>
 
@@ -32,6 +32,9 @@ public:
 	std::shared_ptr<Matrix> MatAtB(const GenericMatrix & A, const GenericMatrix & B);
 	//out = At
 	std::shared_ptr<Matrix> Transpose(const GenericMatrix & A);
+
+	void SetToOwnedGid(GenericVector & v, std::size_t gid, double val);
+	double GetFromOwnedGid(const GenericVector & v, std::size_t gid);
 };
 
 class MultiVector

@@ -90,6 +90,21 @@ std::shared_ptr<Matrix> cpp_linalg::Transpose(const GenericMatrix & A)
 	return std::shared_ptr<Matrix>(new Matrix(PETScMatrix(At)));
 }
 
+void cpp_linalg::SetToOwnedGid(GenericVector & v, std::size_t gid, double val)
+{
+	assert(v.owns_index(gid));
+	la_index index = static_cast<la_index>(gid);
+	v.set(&val, 1, &index);
+}
+
+double cpp_linalg::GetFromOwnedGid(const GenericVector & v, std::size_t gid)
+{
+	assert(v.owns_index(gid));
+	double val;
+	la_index index = static_cast<la_index>(gid);
+	v.get(&val, 1, &index);
+}
+
 MultiVector::MultiVector()
 {
 }

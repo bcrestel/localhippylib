@@ -13,7 +13,7 @@
 
 import dolfin as dl
 import numpy as np
-from linalg import MatMatMult, get_diagonal, amg_method, estimate_diagonal_inv2
+from linalg import MatMatMult, get_diagonal, amg_method, estimate_diagonal_inv2, Solver2Operator
 from traceEstimator import TraceEstimator
 import math
 from expression import code_Mollifier
@@ -76,7 +76,7 @@ class _Prior:
         if method == "Exact":
             marginal_variance = dl.Vector()
             self.init_vector(marginal_variance,0)
-            get_diagonal(op, marginal_variance, solve_mode=False)
+            get_diagonal(op, marginal_variance)
             return marginal_variance.sum()
         elif method == "Estimator":
             tr_estimator = TraceEstimator(op, False, tol)
@@ -95,7 +95,7 @@ class _Prior:
         pw_var = dl.Vector()
         self.init_vector(pw_var,0)
         if method == "Exact":
-            get_diagonal(self.Rsolver, pw_var, solve_mode=True)
+            get_diagonal(Solver2Operator(self.Rsolver), pw_var)
         elif method == "Estimator":
             estimate_diagonal_inv2(self.Rsolver, k, pw_var)
         else:

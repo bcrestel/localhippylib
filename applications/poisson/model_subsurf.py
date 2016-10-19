@@ -170,13 +170,12 @@ if __name__ == "__main__":
     post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
     if rank == 0:
         print "Posterior trace {0:5e}; Prior trace {1:5e}; Correction trace {2:5e}".format(post_tr, prior_tr, corr_tr)
-    if nproc == 1:
-        post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
+    post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
         
-        fid = dl.File("results/pointwise_variance.pvd")
-        fid << vector2Function(post_pw_variance,Vh[PARAMETER], name="Posterior")
-        fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
-        fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
+    fid = dl.File("results/pointwise_variance.pvd")
+    fid << vector2Function(post_pw_variance,Vh[PARAMETER], name="Posterior")
+    fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
+    fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
 
     if rank == 0:
         print sep, "Save State, Parameter, Adjoint, and observation in paraview", sep

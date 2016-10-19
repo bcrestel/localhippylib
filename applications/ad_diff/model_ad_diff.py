@@ -492,11 +492,12 @@ if __name__ == "__main__":
     
     posterior.mean = a
 
-    compute_trace = False and (nproc == 1)
+    compute_trace = False
     if compute_trace:
         post_tr, prior_tr, corr_tr = posterior.trace(method="Exact", tol=5e-2, min_iter=20, max_iter=100)
+    if rank == 0:
         print "Posterior trace {0:5g}; Prior trace {1:5g}; Correction trace {2:5g}".format(post_tr, prior_tr, corr_tr)
-        post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
+    post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
     
     if rank == 0:
         print sep, "Save results", sep  
@@ -504,11 +505,10 @@ if __name__ == "__main__":
     problem.exportState([utrue,true_initial_condition,p], "results/true_conc.pvd", "concentration")
     problem.exportState([problem.ud,true_initial_condition,p], "results/noisy_conc.pvd", "concentration")
 
-    if compute_trace:
-        fid = dl.File("results/pointwise_variance.pvd")
-        fid << vector2Function(post_pw_variance, Vh, name="Posterior")
-        fid << vector2Function(pr_pw_variance, Vh, name="Prior")
-        fid << vector2Function(corr_pw_variance, Vh, name="Correction")
+    fid = dl.File("results/pointwise_variance.pvd")
+    fid << vector2Function(post_pw_variance, Vh, name="Posterior")
+    fid << vector2Function(pr_pw_variance, Vh, name="Prior")
+    fid << vector2Function(corr_pw_variance, Vh, name="Correction")
     
     U.export(Vh, "hmisfit/evect.pvd", varname = "gen_evect", normalize = True)
     if rank == 0:

@@ -11,7 +11,7 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-from dolfin import compile_extension_module, Vector, PETScKrylovSolver, Function, MPI, DoubleArray, File
+from dolfin import compile_extension_module, Vector, PETScKrylovSolver, Function, MPI, DoubleArray, File, la_index_dtype
 from random import Random
 import os
 import numpy as np
@@ -246,6 +246,14 @@ def Transpose(A):
     """
     s = cpp_module.cpp_linalg()
     return s.Transpose(A)
+
+def SetToOwnedGid(v, gid, val):
+    s = cpp_module.cpp_linalg()
+    s.SetToOwnedGid(v, gid, val)
+    
+def GetFromOwnedGid(v, gid):
+    s = cpp_module.cpp_linalg()
+    return s.GetFromOwnedGid(v, gid)
     
 
 def to_dense(A):
@@ -310,45 +318,32 @@ def trace(A):
         tr += val[j == i]
     return tr
 
-def get_diagonal(A, d, solve_mode=True):
+def get_diagonal(A, d):
     """
-    Compute the diagonal of the square operator A
-    or its inverse A^{-1} (if solve_mode=True).
+    Compute the diagonal of the square operator A.
+    Use Solver2Operator if A^-1 is needed.
     """
     ej, xj = Vector(), Vector()
-
-    if hasattr(A, "init_vector"):
-        A.init_vector(ej,1)
-        A.init_vector(xj,0)
-    else:       
-        A.get_operator().init_vector(ej,1)
-        A.get_operator().init_vector(xj,0)
+    A.init_vector(ej,1)
+    A.init_vector(xj,0)
+                    
+    g_size = ej.size()    
+    d.zero()
+    for gid in xrange(g_size):
+        owns_gid = ej.owns_index(gid)
+        if owns_gid:
+            SetToOwnedGid(ej, gid, 1.)
+        ej.apply("insert")
+        A.mult(ej,xj)
+        if owns_gid:
+            val = GetFromOwnedGid(xj, gid)
+            SetToOwnedGid(d, gid, val)
+            SetToOwnedGid(ej, gid, 0.)
+        ej.apply("insert")
         
-    mpi_comm = xj.mpi_comm()
-    nprocs = MPI.size(mpi_comm)
+    d.apply("insert")
+
     
-    if nprocs > 1:
-        raise Exception("get_diagonal is only serial")
-        
-    ncol = ej.size()
-    da = np.zeros(ncol, dtype=ej.array().dtype)
-    
-    for j in range(ncol):
-        ej[j] = 1.
-        ej.apply("sum_values")
-        if solve_mode:
-            A.solve(xj, ej)
-        else:
-            A.mult(ej,xj)
-        da[j] = xj[j]
-        ej[j] = 0.
-        ej.apply("sum_values")
-        
-    d.set_local(da)
-    d.apply("sum_values")
-
-      
-
 
 def estimate_diagonal_inv2(Asolver, k, d):
     """
@@ -402,6 +397,8 @@ class Solver2Operator:
             self.S.init_vector(x,dim)
         elif hasattr(self.S, "operator"):
             self.S.operator().init_vector(x,dim)
+        elif hasattr(self.S, "get_operator"):
+            self.S.get_operator().init_vector(x,dim)
         else:
             raise
         
