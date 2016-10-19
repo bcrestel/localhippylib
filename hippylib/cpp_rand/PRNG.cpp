@@ -11,6 +11,11 @@ Random::Random(int seed):
 
 }
 
+void Random::seed(int seed)
+{
+	eng.seed(seed);
+}
+
 void Random::split(int _rank, int _nproc, int _block_size, int seed)
 {
 	eng.seed(seed);

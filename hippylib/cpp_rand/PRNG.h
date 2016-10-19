@@ -108,6 +108,7 @@ class Random
 {
 public:
 	Random(int seed);
+	void seed(int seed);
 	void split(int _rank, int _nproc, int _block_size, int seed);
 	double uniform(double a, double b);
 	double normal(double mu, double sigma);
