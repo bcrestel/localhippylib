@@ -1,8 +1,11 @@
 import math
 from variables import STATE, PARAMETER, ADJOINT
 from posterior import LowRankHessianMisfit
+from random import Random
+from linalg import vector2Function
 import numpy as np
 import dolfin as dl
+
 
 class NullQoi(object):
     def __init__(self):
@@ -18,11 +21,28 @@ class NullTracer(object):
     
 class QoiTracer(object):
     def __init__(self, n):
-        self.qs = np.zeros(n)
+        self.data = np.zeros(n)
         self.i = 0
         
     def append(self,current, q):
-        self.qs[self.i] = q
+        self.data[self.i] = q
+        self.i+=1
+        
+class FullTracer(object):
+    def __init__(self, n, Vh, par_fid = None, state_fid = None, ):
+        self.data = np.zeros((n,2))
+        self.i = 0
+        self.Vh = Vh
+        self.par_fid = par_fid
+        self.state_fid = state_fid
+        
+    def append(self,current, q):
+        self.data[self.i, 0] = q
+        self.data[self.i, 1] = current.cost
+        if self.par_fid is not None:
+            self.par_fid << vector2Function(current.m, self.Vh[PARAMETER], name="parameter")
+        if self.state_fid is not None:
+            self.state_fid << vector2Function(current.u, self.Vh[STATE], name = "state")
         self.i+=1
 
 class SampleStruct:
@@ -58,6 +78,7 @@ class MCMC(object):
         self.parameters["number_of_samples"]     = 2000
         self.parameters["burn_in"]               = 1000
         self.parameters["print_progress"]        = 20
+        self.parameters["print_level"]           = 1
         
         self.sum_q = 0.
         self.sum_q2 = 0.
@@ -77,18 +98,19 @@ class MCMC(object):
         current.m.axpy(1., m0)
         self.kernel.init_sample(current)
         
-        print "Burn {0} samples".format(burn_in)
+        if self.parameters["print_level"] > 0:
+            print "Burn {0} samples".format(burn_in)
         sample_count = 0
         naccept = 0
         n_check = burn_in // self.parameters["print_progress"]
         while (sample_count < burn_in):
             naccept +=self.kernel.sample(current, proposed)
             sample_count += 1
-            if sample_count % n_check == 0:
+            if sample_count % n_check == 0 and self.parameters["print_level"] > 0:
                 print "{0:2.1f} % completed, Acceptance ratio {1:2.1f} %".format(float(sample_count)/float(burn_in)*100,
                                                                          float(naccept)/float(sample_count)*100 )
-        
-        print "Generate {0} samples".format(number_of_samples)
+        if self.parameters["print_level"] > 0:
+            print "Generate {0} samples".format(number_of_samples)
         sample_count = 0
         naccept = 0
         n_check = number_of_samples // self.parameters["print_progress"]
@@ -99,7 +121,7 @@ class MCMC(object):
             self.sum_q2 += q*q
             tracer.append(current, q)
             sample_count += 1
-            if sample_count % n_check == 0:
+            if sample_count % n_check == 0 and self.parameters["print_level"] > 0:
                 print "{0:2.1f} % completed, Acceptance ratio {1:2.1f} %".format(float(sample_count)/float(number_of_samples)*100,
                                                                          float(naccept)/float(sample_count)*100 )        
         return naccept
@@ -120,9 +142,8 @@ class MALAKernel:
         self.parameters["inner_rel_tolerance"]   = 1e-9
         self.parameters["delta_t"]               = 0.25*1e-4
         
-        noise = dl.Vector()
-        self.model.prior.init_vector(noise, "noise")
-        self.noise_size = noise.array.shape[0]
+        self.noise = dl.Vector()
+        self.model.prior.init_vector(self.noise, "noise")
         
     def name(self):
         return "inf-MALA"
@@ -153,13 +174,10 @@ class MALAKernel:
         delta_t = self.parameters["delta_t"]
         gradient_term = dl.Vector()
         self.model.prior.Rsolver.solve(gradient_term, current.g)
-        noise = dl.Vector()
-        self.model.prior.init_vector(noise, "noise")
-        noise_size = noise.array().shape[0]
-        noise.set_local( np.random.randn( noise_size ) )
+        Random.normal(self.noise, 1., True)
         w = dl.Vector()
         self.model.prior.init_vector(w, 0)
-        self.model.prior.sample(noise,w, add_mean=False)
+        self.model.prior.sample(self.noise,w, add_mean=False)
         delta_tp2 = 2 + delta_t
         d_gam = self.pr_mean + (2-delta_t)/(2+delta_t) * (current.m -self.pr_mean) - (2*delta_t)/(delta_tp2)*gradient_term + math.sqrt(8*delta_t)/delta_tp2 * w
         return d_gam
@@ -177,7 +195,7 @@ class MALAKernel:
         return rho_uv
     
     def consume_random(self):
-        np.random.randn( self.noise_size ) 
+        Random.normal(self.noise, 1., True)
         np.random.rand()
         
         
@@ -189,9 +207,8 @@ class pCNKernel:
         self.parameters["inner_rel_tolerance"]   = 1e-9
         self.parameters["s"]                     = 0.1
         
-        noise = dl.Vector()
-        self.model.prior.init_vector(noise, "noise")
-        self.noise_size = noise.array.shape[0]
+        self.noise = dl.Vector()
+        self.model.prior.init_vector(self.noise, "noise")
         
     def name(self):
         return "pCN"
@@ -216,13 +233,10 @@ class pCNKernel:
 
     def proposal(self, current):
         #Generate sample from the prior
-        noise = dl.Vector()
-        self.model.prior.init_vector(noise, "noise")
-        noise.set_local( np.random.randn( self.noise_size ) )
-        noise.apply("")
+        Random.normal(self.noise, 1., True)
         w = dl.Vector()
         self.model.prior.init_vector(w, 0)
-        self.model.prior.sample(noise,w, add_mean=False)
+        self.model.prior.sample(self.noise,w, add_mean=False)
         # do pCN linear combination with current sample
         s = self.parameters["s"]
         w *= s
@@ -232,7 +246,7 @@ class pCNKernel:
         return w
     
     def consume_random(self):
-        np.random.randn( self.noise_size ) 
+        Random.normal(self.noise, 1., True)
         np.random.rand() 
     
 class gpCNKernel:
@@ -253,7 +267,6 @@ class gpCNKernel:
         
         self.noise = dl.Vector()
         self.nu.init_vector(self.noise, "noise")
-        self.noise_size = self.noise.array().shape[0]
         
     def name(self):
         return "gpCN"
@@ -286,9 +299,7 @@ class gpCNKernel:
 
     def proposal(self, current):
         #Generate sample from the prior
-        self.noise.zero()
-        self.noise.set_local( np.random.randn( self.noise_size ) )
-        self.noise.apply("")
+        Random.normal(self.noise, 1., True)
         w_prior = dl.Vector()
         self.nu.init_vector(w_prior, 0)
         w = dl.Vector()
@@ -303,7 +314,7 @@ class gpCNKernel:
         return w
     
     def consume_random(self):
-        np.random.randn( self.noise_size ) 
+        Random.normal(self.noise, 1., True)
         np.random.rand() 
     
     
@@ -317,7 +328,6 @@ class ISKernel:
         
         self.noise = dl.Vector()
         self.nu.init_vector(self.noise, "noise")
-        self.noise_size = self.noise.array().shape[0]
         
     def name(self):
         return "IS"
@@ -349,9 +359,7 @@ class ISKernel:
 
     def proposal(self, current):
         #Generate sample from the prior
-        self.noise.zero()
-        self.noise.set_local( np.random.randn( self.noise_size ) )
-        self.noise.apply("")
+        Random.normal(self.noise, 1., True)
         w_prior = dl.Vector()
         self.nu.init_vector(w_prior, 0)
         w = dl.Vector()
@@ -361,7 +369,7 @@ class ISKernel:
         return w
     
     def consume_random(self):
-        np.random.randn( self.noise_size ) 
+        Random.normal(self.noise, 1., True)
         np.random.rand() 
 
 

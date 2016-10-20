@@ -31,20 +31,21 @@ class FluxQOI(object):
         self.L = {}
         
     def form(self, x):
-        return dl.avg(dl.exp(x[PARAMETER])*dl.dot( dl.grad(x[STATE]), self.n) )*self.dsGamma
+        #return dl.avg(dl.exp(x[PARAMETER])*dl.dot( dl.grad(x[STATE]), self.n) )*self.dsGamma
+        return dl.exp(x[PARAMETER])*dl.dot( dl.grad(x[STATE]), self.n)*self.dsGamma
     
     def eval(self, x):
         """
         Given x evaluate the cost functional.
         Only the state u and (possibly) the parameter a are accessed.
         """
-        u = dl.Function(self.Vh[STATE], x[STATE])
-        m = dl.Function(self.Vh[PARAMETER], x[PARAMETER])
+        u = vector2Function(x[STATE], self.Vh[STATE])
+        m = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
         return dl.assemble(self.form([u,m]))
 
-class GammaCenter(dl.SubDomain):
+class GammaBottom(dl.SubDomain):
     def inside(self, x, on_boundary):
-        return ( abs(x[1]-.5) < dl.DOLFIN_EPS )
+        return ( abs(x[1]) < dl.DOLFIN_EPS )
        
 def u_boundary(x, on_boundary):
     return on_boundary and ( x[1] < dl.DOLFIN_EPS or x[1] > 1.0 - dl.DOLFIN_EPS)
@@ -56,8 +57,7 @@ def true_model(Vh, gamma, delta, anis_diff):
     prior = BiLaplacianPrior(Vh, gamma, delta, anis_diff )
     noise = dl.Vector()
     prior.init_vector(noise,"noise")
-    noise_size = noise.array().shape[0]
-    noise.set_local( np.random.randn( noise_size ) )
+    Random.normal(noise, 1., True)
     atrue = dl.Vector()
     prior.init_vector(atrue, 0)
     prior.sample(noise,atrue)
@@ -66,16 +66,26 @@ def true_model(Vh, gamma, delta, anis_diff):
 if __name__ == "__main__":
     dl.set_log_active(False)
     sep = "\n"+"#"*80+"\n"
-    print sep, "Set up the mesh and finite element spaces", sep
     ndim = 2
     nx = 64  
     ny = 64
     mesh = dl.UnitSquareMesh(nx, ny)
+    
+    rank = dl.MPI.rank(mesh.mpi_comm())
+    nproc = dl.MPI.size(mesh.mpi_comm())
+    
+    if nproc > 1:
+        Random.split(rank, nproc, 1000000, 1)
+    
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
-    print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(Vh[STATE].dim(), Vh[PARAMETER].dim(), Vh[ADJOINT].dim())
-    print sep, mesh.num_cells() 
+    
+    ndofs = [Vh[STATE].dim(), Vh[PARAMETER].dim(), Vh[ADJOINT].dim()]
+    if rank == 0:
+        print sep, "Set up the mesh and finite element spaces", sep
+        print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(*ndofs)
+        
     # Initialize Expressions
     f = dl.Expression("0.0")
         
@@ -88,11 +98,19 @@ if __name__ == "__main__":
         return dl.exp(a)*dl.inner(dl.nabla_grad(u), dl.nabla_grad(p))*dl.dx - f*p*dl.dx
     
     pde = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
+    pde.solver = dl.PETScKrylovSolver("cg", amg_method())
+    pde.solver.parameters["relative_tolerance"] = 1e-15
+    pde.solver.parameters["absolute_tolerance"] = 1e-20
+    pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
+    pde.solver_fwd_inc.parameters = pde.solver.parameters
+    pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
+    pde.solver_adj_inc.parameters = pde.solver.parameters
  
     ntargets = 300
     np.random.seed(seed=1)
     targets = np.random.uniform(0.1,0.9, [ntargets, ndim] )
-    print "Number of observation points: {0}".format(ntargets)
+    if rank == 0:
+        print "Number of observation points: {0}".format(ntargets)
     misfit = PointwiseStateObservation(Vh[STATE], targets)
     
     
@@ -109,8 +127,9 @@ if __name__ == "__main__":
 
     pen = 1e1
     prior = MollifiedBiLaplacianPrior(Vh[PARAMETER], gamma, delta, locations, atrue, anis_diff, pen)
-        
-    print "Prior regularization: (delta_x - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,2)    
+    
+    if rank == 0:    
+        print "Prior regularization: (delta_x - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,2)    
                 
     #Generate synthetic observations
     utrue = pde.generate_state()
@@ -120,89 +139,109 @@ if __name__ == "__main__":
     rel_noise = 0.01
     MAX = misfit.d.norm("linf")
     noise_std_dev = rel_noise * MAX
-    randn_perturb(misfit.d, noise_std_dev)
+    Random.normal(misfit.d, noise_std_dev, False)
     misfit.noise_variance = noise_std_dev*noise_std_dev
     
     model = Model(pde,prior, misfit)
-           
-    print sep, "Find the MAP point", sep
+    
+    if rank == 0:       
+        print sep, "Find the MAP point", sep
     a0 = prior.mean.copy()
     solver = ReducedSpaceNewtonCG(model)
-    solver.parameters["rel_tolerance"] = 1e-9
+    solver.parameters["rel_tolerance"] = 1e-8
     solver.parameters["abs_tolerance"] = 1e-12
     solver.parameters["max_iter"]      = 25
     solver.parameters["inner_rel_tolerance"] = 1e-15
     solver.parameters["c_armijo"] = 1e-4
     solver.parameters["GN_iter"] = 5
+    if rank != 0:
+        solver.parameters["print_level"] = -1
     
     x = solver.solve(a0)
     
-    if solver.converged:
-        print "\nConverged in ", solver.it, " iterations."
-    else:
-        print "\nNot Converged"
+    if rank == 0:
+        if solver.converged:
+            print "\nConverged in ", solver.it, " iterations."
+        else:
+            print "\nNot Converged"
 
-    print "Termination reason: ", solver.termination_reasons[solver.reason]
-    print "Final gradient norm: ", solver.final_grad_norm
-    print "Final cost: ", solver.final_cost
+        print "Termination reason: ", solver.termination_reasons[solver.reason]
+        print "Final gradient norm: ", solver.final_grad_norm
+        print "Final cost: ", solver.final_cost
     
     ## Build the low rank approximation of the posterior
     model.setPointForHessianEvaluations(x)
     Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=True, misfit_only=True)
     k = 50
     p = 20
-    print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
-    Omega = np.random.randn(x[PARAMETER].array().shape[0], k+p)
-    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k)
+    if rank == 0:
+        print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
+    
+    Omega = MultiVector(x[PARAMETER], k+p)
+    for i in range(k+p):
+        Random.normal(Omega[i], 1., True)
+        
+    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, s=2, check = False)
+    d[d < 0.] = 0.
     nu = GaussianLRPosterior(prior, d, U)
     nu.mean = x[PARAMETER]
 
     ## Define the QOI
-    GC = GammaCenter()
+    GC = GammaBottom()
     marker = dl.FacetFunction("size_t", mesh)
     marker.set_all(0)
     GC.mark(marker, 1)
-    dss = dl.Measure("dS")[marker]
+    dss = dl.Measure("ds")[marker]
     qoi = FluxQOI(Vh,dss(1))
     
     kMALA = MALAKernel(model)
-    kMALA.parameters["delta_t"] = 1e-4
+    kMALA.parameters["delta_t"] = 2e-4
     
     kpCN = pCNKernel(model)
-    kpCN.parameters["s"] = 0.01
+    kpCN.parameters["s"] = 0.025
     
     kgpCN = gpCNKernel(model,nu)
-    kgpCN.parameters["s"] = 0.1
+    kgpCN.parameters["s"] = 0.25
     
     kIS = ISKernel(model,nu)
     
     noise = dl.Vector()
     nu.init_vector(noise, "noise")
-    size = noise.array().shape[0]
-    noise.set_local(np.random.randn(size))
-    noise.apply("")
+    Random.normal(noise, 1., True)
     pr_s = model.generate_vector(PARAMETER)
     post_s = model.generate_vector(PARAMETER)
     
     nu.sample(noise, pr_s, post_s, add_mean=True)
-    
+        
     for kernel in [kIS, kMALA, kpCN, kgpCN]:
-        np.random.seed(seed=10)
-        print kernel.name()
+        if nproc > 1:
+            Random.split(rank, nproc, 1000000, 10)
+        else:
+            Random.seed(10)
+        np.random.seed(20)
+        if rank == 0:
+            print kernel.name()
+        
+        fid_m = dl.File(kernel.name()+"/parameter.pvd")
+        fid_u = dl.File(kernel.name()+"/state.pvd")
         chain = MCMC(kernel)
         chain.parameters["burn_in"] = 0
         chain.parameters["number_of_samples"] = 1000
-        chain.parameters["print_progress"] = 10
-        tracer = QoiTracer(chain.parameters["number_of_samples"])
+        chain.parameters["print_progress"] = 10            
+        tracer = FullTracer(chain.parameters["number_of_samples"], Vh, fid_m, fid_u)
+        if rank != 0:
+            chain.parameters["print_level"] = -1
         
         n_accept = chain.run(post_s, qoi, tracer)
-        print "Number accepted = {0}".format(n_accept)
-        print "E[q] = {0}".format(chain.sum_q/float(chain.parameters["number_of_samples"]))
+        if rank == 0:
+            np.savetxt(kernel.name()+".txt", tracer.data)
+            print "Number accepted = {0}".format(n_accept)
+            print "E[q] = {0}".format(chain.sum_q/float(chain.parameters["number_of_samples"]))
         
-        plt.figure()
-        plt.plot(tracer.qs)
-        np.savetxt(kernel.name()+".txt", tracer.qs)
-        
-    plt.show()
+            plt.figure()
+            plt.plot(tracer.data[:,0], '*b')
+    
+    if rank == 0:
+        plt.show()
         
     
