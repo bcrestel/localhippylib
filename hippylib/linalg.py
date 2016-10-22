@@ -202,7 +202,7 @@ class MultiVector(cpp_module.MultiVector):
                 s = self[i].norm("linf")
                 tmp.zero()
                 tmp.axpy(1./s, self[i])
-                fun = vector2Function(self[i], Vh, name = varname)
+                fun = vector2Function(tmp, Vh, name = varname)
                 fid << fun
             
     
