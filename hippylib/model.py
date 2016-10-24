@@ -112,7 +112,8 @@ class Model:
               [Default 1e-9].
         """
         rhs = self.problem.generate_state()
-        self.misfit.adj_rhs(x, rhs)
+        self.misfit.grad(STATE, x, rhs)
+        rhs *= -1.
         self.problem.solveAdj(out, x, rhs, tol)
     
     def evalGradientParameter(self,x, mg, misfit_only=False):
