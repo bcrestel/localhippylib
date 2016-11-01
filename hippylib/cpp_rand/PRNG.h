@@ -60,7 +60,7 @@ public:
 
 	void discard( unsigned long long z )
 	{
-		assert(is_splitted == False);
+		assert(is_splitted == false);
 		eng.discard(z);
 	}
 
