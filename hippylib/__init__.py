@@ -48,6 +48,8 @@ from modelTemplate import ModelTemplate, modelVerify
 # hIPPYlib algorithms
 from cgsolverSteihaug import CGSolverSteihaug
 from NewtonCG import ReducedSpaceNewtonCG
+from FDNewtonCG import ReducedSpaceFDNewtonCG
+from steepestDescent import SteepestDescent
 from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePassG
 from lowRankOperator import LowRankOperator
 from traceEstimator import TraceEstimator
@@ -56,5 +58,5 @@ from mcmc_samplers import MCMC, MALAKernel, pCNKernel, gpCNKernel, ISKernel, Qoi
 
 
 # hIPPYlib outputs
-from reducedHessian import ReducedHessian
+from reducedHessian import ReducedHessian, FDHessian
 from posterior import GaussianLRPosterior, LowRankHessian
