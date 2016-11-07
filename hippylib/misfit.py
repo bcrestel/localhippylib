@@ -33,13 +33,7 @@ class Misfit:
         functional in with respect to the state (i == STATE) or with respect to the parameter (i == PARAMETER).
         """
         out.zero()
-        
-    def adj_rhs(self,x,rhs):
-        """Evaluate the RHS for the adjoint problem.
-        Only the state u and (possibly) the parameter a are accessed. """
-        self.grad(STATE, x, rhs)
-        rhs *= -1.
-    
+            
     def setLinearizationPoint(self,x):
         """Set the point for linearization."""
         

@@ -243,7 +243,7 @@ class ModelTemplate:
         """
         return
     
-def modelVerify(model,a0, innerTol, is_quadratic = False, verbose = True):
+def modelVerify(model,a0, innerTol, is_quadratic = False, verbose = True, eps = None):
     """
     Verify the reduced Gradient and the Hessian of a model.
     It will produce two loglog plots of the finite difference checks
@@ -271,8 +271,12 @@ def modelVerify(model,a0, innerTol, is_quadratic = False, verbose = True):
     Hh = model.generate_vector(PARAMETER)
     H.mult(h, Hh)
     
-    n_eps = 32
-    eps = np.power(.5, np.arange(n_eps))
+    if eps is None:
+        n_eps = 32
+        eps = np.power(.5, np.arange(n_eps))
+        eps = eps[::-1]
+    else:
+        n_eps = eps.shape[0]
     err_grad = np.zeros(n_eps)
     err_H = np.zeros(n_eps)
     
