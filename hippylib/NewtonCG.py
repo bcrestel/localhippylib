@@ -174,7 +174,11 @@ class ReducedSpaceNewtonCG:
                 else:
                     n_backtrack += 1
                     alpha *= 0.5
-                            
+
+            # for primal-dual Newton method only:
+            if self.Prior.isPD():
+                self.model.Prior.update_w(ahat, alpha)
+
             if(print_level >= 0) and (self.it == 1):
                 print "\n{0:3} {1:3} {2:15} {3:15} {4:15} {5:15} {6:14} {7:14} {8:14} {9:14}".format(
                       "It", "cg_it", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
