@@ -176,7 +176,7 @@ class ReducedSpaceNewtonCG:
                     alpha *= 0.5
 
             # for primal-dual Newton method only:
-            if self.Prior.isPD():
+            if self.model.Prior.isPD():
                 self.model.Prior.update_w(ahat, alpha)
 
             if(print_level >= 0) and (self.it == 1):
