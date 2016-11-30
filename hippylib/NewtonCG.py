@@ -12,7 +12,6 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 import math
-import dolfin as dl
 from variables import PARAMETER
 from cgsolverSteihaug import CGSolverSteihaug
 from reducedHessian import ReducedHessian
@@ -93,11 +92,11 @@ class ReducedSpaceNewtonCG:
         self.reason = 0
         self.final_grad_norm = 0
         
-    def solve(self, a0, InexactCG=True, GN_AMG=False):
+    def solve(self, a0, InexactCG=True, GN=False):
         """
         Solve the constrained optimization problem with initial guess a0.
         InexactCG: use Inexact CG method to solve Newton system; tol_cg = sqrt(||grad||)
-        GN_AMG: use GN Hessian, and solve Newton system with CG preconditioned by amg
+        GN: use GN Hessian
         Return the solution [u,a,p] 
         """
         rel_tol = self.parameters["rel_tolerance"]
@@ -110,12 +109,6 @@ class ReducedSpaceNewtonCG:
         GN_iter = self.parameters["GN_iter"]
         cg_coarse_tolerance = self.parameters["cg_coarse_tolerance"]
 
-        try:
-            solver = PETScKrylovSolver('cg', 'ml_amg')
-            amg_precond = 'ml_amg'
-        except:
-            amg_precond = 'petsc_amg'
-        
         [u,a,p] = self.model.generate_vector()
         self.model.solveFwd(u, [u, a0, p], innerTol)
         
@@ -151,20 +144,16 @@ class ReducedSpaceNewtonCG:
             else:
                 tolcg = 1e-12
             
-            if GN_AMG:
+            if GN:
                 HessApply = ReducedHessian(self.model, innerTol, True)
-                solver = dl.PETScKrylovSolver("cg", amg_precond)
-                solver.set_operator(HessApply)
-                solver.parameters['nonzero_initial_guess'] = False
-                solver.parameters['relative_tolerance'] = tolcg
             else:
                 HessApply = ReducedHessian(self.model, innerTol, self.it < GN_iter)
-                solver = CGSolverSteihaug()
-                solver.set_operator(HessApply)
-                solver.set_preconditioner(self.model.Rsolver())
-                solver.parameters["rel_tolerance"] = tolcg
-                solver.parameters["zero_initial_guess"] = True
-                solver.parameters["print_level"] = print_level-1
+            solver = CGSolverSteihaug()
+            solver.set_operator(HessApply)
+            solver.set_preconditioner(self.model.Rsolver())
+            solver.parameters["rel_tolerance"] = tolcg
+            solver.parameters["zero_initial_guess"] = True
+            solver.parameters["print_level"] = print_level-1
             
             solver.solve(ahat, -mg)
             self.total_cg_iter += HessApply.ncalls
