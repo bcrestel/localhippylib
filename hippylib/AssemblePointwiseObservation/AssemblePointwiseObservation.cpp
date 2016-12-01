@@ -170,6 +170,10 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 	 MatAssemblyEnd(mat,MAT_FINAL_ASSEMBLY);
 }
 
+PointwiseObservation::~PointwiseObservation()
+{
+	MatDestroy(&mat);
+}
 
 std::shared_ptr<Matrix> PointwiseObservation::GetMatrix()
 {
