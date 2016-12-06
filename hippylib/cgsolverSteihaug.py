@@ -112,7 +112,7 @@ class CGSolverSteihaug:
             self.r.axpy(1.0, b)
         
         self.z.zero()
-        self.B.solve(self.z,self.r) #z = B^-1 r  
+        n_PCG = self.B.solve(self.z,self.r) #z = B^-1 r  
               
         self.d.zero()
         self.d.axpy(1.,self.z); #d = z
@@ -155,7 +155,8 @@ class CGSolverSteihaug:
             x.axpy(alpha,self.d)        # x = x + alpha d
             self.r.axpy(-alpha, self.z) # r = r - alpha A d
             
-            self.B.solve(self.z, self.r)     # z = B^-1 r
+            n_pcg = self.B.solve(self.z, self.r)     # z = B^-1 r
+            n_PCG += n_pcg
             betanom = self.r.inner(self.z)
             
             if self.parameters["print_level"] == 1:
@@ -198,6 +199,9 @@ class CGSolverSteihaug:
                 break
             
             nom = betanom
+
+        print 'Nb iter for precond in CGSolverSteihaug={}'.format(n_PCG)
+
 
 
                 
