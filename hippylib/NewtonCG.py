@@ -92,7 +92,7 @@ class ReducedSpaceNewtonCG:
         self.reason = 0
         self.final_grad_norm = 0
         
-    def solve(self, a0, InexactCG=True, GN=False):
+    def solve(self, a0, InexactCG=0, GN=False):
         """
         Solve the constrained optimization problem with initial guess a0.
         InexactCG: use Inexact CG method to solve Newton system; tol_cg = sqrt(||grad||)
@@ -139,8 +139,10 @@ class ReducedSpaceNewtonCG:
             
             self.it += 1
             
-            if InexactCG:
+            if InexactCG==1:
                 tolcg = min(cg_coarse_tolerance, math.sqrt(gradnorm/gradnorm_ini))
+            elif InexactCG==2:
+                tolcg = min(cg_coarse_tolerance, gradnorm/gradnorm_ini)
             else:
                 tolcg = 1e-12
             
