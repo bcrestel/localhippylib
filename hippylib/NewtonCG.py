@@ -109,6 +109,12 @@ class ReducedSpaceNewtonCG:
         GN_iter = self.parameters["GN_iter"]
         cg_coarse_tolerance = self.parameters["cg_coarse_tolerance"]
 
+        try:
+            self.model.mediummisfit(a0)
+            self.mm = True
+        except:
+            self.mm = False
+
         [u,a,p] = self.model.generate_vector()
         self.model.solveFwd(u, [u, a0, p], innerTol)
         
@@ -192,7 +198,10 @@ class ReducedSpaceNewtonCG:
                       "It", "cg_it", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
                 
             if print_level >= 0:
-                medmisf, perc = self.model.mediummisfit(a)
+                if self.mm:
+                    medmisf, perc = self.model.mediummisfit(a)
+                else:
+                    medmisf, perc = -99, -99
                 print "{0:3d} {1:3d} {2:15e} {3:15e} {4:15e} {5:15e} {6:14e} {7:14e} {8:14e} {9:14e} ({10:3.1f}%)".format(
                         self.it, HessApply.ncalls, cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
                 

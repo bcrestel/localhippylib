@@ -116,6 +116,9 @@ class _Prior:
         d.axpy(-1., self.mean)
         self.R.mult(d,out)
 
+    def isPD(self):
+        return False
+
 class LaplacianPrior(_Prior):
     """
     This class implements a Prior model with covariance matrix
