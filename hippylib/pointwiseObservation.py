@@ -20,10 +20,7 @@ sdir = os.path.join(abspath,"AssemblePointwiseObservation")
 header_file = open(os.path.join(sdir,"AssemblePointwiseObservation.h"), "r")
 code = header_file.read()
 header_file.close()
-#check the dolfin version to decide which cpp to include
-if dl.DOLFIN_VERSION_MAJOR  != 1 or dl.DOLFIN_VERSION_MINOR  != 6:
-    raise Exception("Dolfin Version")
-cpp_sources = ["AssemblePointwiseObservation_v16.cpp"]
+cpp_sources = ["AssemblePointwiseObservation.cpp"]
 cpp_module = dl.compile_extension_module(
 code=code, source_directory=sdir, sources=cpp_sources,
 include_dirs=[".",  sdir])

@@ -12,6 +12,7 @@
  * Software Foundation) version 3.0 dated June 2007.
 */
 
+#include <dolfin.h>
 #include <dolfin/fem/GenericDofMap.h>
 #include <dolfin/geometry/BoundingBoxTree.h>
 #include <vector>
@@ -106,7 +107,11 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 
 	 std::shared_ptr<const GenericDofMap> dofmap = Vh.dofmap();
 	 PetscInt global_dof_dimension = dofmap->global_dimension();
+#if DOLFIN_VERSION_MAJOR >= 2016
+	 PetscInt local_dof_dimension = dofmap->index_map()->size(IndexMap::MapSize::OWNED);
+#else
 	 PetscInt local_dof_dimension = dofmap->local_dimension("owned");
+#endif
 	 std::vector<dolfin::la_index> LGdofs = dofmap->dofs();
 
 	 PetscInt global_nrows = global_ntargets*value_dim;
@@ -170,6 +175,10 @@ PointwiseObservation::PointwiseObservation(const FunctionSpace & Vh, const Array
 	 MatAssemblyEnd(mat,MAT_FINAL_ASSEMBLY);
 }
 
+PointwiseObservation::~PointwiseObservation()
+{
+	MatDestroy(&mat);
+}
 
 std::shared_ptr<Matrix> PointwiseObservation::GetMatrix()
 {

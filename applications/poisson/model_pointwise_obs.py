@@ -36,11 +36,11 @@ class Poisson:
         
         # Initialize Expressions
         self.atrue = atrue
-        self.f = dl.Expression("1.0")
+        self.f = dl.Constant(1.0)
         self.u_o = dl.Vector()
         
-        self.u_bdr = dl.Expression("0.0")
-        self.u_bdr0 = dl.Expression("0.0")
+        self.u_bdr = dl.Constant(0.0)
+        self.u_bdr0 = dl.Constant(0.0)
         self.bc = dl.DirichletBC(self.Vh[STATE], self.u_bdr, u_boundary)
         self.bc0 = dl.DirichletBC(self.Vh[STATE], self.u_bdr0, u_boundary)
                 
@@ -374,8 +374,8 @@ if __name__ == "__main__":
         print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)    
     
     
-    atrue_expression = dl.Expression('log(2+7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2)) - log(10)')
-    prior_mean_expression = dl.Expression('log(9) - log(10)')
+    atrue_expression = dl.Expression('log(2+7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2)) - log(10)', element=Vh[PARAMETER].ufl_element())
+    prior_mean_expression = dl.Expression('log(9) - log(10)', element=Vh[PARAMETER].ufl_element())
     
     atrue = dl.interpolate(atrue_expression, Vh[PARAMETER]).vector()
     prior.mean = dl.interpolate(prior_mean_expression, Vh[PARAMETER]).vector()
@@ -385,7 +385,7 @@ if __name__ == "__main__":
 
     if rank == 0: 
         print sep, "Test the gradient and the Hessian of the model", sep
-    a0 = dl.interpolate(dl.Expression("sin(x[0])"), Vh[PARAMETER])
+    a0 = dl.interpolate(dl.Expression("sin(x[0])", element=Vh[PARAMETER].ufl_element()), Vh[PARAMETER])
     modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank == 0))
     
     if rank == 0:
