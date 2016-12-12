@@ -14,8 +14,6 @@
 from dolfin import Vector, MPI
 from linalg import MultiVector, MatMvMult, MvDSmatMult, Solver2Operator
 import numpy as np
-import math
-import matplotlib.pyplot as plt
 
 """
 Randomized algorithms for the solution of Hermitian Eigenvalues Problems (HEP)

@@ -18,13 +18,16 @@ import matplotlib.pyplot as plt
 import sys
 #sys.path.append( "../../" )
 from hippylib import *
+from fenicstools.prior import LaplacianPrior
+from fenicstools.regularization import TV, TVPD
+from fenicstools.plotfenics import PlotFenics
 
 
 def u_boundary(x, on_boundary):
     return on_boundary
 
 class Poisson:
-    def __init__(self, mesh, Vh, Prior):
+    def __init__(self, mesh, Vh, Prior, alphareg=1.0):
         """
         Construct a model by proving
         - the mesh
@@ -32,31 +35,33 @@ class Poisson:
         - the Prior information
         """
         self.mesh = mesh
+        rank = MPI.rank(self.mesh.mpi_comm())
         self.Vh = Vh
         
         # Initialize Expressions
-        self.atrue = Expression('log(2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2))',
-                                element=Vh[PARAMETER].ufl_element())
-        self.f = Constant(1.0)
+        self.atrue = Expression('log(2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2))')
+        self.f = Expression("1.0")
         self.u_o = Vector()
         
-        self.u_bdr = Constant(0.0)
-        self.u_bdr0 = Constant(0.0)
+        self.u_bdr = Expression("0.0")
+        self.u_bdr0 = Expression("0.0")
         self.bc = DirichletBC(self.Vh[STATE], self.u_bdr, u_boundary)
         self.bc0 = DirichletBC(self.Vh[STATE], self.u_bdr0, u_boundary)
         
         # Assemble constant matrices      
         self.Prior = Prior
         self.Wuu = self.assembleWuu()
-        
 
-        self.computeObservation(self.u_o)
+        self.alphareg = alphareg
+        
+        self.computeObservation(self.u_o, mesh.mpi_comm())
                 
         self.A = []
         self.At = []
         self.C = []
         self.Raa = []
         self.Wau = []
+
         
     def generate_vector(self, component="ALL"):
         """
@@ -170,20 +175,39 @@ class Poisson:
         return assemble(varf)
 
         
-    def computeObservation(self, u_o):
+    def computeObservation(self, u_o, mpi_comm):
         """
         Compute the syntetic observation
         """
-        at = interpolate(self.atrue, Vh[PARAMETER])
-        x = [self.generate_vector(STATE), at.vector(), None]
+        self.at = interpolate(self.atrue, Vh[PARAMETER])
+        rank = MPI.rank(mpi_comm)
+        minatrue = MPI.min(mpi_comm, np.amin(self.at.vector().array()))
+        maxatrue = MPI.max(mpi_comm, np.amax(self.at.vector().array()))
+        if rank == 0:
+            print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
+        x = [self.generate_vector(STATE), self.at.vector(), None]
         A, b = self.assembleA(x, assemble_rhs = True)
         
         A.init_vector(u_o, 1)
         solve(A, u_o, b, "cg", amg_method())
-        
+
         # Create noisy data, ud
         MAX = u_o.norm("linf")
         randn_perturb(u_o, .01 * MAX)
+
+        c, r, m = self.cost(x)
+        if rank == 0:
+            print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
+
+
+    def mediummisfit(self, m):
+        """
+        Compute medium misfit
+        """
+        diff = m - self.at.vector()
+        nd = norm(diff)
+        return nd, 100.*nd/norm(self.at.vector())
+        
     
     def cost(self, x):
         """
@@ -196,31 +220,57 @@ class Poisson:
         Note: p is not needed to compute the cost functional
         """        
         assert x[STATE] != None
-                
+
         diff = x[STATE] - self.u_o
         Wuudiff = self.Wuu*diff
         misfit = .5 * diff.inner(Wuudiff)
         
-        Rx = Vector()
-        self.Prior.init_vector(Rx,0)
-        self.Prior.R.mult(x[PARAMETER], Rx)
-        reg = .5 * x[PARAMETER].inner(Rx)
+#        Rx = Vector()
+#        self.Prior.init_vector(Rx,0)
+#        self.Prior.R.mult(x[PARAMETER], Rx)
+#        reg = .5 * x[PARAMETER].inner(Rx)
+        reg = self.Prior.costvect(x[PARAMETER])
         
-        c = misfit + reg
+        c = misfit + self.alphareg*reg
         
         return c, reg, misfit
     
+
     def solveFwd(self, out, x, tol=1e-9):
         """
         Solve the forward problem.
         """
+        # return zero if medium parameter coefficient is too large or too small
+        # to avoid indefiniteness of matrix A
+        c_arr = x[PARAMETER].array()
+        bound = 25.
+        if min(c_arr) < -1.0*bound:
+            #c_cc = np.where(c_arr < -1.0*bound)[0]
+            #print '*** Warning: Found {} values of medium parameter less than {}'.format(len(c_cc), -1.0*bound)
+            out.zero()
+            return
+        if max(c_arr) > bound:
+            #c_cc = np.where(c_arr > bound)[0]
+            #print '*** Warning: Found {} values of medium parameter greater than {}'.format(len(c_cc), bound)
+            out.zero()
+            return
+#            x[PARAMETER][c_cc] = bound
+
         A, b = self.assembleA(x, assemble_rhs = True)
         A.init_vector(out, 1)
         solver = PETScKrylovSolver("cg", amg_method())
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
+#        solver = PETScLUSolver()
+#        solver.parameters['symmetric'] = True
         solver.set_operator(A)
+
+        #np.save('matrixA', A.array())
+        #np.save('xPARAM', x[PARAMETER].array())
+        #np.save('vectorb', b.array())
+
         nit = solver.solve(out,b)
-        
 #        print "FWD", (self.A*out - b).norm("l2")/b.norm("l2"), nit
 
     
@@ -230,9 +280,12 @@ class Poisson:
         """
         At, badj = self.assembleA(x, assemble_adjoint = True,assemble_rhs = True)
         At.init_vector(out, 1)
-        
         solver = PETScKrylovSolver("cg", amg_method())
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
+#        solver = PETScLUSolver()
+#        solver.parameters['symmetric'] = True
         solver.set_operator(At)
         nit = solver.solve(out,badj)
         
@@ -252,10 +305,12 @@ class Poisson:
 
         self.Prior.init_vector(mg,0)
         C.transpmult(x[ADJOINT], mg)
-        Rx = Vector()
-        self.Prior.init_vector(Rx,0)
-        self.Prior.R.mult(x[PARAMETER], Rx)   
-        mg.axpy(1., Rx)
+
+#        Rx = Vector()
+#        self.Prior.init_vector(Rx,0)
+#        self.Prior.R.mult(x[PARAMETER], Rx)   
+#        mg.axpy(1., Rx)
+        mg.axpy(self.alphareg, self.Prior.gradvect(x[PARAMETER]))
         
         g = Vector()
         self.Prior.init_vector(g,1)
@@ -276,6 +331,7 @@ class Poisson:
         self.C  = self.assembleC(x)
         self.Wau = self.assembleWau(x)
         self.Raa = self.assembleRaa(x)
+        self.Prior.assemble_hessian(x[PARAMETER])
 
         
     def solveFwdIncremental(self, sol, rhs, tol):
@@ -285,6 +341,8 @@ class Poisson:
         solver = PETScKrylovSolver("cg", amg_method())
         solver.set_operator(self.A)
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
         self.A.init_vector(sol,1)
         nit = solver.solve(sol,rhs)
 #        print "FwdInc", (self.A*sol-rhs).norm("l2")/rhs.norm("l2"), nit
@@ -296,6 +354,8 @@ class Poisson:
         solver = PETScKrylovSolver("cg", amg_method())
         solver.set_operator(self.At)
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
         self.At.init_vector(sol,1)
         nit = solver.solve(sol, rhs)
 #        print "AdjInc", (self.At*sol-rhs).norm("l2")/rhs.norm("l2"), nit
@@ -317,18 +377,21 @@ class Poisson:
         self.Wau.mult(du, out)
     
     def applyR(self, da, out):
-        self.Prior.R.mult(da, out)
+        #self.Prior.R.mult(da, out)
+        out.zero()
+        out.axpy(self.alphareg, self.Prior.hessian(da))
         
     def Rsolver(self):        
-        return self.Prior.Rsolver
+        return self.Prior.getprecond()
+        #return self.Prior.Rsolver
     
     def applyRaa(self, da, out):
         self.Raa.mult(da, out)
             
+
 if __name__ == "__main__":
     set_log_active(False)
-    nx = 64
-    ny = 64
+    nx, ny = 64, 64 
     mesh = UnitSquareMesh(nx, ny)
     
     rank = MPI.rank(mesh.mpi_comm())
@@ -341,24 +404,43 @@ if __name__ == "__main__":
     Vh1 = FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    Prior = LaplacianPrior(Vh[PARAMETER], gamma=1e-8, delta=1e-9)
-    model = Poisson(mesh, Vh, Prior)
-        
-    a0 = interpolate(Expression("sin(x[0])", element=Vh[PARAMETER].ufl_element()), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
+    #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
+    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7, 'GNhessian':False})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3})
 
-    a0 = interpolate(Constant(0.0),Vh[PARAMETER])
+    model = Poisson(mesh, Vh, Prior, 1.0)
+#    PltFen = PlotFenics()
+#    PltFen.set_varname('truemedparm')
+#    PltFen.plot_vtk(model.at)
+        
+    if rank == 0:
+        print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
+        Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
+
+    #a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
+    #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
+    #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = False)
+
+    a0 = interpolate(Expression("0.0"),Vh[PARAMETER])
     solver = ReducedSpaceNewtonCG(model)
-    solver.parameters["abs_tolerance"] = 1e-9
+    solver.parameters["rel_tolerance"] = 1e-10
+    solver.parameters["abs_tolerance"] = 1e-12
     solver.parameters["inner_rel_tolerance"] = 1e-15
-    solver.parameters["c_armijo"] = 1e-4
-    solver.parameters["GN_iter"] = 6
+    solver.parameters["c_armijo"] = 5e-5
+    solver.parameters["max_backtracking_iter"] = 12
+    solver.parameters["GN_iter"] = 5
+    solver.parameters["max_iter"] = 2000
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    x = solver.solve(a0.vector())
-    
+    InexactCG = 1
+    GN = True
+    x = solver.solve(a0.vector(), InexactCG, GN)
+
+    minaf = MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
+    maxaf = MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
     if rank == 0:
+        print 'min(af)={}, max(af)={}'.format(minaf, maxaf)
         if solver.converged:
             print "\nConverged in ", solver.it, " iterations."
         else:
@@ -368,27 +450,11 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    model.setPointForHessianEvaluations(x)
-    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-    p = 50
-    k = min( 250, Vh[PARAMETER].dim()-p)
-    Omega = MultiVector(x[PARAMETER], k+p)
-    for i in range(k+p):
-        Random.normal(Omega[i], 1., True)
-
-    d, U = doublePassG(Hmisfit, Prior.R, Prior.Rsolver, Omega, k, s=1, check=False)
-
-    if rank == 0:
-        plt.figure()
-        plt.plot(range(0,k), d, 'b*',range(0,k), np.ones(k), '-r')
-        plt.yscale('log')
-        plt.show()
-    
-    if nproc == 1:
+    if nproc == 1 and False:
         xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
         plot(xx[STATE], title = "State")
         plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
         plot(xx[ADJOINT], title = "Adjoint")
         plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
         interactive()
-    
+

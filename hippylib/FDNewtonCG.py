@@ -14,12 +14,12 @@
 import math
 from variables import PARAMETER
 from cgsolverSteihaug import CGSolverSteihaug
-from reducedHessian import ReducedHessian
+from reducedHessian import FDHessian
 
-class ReducedSpaceNewtonCG:
+class ReducedSpaceFDNewtonCG:
     
     """
-    Inexact Newton-CG method to solve constrained optimization problems in the reduced parameter space.
+    Inexact FDNewton-CG method to solve constrained optimization problems in the reduced parameter space.
     The Newton system is solved inexactly by early termination of CG iterations via Eisenstat-Walker
     (to prevent oversolving) and Steihaug (to avoid negative curvature) criteria.
     Globalization is performed using the armijo sufficient reduction condition (backtracking).
@@ -82,8 +82,8 @@ class ReducedSpaceNewtonCG:
         self.parameters["c_armijo"]              = 1e-4
         self.parameters["max_backtracking_iter"] = 10
         self.parameters["print_level"]           = 0
-        self.parameters["GN_iter"]               = 5
         self.parameters["cg_coarse_tolerance"]   = .5
+        self.parameters["FD_stepsize"]           = 1e-3
         
         self.it = 0
         self.converged = False
@@ -92,11 +92,9 @@ class ReducedSpaceNewtonCG:
         self.reason = 0
         self.final_grad_norm = 0
         
-    def solve(self, a0, InexactCG=0, GN=False):
+    def solve(self,a0):
         """
         Solve the constrained optimization problem with initial guess a0.
-        InexactCG: use Inexact CG method to solve Newton system; tol_cg = sqrt(||grad||)
-        GN: use GN Hessian
         Return the solution [u,a,p] 
         """
         rel_tol = self.parameters["rel_tolerance"]
@@ -106,15 +104,9 @@ class ReducedSpaceNewtonCG:
         c_armijo = self.parameters["c_armijo"]
         max_backtracking_iter = self.parameters["max_backtracking_iter"]
         print_level = self.parameters["print_level"]
-        GN_iter = self.parameters["GN_iter"]
         cg_coarse_tolerance = self.parameters["cg_coarse_tolerance"]
-
-        try:
-            self.model.mediummisfit(a0)
-            self.mm = True
-        except:
-            self.mm = False
-
+        h = self.parameters["FD_stepsize"]
+        
         [u,a,p] = self.model.generate_vector()
         self.model.solveFwd(u, [u, a0, p], innerTol)
         
@@ -130,7 +122,6 @@ class ReducedSpaceNewtonCG:
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
             
-            self.model.setPointForHessianEvaluations([u,a0,p])
             gradnorm = self.model.evalGradientParameter([u,a0,p], mg)
             
             if self.it == 0:
@@ -145,17 +136,9 @@ class ReducedSpaceNewtonCG:
             
             self.it += 1
             
-            if InexactCG==1:
-                tolcg = min(cg_coarse_tolerance, math.sqrt(gradnorm/gradnorm_ini))
-            elif InexactCG==2:
-                tolcg = min(cg_coarse_tolerance, gradnorm/gradnorm_ini)
-            else:
-                tolcg = 1e-12
+            tolcg = min(cg_coarse_tolerance, math.sqrt(gradnorm/gradnorm_ini))
             
-            if GN:
-                HessApply = ReducedHessian(self.model, innerTol, True)
-            else:
-                HessApply = ReducedHessian(self.model, innerTol, self.it < GN_iter)
+            HessApply = FDHessian(self.model, a0, h, innerTol, misfit_only=False)
             solver = CGSolverSteihaug()
             solver.set_operator(HessApply)
             solver.set_preconditioner(self.model.Rsolver())
@@ -190,22 +173,14 @@ class ReducedSpaceNewtonCG:
                 else:
                     n_backtrack += 1
                     alpha *= 0.5
-
-            # for primal-dual Newton method only:
-            if self.model.Prior.isPD():
-                self.model.Prior.update_w(ahat, alpha)
-
+                            
             if(print_level >= 0) and (self.it == 1):
-                print "\n{0:3} {1:3} {2:15} {3:15} {4:15} {5:15} {6:14} {7:14} {8:14} {9:14}".format(
-                      "It", "cg_it", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
+                print "\n{0:3} {1:3} {2:15} {3:15} {4:15} {5:15} {6:14} {7:14} {8:14}".format(
+                      "It", "cg_it", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg")
                 
             if print_level >= 0:
-                if self.mm:
-                    medmisf, perc = self.model.mediummisfit(a)
-                else:
-                    medmisf, perc = -99, -99
-                print "{0:3d} {1:3d} {2:15e} {3:15e} {4:15e} {5:15e} {6:14e} {7:14e} {8:14e} {9:14e} ({10:3.1f}%)".format(
-                        self.it, HessApply.ncalls, cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
+                print "{0:3d} {1:3d} {2:15e} {3:15e} {4:15e} {5:15e} {6:14e} {7:14e} {8:14e}".format(
+                        self.it, HessApply.ncalls, cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg)
                 
             if n_backtrack == max_backtracking_iter:
                 self.converged = False

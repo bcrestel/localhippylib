@@ -35,19 +35,25 @@ for i in range(2):
 order = 2
 
 Vh = dl.FunctionSpace(mesh, 'Lagrange', order)
-X1h = dl.FunctionSpace(mesh, 'Quadrature', 2*order)
-Xh = dl.MixedFunctionSpace( [X1h, X1h, X1h, X1h] )
+if dlversion() <= (1,6,0):
+    Xh = dl.VectorFunctionSpace(mesh, 'Quadrature', 2*order, dim=4)
+else:
+    element = dl.VectorElement("Quadrature", mesh.ufl_cell(), 2*order, dim=4, quad_scheme="default")
+    Xh = dl.FunctionSpace(mesh, element)
+    
+metadata = {"quadrature_degree": 2*order}
+
 uh = dl.TrialFunction(Vh)
 vh = dl.TestFunction(Vh)
 xh = dl.TrialFunction(Xh)
 zh = dl.TestFunction(Xh)
 z1h, z2h, z3h, z4h = dl.split(zh)
 
-dl.plot(mesh, interactive=True)
+#dl.plot(mesh, interactive=True)
 
 A = dl.assemble(uh*vh*dl.dx + dl.inner(dl.nabla_grad(uh), dl.nabla_grad(vh))*dl.dx )
-W = dl.assemble( dl.inner(xh,zh)*dl.dx )
-L = dl.assemble( uh.dx(0)*z1h*dl.dx + uh.dx(1)*z2h*dl.dx + uh.dx(2)*z3h*dl.dx + uh*z4h*dl.dx )
+W = dl.assemble( dl.inner(xh,zh)*dl.dx(metadata=metadata) )
+L = dl.assemble( (uh.dx(0)*z1h + uh.dx(1)*z2h + uh.dx(2)*z3h + uh*z4h)*dl.dx(metadata=metadata) )
 
 ones = dl.Vector()
 W.init_vector(ones,0)
@@ -57,7 +63,7 @@ invW1 = dl.Vector()
 W.init_vector(invW1,0)
 invW1.set_local(1./W1.array())
 
-Winv = dl.assemble( dl.inner(xh,zh)*dl.dx )
+Winv = dl.assemble( dl.inner(xh,zh)*dl.dx(metadata=metadata) )
 Winv.zero()
 Winv.set_diagonal(invW1)
 

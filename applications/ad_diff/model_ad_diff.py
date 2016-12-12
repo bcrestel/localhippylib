@@ -351,12 +351,16 @@ def q_boundary(x,on_boundary):
 def computeVelocityField(mesh):
     Xh = dl.VectorFunctionSpace(mesh,'Lagrange', 2)
     Wh = dl.FunctionSpace(mesh, 'Lagrange', 1)
-    XW = dl.MixedFunctionSpace([Xh, Wh])
+    if dlversion() <= (1,6,0):
+        XW = dl.MixedFunctionSpace([Xh, Wh])
+    else:
+        mixed_element = dl.MixedElement([Xh.ufl_element(), Wh.ufl_element()])
+        XW = dl.FunctionSpace(mesh, mixed_element)
 
     
     Re = 1e2
     
-    g = dl.Expression(('0.0','(x[0] < 1e-14) - (x[0] > 1 - 1e-14)'))
+    g = dl.Expression(('0.0','(x[0] < 1e-14) - (x[0] > 1 - 1e-14)'), element=Xh.ufl_element())
     bc1 = dl.DirichletBC(XW.sub(0), g, v_boundary)
     bc2 = dl.DirichletBC(XW.sub(1), dl.Constant(0), q_boundary, 'pointwise')
     bcs = [bc1, bc2]
@@ -401,7 +405,8 @@ if __name__ == "__main__":
     if rank == 0:
         print sep, "Set up Prior Information and model", sep
     
-    true_initial_condition = dl.interpolate(dl.Expression('min(0.5,exp(-100*(pow(x[0]-0.35,2) +  pow(x[1]-0.7,2))))'), Vh).vector()
+    ic_expr = dl.Expression('min(0.5,exp(-100*(pow(x[0]-0.35,2) +  pow(x[1]-0.7,2))))', element=Vh.ufl_element())
+    true_initial_condition = dl.interpolate(ic_expr, Vh).vector()
 
     orderPrior = 2
     
@@ -415,7 +420,7 @@ if __name__ == "__main__":
         prior = BiLaplacianPrior(Vh, gamma, delta)
         
 #    prior.mean = interpolate(Expression('min(0.6,exp(-50*(pow(x[0]-0.34,2) +  pow(x[1]-0.71,2))))'), Vh).vector()
-    prior.mean = dl.interpolate(dl.Expression('0.5'), Vh).vector()
+    prior.mean = dl.interpolate(dl.Constant(0.5), Vh).vector()
     
     if rank == 0:
         print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)
@@ -495,8 +500,8 @@ if __name__ == "__main__":
     compute_trace = False
     if compute_trace:
         post_tr, prior_tr, corr_tr = posterior.trace(method="Exact", tol=5e-2, min_iter=20, max_iter=100)
-    if rank == 0:
-        print "Posterior trace {0:5g}; Prior trace {1:5g}; Correction trace {2:5g}".format(post_tr, prior_tr, corr_tr)
+        if rank == 0:
+            print "Posterior trace {0:5g}; Prior trace {1:5g}; Correction trace {2:5g}".format(post_tr, prior_tr, corr_tr)
     post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
     
     if rank == 0:

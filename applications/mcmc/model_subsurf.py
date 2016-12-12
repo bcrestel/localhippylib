@@ -20,7 +20,33 @@ import sys
 sys.path.append( "../../" )
 from hippylib import *
 
+class FluxQOI(object):
+    def __init__(self, Vh, dsGamma):
+        self.Vh = Vh
+        self.dsGamma = dsGamma
+        self.n = dl.Constant((0.,1.))#dl.FacetNormal(Vh[STATE].mesh())
+        
+        self.u = None
+        self.m = None
+        self.L = {}
+        
+    def form(self, x):
+        #return dl.avg(dl.exp(x[PARAMETER])*dl.dot( dl.grad(x[STATE]), self.n) )*self.dsGamma
+        return dl.exp(x[PARAMETER])*dl.dot( dl.grad(x[STATE]), self.n)*self.dsGamma
+    
+    def eval(self, x):
+        """
+        Given x evaluate the cost functional.
+        Only the state u and (possibly) the parameter a are accessed.
+        """
+        u = vector2Function(x[STATE], self.Vh[STATE])
+        m = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
+        return dl.assemble(self.form([u,m]))
 
+class GammaBottom(dl.SubDomain):
+    def inside(self, x, on_boundary):
+        return ( abs(x[1]) < dl.DOLFIN_EPS )
+       
 def u_boundary(x, on_boundary):
     return on_boundary and ( x[1] < dl.DOLFIN_EPS or x[1] > 1.0 - dl.DOLFIN_EPS)
 
@@ -41,7 +67,7 @@ if __name__ == "__main__":
     dl.set_log_active(False)
     sep = "\n"+"#"*80+"\n"
     ndim = 2
-    nx = 64
+    nx = 64  
     ny = 64
     mesh = dl.UnitSquareMesh(nx, ny)
     
@@ -50,7 +76,7 @@ if __name__ == "__main__":
     
     if nproc > 1:
         Random.split(rank, nproc, 1000000, 1)
-        
+    
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
@@ -59,12 +85,12 @@ if __name__ == "__main__":
     if rank == 0:
         print sep, "Set up the mesh and finite element spaces", sep
         print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(*ndofs)
-    
-    # Initialize Expressions
-    f = dl.Constant(0.0)
         
-    u_bdr = dl.Expression("x[1]", element = Vh[STATE].ufl_element() )
-    u_bdr0 = dl.Constant(0.0)
+    # Initialize Expressions
+    f = dl.Expression("0.0")
+        
+    u_bdr = dl.Expression("x[1]")
+    u_bdr0 = dl.Expression("0.0")
     bc = dl.DirichletBC(Vh[STATE], u_bdr, u_boundary)
     bc0 = dl.DirichletBC(Vh[STATE], u_bdr0, u_boundary)
     
@@ -87,10 +113,11 @@ if __name__ == "__main__":
         print "Number of observation points: {0}".format(ntargets)
     misfit = PointwiseStateObservation(Vh[STATE], targets)
     
+    
     gamma = .1
     delta = .5
     
-    anis_diff = dl.Expression(code_AnisTensor2D, degree = 0)
+    anis_diff = dl.Expression(code_AnisTensor2D)
     anis_diff.theta0 = 2.
     anis_diff.theta1 = .5
     anis_diff.alpha = math.pi/4
@@ -101,7 +128,7 @@ if __name__ == "__main__":
     pen = 1e1
     prior = MollifiedBiLaplacianPrior(Vh[PARAMETER], gamma, delta, locations, atrue, anis_diff, pen)
     
-    if rank == 0:
+    if rank == 0:    
         print "Prior regularization: (delta_x - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,2)    
                 
     #Generate synthetic observations
@@ -112,22 +139,16 @@ if __name__ == "__main__":
     rel_noise = 0.01
     MAX = misfit.d.norm("linf")
     noise_std_dev = rel_noise * MAX
-    randn_perturb(misfit.d, noise_std_dev)
+    Random.normal(misfit.d, noise_std_dev, False)
     misfit.noise_variance = noise_std_dev*noise_std_dev
     
     model = Model(pde,prior, misfit)
     
-    if rank == 0:
-        print sep, "Test the gradient and the Hessian of the model", sep
-    
-    a0 = dl.interpolate(dl.Expression("sin(x[0])", element=Vh[PARAMETER].ufl_element() ), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank == 0) )
-
-    if rank == 0:
+    if rank == 0:       
         print sep, "Find the MAP point", sep
     a0 = prior.mean.copy()
     solver = ReducedSpaceNewtonCG(model)
-    solver.parameters["rel_tolerance"] = 1e-9
+    solver.parameters["rel_tolerance"] = 1e-8
     solver.parameters["abs_tolerance"] = 1e-12
     solver.parameters["max_iter"]      = 25
     solver.parameters["inner_rel_tolerance"] = 1e-15
@@ -147,12 +168,10 @@ if __name__ == "__main__":
         print "Termination reason: ", solver.termination_reasons[solver.reason]
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
-        
-    if rank == 0:
-        print sep, "Compute the low rank Gaussian Approximation of the posterior", sep
     
+    ## Build the low rank approximation of the posterior
     model.setPointForHessianEvaluations(x)
-    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
+    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=True, misfit_only=True)
     k = 50
     p = 20
     if rank == 0:
@@ -161,66 +180,68 @@ if __name__ == "__main__":
     Omega = MultiVector(x[PARAMETER], k+p)
     for i in range(k+p):
         Random.normal(Omega[i], 1., True)
-
-    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, s=1, check=False)
-    posterior = GaussianLRPosterior(prior, d, U)
-    posterior.mean = x[PARAMETER]
-    
-    
-    post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
-    if rank == 0:
-        print "Posterior trace {0:5e}; Prior trace {1:5e}; Correction trace {2:5e}".format(post_tr, prior_tr, corr_tr)
-    post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
         
-    fid = dl.File("results/pointwise_variance.pvd")
-    fid << vector2Function(post_pw_variance,Vh[PARAMETER], name="Posterior")
-    fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
-    fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
+    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, s=2, check = False)
+    d[d < 0.] = 0.
+    nu = GaussianLRPosterior(prior, d, U)
+    nu.mean = x[PARAMETER]
 
-    if rank == 0:
-        print sep, "Save State, Parameter, Adjoint, and observation in paraview", sep
-    xxname = ["State", "Parameter", "Adjoint"]
-    xx = [vector2Function(x[i], Vh[i], name=xxname[i]) for i in range(len(Vh))]
-    dl.File("results/poisson_state.pvd") << xx[STATE]
-    dl.File("results/poisson_state_true.pvd") << vector2Function(utrue, Vh[STATE], name = xxname[STATE])
-    dl.File("results/poisson_parameter.pvd") << xx[PARAMETER]
-    dl.File("results/poisson_parameter_true.pvd") << vector2Function(atrue, Vh[PARAMETER], name = xxname[PARAMETER])
-    dl.File("results/poisson_parameter_prmean.pvd") << vector2Function(prior.mean, Vh[PARAMETER], name = xxname[PARAMETER])
-    dl.File("results/poisson_adjoint.pvd") << xx[ADJOINT]
-        
-    exportPointwiseObservation(Vh[STATE], misfit.B, misfit.d, "results/poisson_observation.vtp")
+    ## Define the QOI
+    GC = GammaBottom()
+    marker = dl.FacetFunction("size_t", mesh)
+    marker.set_all(0)
+    GC.mark(marker, 1)
+    dss = dl.Measure("ds")[marker]
+    qoi = FluxQOI(Vh,dss(1))
     
-    if rank == 0:
-        print sep, "Generate samples from Prior and Posterior\n","Export generalized Eigenpairs", sep
-    fid_prior = dl.File("samples/sample_prior.pvd")
-    fid_post  = dl.File("samples/sample_post.pvd")
-    nsamples = 500
+    kMALA = MALAKernel(model)
+    kMALA.parameters["delta_t"] = 2e-4
+    
+    kpCN = pCNKernel(model)
+    kpCN.parameters["s"] = 0.025
+    
+    kgpCN = gpCNKernel(model,nu)
+    kgpCN.parameters["s"] = 0.25
+    
+    kIS = ISKernel(model,nu)
+    
     noise = dl.Vector()
-    posterior.init_vector(noise,"noise")
-    s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
-    s_post = dl.Function(Vh[PARAMETER], name="sample_post")
-    for i in range(nsamples):
-        Random.normal(noise, 1., True)
-        posterior.sample(noise, s_prior.vector(), s_post.vector())
-        fid_prior << s_prior
-        fid_post << s_post
+    nu.init_vector(noise, "noise")
+    Random.normal(noise, 1., True)
+    pr_s = model.generate_vector(PARAMETER)
+    post_s = model.generate_vector(PARAMETER)
+    
+    nu.sample(noise, pr_s, post_s, add_mean=True)
         
-    #Save eigenvalues for printing:
-    
-    U.export(Vh[PARAMETER], "hmisfit/evect.pvd", varname = "gen_evects", normalize = True)
-    if rank == 0:
-        np.savetxt("hmisfit/eigevalues.dat", d)
-    
-    if nproc == 1:
-        print sep, "Visualize results", sep
-        dl.plot(xx[STATE], title = xxname[STATE])
-        dl.plot(dl.exp(xx[PARAMETER]), title = xxname[PARAMETER])
-        dl.plot(xx[ADJOINT], title = xxname[ADJOINT])
-        dl.interactive()
-    
-    if rank == 0:
-        plt.figure()
-        plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
-        plt.yscale('log')
-        plt.show()    
+    for kernel in [kIS, kMALA, kpCN, kgpCN]:
+        if nproc > 1:
+            Random.split(rank, nproc, 1000000, 10)
+        else:
+            Random.seed(10)
+        np.random.seed(20)
+        if rank == 0:
+            print kernel.name()
         
+        fid_m = dl.File(kernel.name()+"/parameter.pvd")
+        fid_u = dl.File(kernel.name()+"/state.pvd")
+        chain = MCMC(kernel)
+        chain.parameters["burn_in"] = 0
+        chain.parameters["number_of_samples"] = 1000
+        chain.parameters["print_progress"] = 10            
+        tracer = FullTracer(chain.parameters["number_of_samples"], Vh, fid_m, fid_u)
+        if rank != 0:
+            chain.parameters["print_level"] = -1
+        
+        n_accept = chain.run(post_s, qoi, tracer)
+        if rank == 0:
+            np.savetxt(kernel.name()+".txt", tracer.data)
+            print "Number accepted = {0}".format(n_accept)
+            print "E[q] = {0}".format(chain.sum_q/float(chain.parameters["number_of_samples"]))
+        
+            plt.figure()
+            plt.plot(tracer.data[:,0], '*b')
+    
+    if rank == 0:
+        plt.show()
+        
+    

@@ -112,10 +112,11 @@ class Model:
               [Default 1e-9].
         """
         rhs = self.problem.generate_state()
-        self.misfit.adj_rhs(x, rhs)
+        self.misfit.grad(STATE, x, rhs)
+        rhs *= -1.
         self.problem.solveAdj(out, x, rhs, tol)
     
-    def evalGradientParameter(self,x, mg):
+    def evalGradientParameter(self,x, mg, misfit_only=False):
         """
         Evaluate the gradient for the variational parameter equation at the point x=[u,a,p].
         Parameters:
@@ -125,12 +126,14 @@ class Model:
         
         Returns the norm of the gradient in the correct inner product g_norm = sqrt(g,g)
         """ 
-        self.prior.grad(x[PARAMETER], mg)
         tmp = self.generate_vector(PARAMETER)
-        self.problem.eval_da(x, tmp)
-        mg.axpy(1., tmp)
+        self.problem.eval_da(x, mg)
         self.misfit.grad(PARAMETER,x,tmp)
         mg.axpy(1., tmp)
+        if not misfit_only:
+            self.prior.grad(x[PARAMETER], tmp)
+            mg.axpy(1., tmp)
+        
         self.prior.Msolver.solve(tmp, mg)
         #self.prior.Rsolver.solve(tmp, mg)
         return math.sqrt(mg.inner(tmp))
