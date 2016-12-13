@@ -120,6 +120,7 @@ class _Prior:
     def isPD(self):
         return False
 
+
 class LaplacianPrior(_Prior):
     """
     This class implements a Prior model with covariance matrix
@@ -505,3 +506,49 @@ class MollifiedBiLaplacianPrior(_Prior):
         
         if add_mean:
             s.axpy(1., self.mean)
+
+
+class ZeroPrior(_Prior):
+
+    def __init__(self, Vh):
+        test, trial = dl.TestFunction(Vh), dl.TrialFunction(Vh)
+        self.M = dl.assemble(dl.inner(test,trial)*dl.dx)
+        self.Msolver = dl.PETScLUSolver("petsc")
+        self.Msolver.parameters['reuse_factorization'] = True
+        self.Msolver.parameters['symmetric'] = True
+        self.Msolver.set_operator(self.M)
+
+        self._zerograd = dl.Vector()
+        self.init_vector(self._zerograd, 0)
+        self._zerograd.zero()
+
+    def isZeroPrior(self):
+        return True
+
+    def init_vector(self, x, dim):
+        self.M.init_vector(x, dim)
+
+
+    def cost(self, a):
+        return 0.0
+
+    def costvect(self, a):
+        return self.cost(a)
+
+
+    def grad(self, a):
+        return self._zerograd
+
+    def gradvect(self, a):
+        return self.grad(a)
+
+
+    def assemble_hessian(self, a):
+        pass
+
+    def hessian(self, a):
+        return self._zerograd
+
+
+    def getprecond(self):
+        return self.Msolver
