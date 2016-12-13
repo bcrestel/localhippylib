@@ -1,0 +1,8 @@
+In order to run (most) applications while on the branch ben-dev, you need to
+add to your PYTHONPATH the directory for the 'fenicstools' Python library. 
+It can be cloned from either the ICES network,
+    git clone <username>@moench.ices.utexas.edu:~/repos/fenicstools.git
+
+or from bitbucket,
+    git clone https://bcrestel@bitbucket.org/bcrestel/fenicstools.git
+
