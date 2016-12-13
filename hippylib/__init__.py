@@ -41,10 +41,11 @@ from random import Random
 # hIPPYlib model
 from variables import *
 from PDEProblem import PDEProblem, PDEVariationalProblem
-from prior import _Prior, LaplacianPrior, BiLaplacianPrior, MollifiedBiLaplacianPrior
+from prior import _Prior, LaplacianPrior, BiLaplacianPrior, MollifiedBiLaplacianPrior, ZeroPrior
 from misfit import Misfit, ContinuousStateObservation, PointwiseStateObservation
 from model import Model
 from modelTemplate import ModelTemplate, modelVerify 
+from jointmodel import JointModel
 
 # hIPPYlib algorithms
 from cgsolverSteihaug import CGSolverSteihaug
