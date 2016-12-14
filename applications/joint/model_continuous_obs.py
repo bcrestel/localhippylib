@@ -404,7 +404,7 @@ if __name__ == "__main__":
     Vh1 = FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-9, 'beta':1e-9})
+    Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7, 'GNhessian':False})
     #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3})
 
@@ -421,7 +421,6 @@ if __name__ == "__main__":
     #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
     #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = False)
 
-    a0 = interpolate(Expression("0.0"),Vh[PARAMETER])
     solver = ReducedSpaceNewtonCG(model)
     solver.parameters["rel_tolerance"] = 1e-10
     solver.parameters["abs_tolerance"] = 1e-12
@@ -435,6 +434,7 @@ if __name__ == "__main__":
     
     InexactCG = 0
     GN = True
+    a0 = interpolate(Expression("0.0"),Vh[PARAMETER])
     x = solver.solve(a0.vector(), InexactCG, GN)
 
     minaf = MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
