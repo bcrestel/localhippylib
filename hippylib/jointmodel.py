@@ -37,7 +37,7 @@ class JointModel:
         self.Msolver.parameters['symmetric'] = True
         self.Msolver.set_operator(self.M[PARAMETER])
 
-        self.jointregularization = jointregularization
+        self.Prior = jointregularization
 
         self.alphareg = alphareg
 
@@ -90,7 +90,7 @@ class JointModel:
             self.M[PARAMETER].init_vector(x[PARAMETER], 0)
         else:
             x = dl.Vector()
-            self.M[component].init_vector(x[component], 0)
+            self.M[component].init_vector(x, 0)
 
         return x
             
@@ -140,7 +140,7 @@ class JointModel:
         _, _, misfit2 = self.model2.cost(x2)
         misfit = misfit1 + misfit2
 
-        reg = self.jointregularization.costab(x1[PARAMETER], x2[PARAMETER])
+        reg = self.Prior.costab(x1[PARAMETER], x2[PARAMETER])
 
         return misfit + self.alphareg*reg, reg, misfit
 
@@ -156,14 +156,14 @@ class JointModel:
         Returns the norm of the gradient in the correct inner product g_norm = sqrt(g,g)
         """ 
         x1, x2 = self.splitvector(x, "ALL")
-        mg1, mg2 = self.splitvector(mg, "ALL")
+        mg1, mg2 = self.splitvector(mg, PARAMETER)
 
         _ = self.model1.evalGradientParameter(x1, mg1)
         _ = self.model2.evalGradientParameter(x2, mg2)
 
         mg.zero()
-        mg.axpy(1.0, self.assignvector(mg1, mg2, "ALL"))
-        mg.axpy(self.alphareg, self.jointregularization.gradab(x1[PARAMETER], x2[PARAMETER]))
+        mg.axpy(1.0, self.assignvector(mg1, mg2, PARAMETER))
+        mg.axpy(self.alphareg, self.Prior.gradab(x1[PARAMETER], x2[PARAMETER]))
 
         g = self.generate_vector(PARAMETER)
         self.Msolver.solve(g, mg)
@@ -182,7 +182,7 @@ class JointModel:
         self.model1.setPointForHessianEvaluations(x1)
         self.model2.setPointForHessianEvaluations(x2)
 
-        self.jointregularization.assemble_hessianab(x1[PARAMETER], x2[PARAMETER])
+        self.Prior.assemble_hessianab(x1[PARAMETER], x2[PARAMETER])
 
 
     def solveFwdIncremental(self, sol, rhs, tol):
@@ -220,7 +220,7 @@ class JointModel:
         out.axpy(1.0, self.assignvector(out1, out2, STATE))
 
     def applyCt(self, dp, out):
-        dp1, dp2 = self.splitvector(da, ADJOINT)
+        dp1, dp2 = self.splitvector(dp, ADJOINT)
         out1, out2 = self.splitvector(out, PARAMETER)
 
         self.model1.applyCt(dp1, out1)
@@ -230,7 +230,7 @@ class JointModel:
         out.axpy(1.0, self.assignvector(out1, out2, PARAMETER))
 
     def applyWuu(self, du, out, gn_approx=False):
-        du1, du2 = self.splitvector(da, STATE)
+        du1, du2 = self.splitvector(du, STATE)
         out1, out2 = self.splitvector(out, ADJOINT)
 
         self.model1.applyWuu(du1, out1, gn_approx)
@@ -250,7 +250,7 @@ class JointModel:
         out.axpy(1.0, self.assignvector(out1, out2, ADJOINT))
 
     def applyWau(self, du, out):
-        du1, du2 = self.splitvector(da, STATE)
+        du1, du2 = self.splitvector(du, STATE)
         out1, out2 = self.splitvector(out, PARAMETER)
 
         self.model1.applyWau(du1, out1)
@@ -273,8 +273,15 @@ class JointModel:
     def applyR(self, da, out):
         da1, da2 = self.splitvector(da, PARAMETER)
         out.zero()
-        out.axpy(self.alphareg, self.jointregularization.hessianab(da1, da2))
+        out.axpy(self.alphareg, self.Prior.hessianab(da1, da2))
 
         
     def Rsolver(self):        
-        return self.jointregularization.getprecond()
+        return self.Prior.getprecond()
+
+
+    def mediummisfit(self, a):
+        a1, a2 = self.splitvector(a, PARAMETER)
+        nd1, nd1p = self.model1.mediummisfit(a1)
+        nd2, nd2p = self.model2.mediummisfit(a2)
+        return 0.5*(nd1+nd2), 0.5*(nd1p+nd2p)
