@@ -5,7 +5,8 @@ import dolfin as dl
 from hippylib import *
 from model_continuous_obs import Poisson
 from fenicstools.prior import LaplacianPrior
-from fenicstools.jointregularization import Tikhonovab
+from fenicstools.regularization import TV
+from fenicstools.jointregularization import SumRegularization, Tikhonovab
 
 
 if __name__ == "__main__":
@@ -27,6 +28,13 @@ if __name__ == "__main__":
     model1 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]))
     model2 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]))
 
+    reg1 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+    reg2 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+
+    #reg1 = TV({'Vm':Vh[PARAMETER], 'eps':10, 'k':1e-8})
+    #reg2 = TV({'Vm':Vh[PARAMETER], 'eps':10, 'k':1e-8})
+
+    #jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), 0.0)
     jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
 
     jointmodel = JointModel(model1, model2, jointregul)
@@ -64,7 +72,7 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    if True and nproc == 1:
+    if False and nproc == 1:
         xx1 = [vector2Function(x1[i], Vh[i]) for i in range(len(Vh))]
         xx2 = [vector2Function(x2[i], Vh[i]) for i in range(len(Vh))]
         dl.plot(xx1[STATE], title = "State1")

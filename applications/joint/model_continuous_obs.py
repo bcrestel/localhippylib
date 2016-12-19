@@ -404,8 +404,8 @@ if __name__ == "__main__":
     Vh1 = FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
-    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7, 'GNhessian':False})
+    #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e+1, 'GNhessian':False})
     #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3})
 
     model = Poisson(mesh, Vh, Prior, 1.0)
@@ -450,7 +450,7 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    if True and nproc == 1:
+    if False and nproc == 1:
         xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
         plot(xx[STATE], title = "State")
         plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
