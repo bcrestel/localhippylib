@@ -140,7 +140,7 @@ class JointModel:
         _, _, misfit2 = self.model2.cost(x2)
         misfit = misfit1 + misfit2
 
-        reg = self.Prior.costab(x1[PARAMETER], x2[PARAMETER])
+        reg = self.Prior.costabvect(x1[PARAMETER], x2[PARAMETER])
 
         return misfit + self.alphareg*reg, reg, misfit
 
@@ -163,7 +163,7 @@ class JointModel:
 
         mg.zero()
         mg.axpy(1.0, self.assignvector(mg1, mg2, PARAMETER))
-        mg.axpy(self.alphareg, self.Prior.gradab(x1[PARAMETER], x2[PARAMETER]))
+        mg.axpy(self.alphareg, self.Prior.gradabvect(x1[PARAMETER], x2[PARAMETER]))
 
         g = self.generate_vector(PARAMETER)
         self.Msolver.solve(g, mg)
