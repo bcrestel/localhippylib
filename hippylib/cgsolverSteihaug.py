@@ -121,7 +121,7 @@ class CGSolverSteihaug:
         nom = nom0
         
         if self.parameters["print_level"] == 1:
-            print " Iterartion : ", 0, " (B r, r) = ", nom
+            print " Iteration : ", 0, " (B r, r) = ", nom
             
         rtol2 = nom * self.parameters["rel_tolerance"] * self.parameters["rel_tolerance"]
         atol2 = self.parameters["abs_tolerance"] * self.parameters["abs_tolerance"]
@@ -200,7 +200,7 @@ class CGSolverSteihaug:
             
             nom = betanom
 
-        print 'Nb iter for precond in CGSolverSteihaug={}'.format(n_PCG)
+        print 'Nb iter for precond in CGSolverSteihaug={} (avg={})'.format(n_PCG, float(n_PCG)/self.iter)
 
 
 
