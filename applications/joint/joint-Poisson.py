@@ -5,8 +5,9 @@ import dolfin as dl
 from hippylib import *
 from model_continuous_obs import Poisson
 from fenicstools.prior import LaplacianPrior
-from fenicstools.regularization import TV
-from fenicstools.jointregularization import SumRegularization, Tikhonovab
+from fenicstools.regularization import TV, TVPD
+from fenicstools.jointregularization import \
+SumRegularization, Tikhonovab, VTV, V_TV, V_TVPD
 
 
 if __name__ == "__main__":
@@ -27,15 +28,23 @@ if __name__ == "__main__":
     
     model1 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]))
     model2 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]))
+    #model2.u_o = model1.u_o.copy()
+    print 'diff data model1/model2 (inf-norm)={}'.format((model1.u_o-model2.u_o).norm("linf"))
 
-    reg1 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
-    reg2 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+    #reg1 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+    #reg2 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
 
-    #reg1 = TV({'Vm':Vh[PARAMETER], 'eps':10, 'k':1e-8})
-    #reg2 = TV({'Vm':Vh[PARAMETER], 'eps':10, 'k':1e-8})
+    #reg1 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
+    #reg2 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
+
+    #reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8, 'rescaledradiusdual':1.0})
+    #reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8, 'rescaledradiusdual':1.0})
 
     #jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), 0.0)
-    jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+    #jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+    #jointregul = VTV(Vh[PARAMETER], {'k':1e-8, 'eps':1e+1})
+    #jointregul = V_TV(Vh[PARAMETER], {'k':1e-8, 'eps':1e+1})
+    jointregul = V_TVPD(Vh[PARAMETER], {'k':1e-8, 'eps':1e-3, 'rescaledradiusdual':1.0})
 
     jointmodel = JointModel(model1, model2, jointregul)
 
@@ -47,6 +56,7 @@ if __name__ == "__main__":
     solver.parameters["max_backtracking_iter"] = 12
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
+    solver.parameters["print_level"] = 1
     if rank != 0:
         solver.parameters["print_level"] = -1
     
