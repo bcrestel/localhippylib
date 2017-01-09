@@ -8,6 +8,7 @@ from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 from fenicstools.jointregularization import \
 SumRegularization, Tikhonovab, VTV, V_TV, V_TVPD
+from fenicstools.plotfenics import PlotFenics
 
 
 if __name__ == "__main__":
@@ -26,10 +27,18 @@ if __name__ == "__main__":
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    model1 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]))
-    model2 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]))
-    #model2.u_o = model1.u_o.copy()
-    print 'diff data model1/model2 (inf-norm)={}'.format((model1.u_o-model2.u_o).norm("linf"))
+    a1true = dl.Expression('log(9 - 7*(pow(pow(x[0]-0.5,2) +' \
+    + 'pow(x[1]-0.5,2),0.5)<0.35) + 0.5*(pow(pow(x[0]-0.3,2) +' \
+    + 'pow(x[1]-0.5,2),0.5)<0.05))')
+    a2true = dl.Expression('log(2 + 7*(pow(pow(x[0]-0.3,2) +' \
+    + 'pow(x[1]-0.5,2),0.5)<0.05))')
+    model1 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]), atrue=a1true, noiselevel=0.1)
+    model2 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]), atrue=a2true, noiselevel=0.01)
+    PltFen = PlotFenics()
+    PltFen.set_varname('jointa1')
+    PltFen.plot_vtk(model1.at)
+    PltFen.set_varname('jointa2')
+    PltFen.plot_vtk(model2.at)
 
     #reg1 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #reg2 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
@@ -56,7 +65,7 @@ if __name__ == "__main__":
     solver.parameters["max_backtracking_iter"] = 12
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
-    solver.parameters["print_level"] = 1
+    solver.parameters["print_level"] = 0
     if rank != 0:
         solver.parameters["print_level"] = -1
     
@@ -68,11 +77,15 @@ if __name__ == "__main__":
     x1, x2 = jointmodel.splitvector(x)
     minaf1 = dl.MPI.min(mesh.mpi_comm(), np.amin(x1[PARAMETER].array()))
     maxaf1 = dl.MPI.max(mesh.mpi_comm(), np.amax(x1[PARAMETER].array()))
+    md1mis, md1misperc = model1.mediummisfit(x1[PARAMETER])
     minaf2 = dl.MPI.min(mesh.mpi_comm(), np.amin(x2[PARAMETER].array()))
     maxaf2 = dl.MPI.max(mesh.mpi_comm(), np.amax(x2[PARAMETER].array()))
+    md2mis, md2misperc = model2.mediummisfit(x2[PARAMETER])
     if rank == 0:
-        print 'min(af1)={}, max(af1)={}'.format(minaf1, maxaf1)
-        print 'min(af2)={}, max(af2)={}'.format(minaf2, maxaf2)
+        print 'min(af1)={}, max(af1)={}, med1misft={:e} ({:.1f}%)'.format(\
+        minaf1, maxaf1, md1mis, md1misperc)
+        print 'min(af2)={}, max(af2)={}, med2misft={:e} ({:.1f}%)'.format(\
+        minaf2, maxaf2, md2mis, md2misperc)
         if solver.converged:
             print "\nConverged in ", solver.it, " iterations."
         else:
@@ -82,6 +95,11 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
+    PltFen.set_varname('jointsolution1')
+    PltFen.plot_vtk(vector2Function(x1[PARAMETER], Vh[PARAMETER]))
+    PltFen.set_varname('jointsolution2')
+    PltFen.plot_vtk(vector2Function(x2[PARAMETER], Vh[PARAMETER]))
+
     if False and nproc == 1:
         xx1 = [vector2Function(x1[i], Vh[i]) for i in range(len(Vh))]
         xx2 = [vector2Function(x2[i], Vh[i]) for i in range(len(Vh))]

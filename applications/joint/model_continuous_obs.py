@@ -27,7 +27,9 @@ def u_boundary(x, on_boundary):
     return on_boundary
 
 class Poisson:
-    def __init__(self, mesh, Vh, Prior, alphareg=1.0):
+    def __init__(self, mesh, Vh, Prior, alphareg=1.0, atrue = \
+Expression('log(2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2))'), \
+noiselevel=0.01):
         """
         Construct a model by proving
         - the mesh
@@ -39,7 +41,7 @@ class Poisson:
         self.Vh = Vh
         
         # Initialize Expressions
-        self.atrue = Expression('log(2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2))')
+        self.atrue = atrue
         self.f = Expression("1.0")
         self.u_o = Vector()
         
@@ -54,7 +56,7 @@ class Poisson:
 
         self.alphareg = alphareg
         
-        self.computeObservation(self.u_o, mesh.mpi_comm())
+        self.computeObservation(self.u_o, noiselevel, mesh.mpi_comm())
                 
         self.A = []
         self.At = []
@@ -175,7 +177,7 @@ class Poisson:
         return assemble(varf)
 
         
-    def computeObservation(self, u_o, mpi_comm):
+    def computeObservation(self, u_o, noiselevel, mpi_comm):
         """
         Compute the syntetic observation
         """
@@ -193,7 +195,7 @@ class Poisson:
 
         # Create noisy data, ud
         MAX = u_o.norm("linf")
-        randn_perturb(u_o, .01 * MAX)
+        randn_perturb(u_o, noiselevel * MAX)
 
         c, r, m = self.cost(x)
         if rank == 0:
@@ -405,21 +407,30 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
-    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e+1, 'GNhessian':False})
-    #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3})
+    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e+1, 'GNhessian':False})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3})
 
-    model = Poisson(mesh, Vh, Prior, 1.0)
-#    PltFen = PlotFenics()
-#    PltFen.set_varname('truemedparm')
-#    PltFen.plot_vtk(model.at)
+    a1true = Expression('log(9 - 7*(pow(pow(x[0]-0.5,2) +' \
+    + 'pow(x[1]-0.5,2),0.5)<0.35) + 0.5*(pow(pow(x[0]-0.3,2) +' \
+    + 'pow(x[1]-0.5,2),0.5)<0.05))')
+    a2true = Expression('log(2 + 7*(pow(pow(x[0]-0.3,2) +' \
+    + 'pow(x[1]-0.5,2),0.5)<0.05))')
+    model1 = Poisson(mesh, Vh, Prior, 1.0, atrue=a1true, noiselevel=0.1)
+    model2 = Poisson(mesh, Vh, Prior, 1.0, atrue=a2true, noiselevel=0.01)
+    PltFen = PlotFenics()
+    PltFen.set_varname('a1')
+    PltFen.plot_vtk(model1.at)
+    PltFen.set_varname('a2')
+    PltFen.plot_vtk(model2.at)
+
+    # modify here! #######
+    model = model2
+    PltFen.set_varname('solution2')
+    ######################
         
     if rank == 0 and Prior.isTV():
         print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
         Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
-
-    #a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
-    #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
-    #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = False)
 
     solver = ReducedSpaceNewtonCG(model)
     solver.parameters["rel_tolerance"] = 1e-10
@@ -429,6 +440,7 @@ if __name__ == "__main__":
     solver.parameters["max_backtracking_iter"] = 12
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
+    solver.parameters["print_level"] = 0
     if rank != 0:
         solver.parameters["print_level"] = -1
     
@@ -439,8 +451,10 @@ if __name__ == "__main__":
 
     minaf = MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
     maxaf = MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
+    mdmis, mdmisperc = model.mediummisfit(x[PARAMETER])
     if rank == 0:
-        print 'min(af)={}, max(af)={}'.format(minaf, maxaf)
+        print 'min(af)={}, max(af)={}, medmisft={:e} ({:.1f}%)'.format(\
+        minaf, maxaf, mdmis, mdmisperc)
         if solver.converged:
             print "\nConverged in ", solver.it, " iterations."
         else:
@@ -450,6 +464,8 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
+    PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))
+
     if False and nproc == 1:
         xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
         plot(xx[STATE], title = "State")
