@@ -158,8 +158,9 @@ class JointModel:
         x1, x2 = self.splitvector(x, "ALL")
         mg1, mg2 = self.splitvector(mg, PARAMETER)
 
-        _ = self.model1.evalGradientParameter(x1, mg1)
-        _ = self.model2.evalGradientParameter(x2, mg2)
+        g_n1 = self.model1.evalGradientParameter(x1, mg1)
+        g_n2 = self.model2.evalGradientParameter(x2, mg2)
+        print '||g1||={}, ||g2||={}'.format(g_n1, g_n2)
 
         mg.zero()
         mg.axpy(1.0, self.assignvector(mg1, mg2, PARAMETER))
