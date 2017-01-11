@@ -393,7 +393,7 @@ noiselevel=0.01):
 
 if __name__ == "__main__":
     set_log_active(False)
-    nx, ny = 64, 64 
+    nx, ny = 128, 128 
     mesh = UnitSquareMesh(nx, ny)
     
     rank = MPI.rank(mesh.mpi_comm())
@@ -407,15 +407,19 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
-    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e+1, 'GNhessian':False})
+    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
     Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3})
 
-    a1true = Expression('log(9 - 7*(pow(pow(x[0]-0.5,2) +' \
-    + 'pow(x[1]-0.5,2),0.5)<0.35) + 0.5*(pow(pow(x[0]-0.3,2) +' \
-    + 'pow(x[1]-0.5,2),0.5)<0.05))')
-    a2true = Expression('log(2 + 7*(pow(pow(x[0]-0.3,2) +' \
-    + 'pow(x[1]-0.5,2),0.5)<0.05))')
-    model1 = Poisson(mesh, Vh, Prior, 1.0, atrue=a1true, noiselevel=0.1)
+#       target media for 'quarters':
+    a1true = Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+    '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
+    '6*(x[0]>0.5)*(x[1]<=0.5) + 8*(x[0]>0.5)*(x[1]>0.5) ))')
+    a2true = Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+    '6*(x[0]<=0.5)*(x[1]<=0.5) + 8*(x[0]<=0.5)*(x[1]>0.5) + ' + \
+    '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
+    model1 = Poisson(mesh, Vh, Prior, 1.0, atrue=a1true, noiselevel=0.01)
     model2 = Poisson(mesh, Vh, Prior, 1.0, atrue=a2true, noiselevel=0.01)
     PltFen = PlotFenics()
     PltFen.set_varname('a1')
@@ -424,8 +428,8 @@ if __name__ == "__main__":
     PltFen.plot_vtk(model2.at)
 
     # modify here! #######
-    model = model2
-    PltFen.set_varname('solution2')
+    model = model1
+    PltFen.set_varname('solution1-128-e1e-3')
     ######################
         
     if rank == 0 and Prior.isTV():
@@ -436,6 +440,7 @@ if __name__ == "__main__":
     solver.parameters["rel_tolerance"] = 1e-10
     solver.parameters["abs_tolerance"] = 1e-12
     solver.parameters["inner_rel_tolerance"] = 1e-15
+    solver.parameters["gda_tolerance"] = 1e-24
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 12
     solver.parameters["GN_iter"] = 0
@@ -474,3 +479,35 @@ if __name__ == "__main__":
         plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
         interactive()
 
+
+
+#       target media for 'quarters':
+#    a1true = Expression('log(10 - ' + \
+#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+#    '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
+#    '6*(x[0]>0.5)*(x[1]<=0.5) + 8*(x[0]>0.5)*(x[1]>0.5) ))')
+#    a2true = Expression('log(10 - ' + \
+#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+#    '6*(x[0]<=0.5)*(x[1]<=0.5) + 8*(x[0]<=0.5)*(x[1]>0.5) + ' + \
+#    '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
+
+
+#       target media for 'quarters-bis':
+#    a1true = Expression('log(10 - ' + \
+#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+#    '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
+#    '+ 8*(x[0]>0.5) ))')
+#    a2true = Expression('log(10 - ' + \
+#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+#    '+ 8*(x[0]<=0.5) + ' + \
+#    '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
+
+
+#   target media for 'ghost'
+#    a1true = Expression('log(10' + \
+#    '- 8*(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4)' + \
+#    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
+#    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
+#    a2true = Expression('log(2' + \
+#    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
+#    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')

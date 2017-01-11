@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import dolfin as dl
+from dolfin import Expression
 
 from hippylib import *
 from model_continuous_obs import Poisson
@@ -27,12 +28,14 @@ if __name__ == "__main__":
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    a1true = dl.Expression('log(9 - 7*(pow(pow(x[0]-0.5,2) +' \
-    + 'pow(x[1]-0.5,2),0.5)<0.35) + 0.5*(pow(pow(x[0]-0.3,2) +' \
-    + 'pow(x[1]-0.5,2),0.5)<0.05))')
-    a2true = dl.Expression('log(2 + 7*(pow(pow(x[0]-0.3,2) +' \
-    + 'pow(x[1]-0.5,2),0.5)<0.05))')
-    model1 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]), atrue=a1true, noiselevel=0.1)
+    a1true = Expression('log(10' + \
+    '- 8*(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4)' + \
+    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
+    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
+    a2true = Expression('log(2' + \
+    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
+    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
+    model1 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]), atrue=a1true, noiselevel=0.01)
     model2 = Poisson(mesh, Vh, ZeroPrior(Vh[PARAMETER]), atrue=a2true, noiselevel=0.01)
     PltFen = PlotFenics()
     PltFen.set_varname('jointa1')
@@ -46,21 +49,25 @@ if __name__ == "__main__":
     #reg1 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
     #reg2 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
 
-    #reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8, 'rescaledradiusdual':1.0})
-    #reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8, 'rescaledradiusdual':1.0})
+    reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
+    reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
 
-    #jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), 0.0)
+    jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=1e-10, coeff_vtv=0.0, \
+    parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
     #jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #jointregul = VTV(Vh[PARAMETER], {'k':1e-8, 'eps':1e+1})
-    #jointregul = V_TV(Vh[PARAMETER], {'k':1e-8, 'eps':1e+1})
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':1e-8, 'eps':1e-3, 'rescaledradiusdual':1.0})
+    #jointregul = V_TV(Vh[PARAMETER], {'k':1e-8, 'eps':1e-3})
+    #jointregul = V_TVPD(Vh[PARAMETER], {'k':5e-9, 'eps':1e-3, 'rescaledradiusdual':1.0})
 
     jointmodel = JointModel(model1, model2, jointregul)
 
     solver = ReducedSpaceNewtonCG(jointmodel)
-    solver.parameters["rel_tolerance"] = 1e-10
-    solver.parameters["abs_tolerance"] = 1e-12
+    solver.parameters["rel_tolerance"] = 1e-12
+    solver.parameters["abs_tolerance"] = 1e-14
+#    solver.parameters["rel_tolerance"] = 1e-10
+#    solver.parameters["abs_tolerance"] = 1e-12
     solver.parameters["inner_rel_tolerance"] = 1e-15
+    solver.parameters["gda_tolerance"] = 1e-24
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 12
     solver.parameters["GN_iter"] = 0
@@ -95,9 +102,9 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    PltFen.set_varname('jointsolution1')
+    PltFen.set_varname('jointsolution1-TVPD+CG')
     PltFen.plot_vtk(vector2Function(x1[PARAMETER], Vh[PARAMETER]))
-    PltFen.set_varname('jointsolution2')
+    PltFen.set_varname('jointsolution2-TVPD+CG')
     PltFen.plot_vtk(vector2Function(x2[PARAMETER], Vh[PARAMETER]))
 
     if False and nproc == 1:
