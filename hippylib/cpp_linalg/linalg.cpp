@@ -17,6 +17,8 @@
 #include <dolfin/la/GenericLinearSolver.h>
 #include <dolfin/common/Timer.h>
 
+#include <cassert>
+
 namespace dolfin
 {
 
