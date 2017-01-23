@@ -370,8 +370,8 @@ if __name__ == "__main__":
     
     model.setPointForHessianEvaluations(x)
     Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-    p = 50
-    k = min( 250, Vh[PARAMETER].dim()-p)
+    p = 20
+    k = 50
     Omega = MultiVector(x[PARAMETER], k+p)
     for i in range(k+p):
         Random.normal(Omega[i], 1., True)
