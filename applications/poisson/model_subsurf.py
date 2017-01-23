@@ -90,7 +90,7 @@ if __name__ == "__main__":
     gamma = .1
     delta = .5
     
-    anis_diff = dl.Expression(code_AnisTensor2D, degree = 0)
+    anis_diff = dl.Expression(code_AnisTensor2D, degree = 1)
     anis_diff.theta0 = 2.
     anis_diff.theta1 = .5
     anis_diff.alpha = math.pi/4
