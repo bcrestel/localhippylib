@@ -187,10 +187,9 @@ class Poisson:
         self.solveFwd(x[STATE], x, tol=1e-9)
         
         # Create noisy data, ud
-        MAX = x[STATE].norm("linf")
-        noise_level = rel_noise_level * MAX
+        noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(self.Vh[PARAMETER].dim())
         Random.normal(x[STATE], noise_level, False)
-        
+
         self.Wuu.init_vector(u_o, 1)
         u_o.axpy(1.0, x[STATE])
         
@@ -368,11 +367,11 @@ if __name__ == "__main__":
     Prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-9, 'eps':1e-3})
 
 #       target media for 'quarters':
-    a1true = Expression('log(10 - ' + \
+    a1true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
     '6*(x[0]>0.5)*(x[1]<=0.5) + 8*(x[0]>0.5)*(x[1]>0.5) ))')
-    a2true = Expression('log(10 - ' + \
+    a2true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '6*(x[0]<=0.5)*(x[1]<=0.5) + 8*(x[0]<=0.5)*(x[1]>0.5) + ' + \
     '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
