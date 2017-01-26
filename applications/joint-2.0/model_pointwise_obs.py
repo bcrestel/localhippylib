@@ -19,12 +19,15 @@ import sys
 sys.path.append( "../../" )
 from hippylib import *
 
+from fenicstools.prior import LaplacianPrior
+from fenicstools.regularization import TV, TVPD
+from fenicstools.plotfenics import PlotFenics
 
 def u_boundary(x, on_boundary):
     return on_boundary
 
 class Poisson:
-    def __init__(self, mesh, Vh, atrue, targets, prior, rel_noise_level):
+    def __init__(self, mesh, Vh, atrue, targets, prior, noiselevel, alphareg=1.0):
         """
         Construct a model by proving
         - the mesh
@@ -45,13 +48,12 @@ class Poisson:
         self.bc0 = dl.DirichletBC(self.Vh[STATE], self.u_bdr0, u_boundary)
                 
         # Assemble constant matrices      
-        self.prior = prior
-        self.B = assemblePointwiseObservation(Vh[STATE],targets)
+        self.Prior = prior
+        self.B = assemblePointwiseObservation(Vh[STATE], targets)
+
+        self.alphareg = alphareg
                 
-        self.noise_variance = self.computeObservation(self.u_o, rel_noise_level)
-        rank = dl.MPI.rank(mesh.mpi_comm())
-        if rank == 0:
-            print "Noise variance:", self.noise_variance
+        _ = self.computeObservation(self.u_o, noiselevel, mesh.mpi_comm())
                 
         self.A = []
         self.At = []
@@ -71,18 +73,18 @@ class Poisson:
         """
         if component == "ALL":
             x = [dl.Vector(), dl.Vector(), dl.Vector()]
-            self.B.init_vector(x[STATE],1)
-            self.prior.init_vector(x[PARAMETER],0)
+            self.B.init_vector(x[STATE], 1)
+            self.Prior.init_vector(x[PARAMETER], 0)
             self.B.init_vector(x[ADJOINT], 1)
         elif component == STATE:
             x = dl.Vector()
-            self.B.init_vector(x,1)
+            self.B.init_vector(x, 1)
         elif component == PARAMETER:
             x = dl.Vector()
-            self.prior.init_vector(x,0)
+            self.Prior.init_vector(x, 0)
         elif component == ADJOINT:
             x = dl.Vector()
-            self.B.init_vector(x,1)
+            self.B.init_vector(x, 1)
             
         return x
     
@@ -90,9 +92,9 @@ class Poisson:
         """
         Reshape a so that it is compatible with the parameter variable
         """
-        self.prior.init_vector(a,0)
+        self.Prior.init_vector(a, 0)
         
-    def assembleA(self,x, assemble_adjoint = False, assemble_rhs = False):
+    def assembleA(self, x, assemble_adjoint = False, assemble_rhs = False):
         """
         Assemble the matrices and rhs for the forward/adjoint problems
         """
@@ -113,7 +115,7 @@ class Poisson:
             rhs = dl.Vector()
             self.B.init_vector(rhs, 1)
             self.B.transpmult(Bu,rhs)
-            rhs *= 1.0/self.noise_variance
+            #rhs *= 1.0/self.noise_variance
             
         if assemble_rhs:
             return Matrix, rhs
@@ -130,7 +132,6 @@ class Poisson:
         c = vector2Function(x[PARAMETER], Vh[PARAMETER])
         Cvarf = dl.inner(dl.exp(c) * trial * dl.nabla_grad(s), dl.nabla_grad(test)) * dl.dx
         C = dl.assemble(Cvarf)
-#        print "||c||", x[PARAMETER].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
         self.bc0.zero(C)
         return C
                 
@@ -162,23 +163,40 @@ class Poisson:
         return dl.assemble(varf)
 
         
-    def computeObservation(self, u_o, rel_noise_level):
+    def computeObservation(self, u_o, rel_noise_level, mpi_comm):
         """
         Compute the syntetic observation
         """
-        x = [self.generate_vector(STATE), self.atrue, None]
+        self.at = dl.interpolate(self.atrue, self.Vh[PARAMETER])
+        rank = dl.MPI.rank(mpi_comm)
+        minatrue = dl.MPI.min(mpi_comm, np.amin(self.at.vector().array()))
+        maxatrue = dl.MPI.max(mpi_comm, np.amax(self.at.vector().array()))
+        if rank == 0:
+            print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
+        x = [self.generate_vector(STATE), self.at.vector(), None]
         self.solveFwd(x[STATE], x, tol=1e-9)
         
         # Create noisy data, ud
-        MAX = x[STATE].norm("linf")
-        noise_level = rel_noise_level * MAX
+        noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(self.Vh[PARAMETER].dim())
         Random.normal(x[STATE], noise_level, False)
         
         self.B.init_vector(u_o,0)
         self.B.mult(x[STATE], u_o)
+
+        x[STATE].zero()
+        c, r, m = self.cost(x)
+        if rank == 0:
+            print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
         
         return noise_level*noise_level
         
+    def mediummisfit(self, m):
+        """
+        Compute medium misfit
+        """
+        diff = m - self.at.vector()
+        nd = dl.norm(diff)
+        return nd, 100.*nd/dl.norm(self.at.vector())
     
     def cost(self, x):
         """
@@ -194,13 +212,10 @@ class Poisson:
                        
         diff = self.B*x[STATE]
         diff -= self.u_o
-        misfit = (.5/self.noise_variance) * diff.inner(diff)
+        misfit = .5 * diff.inner(diff)
+        #misfit = (.5/self.noise_variance) * diff.inner(diff)
         
-        Rdiff_x = dl.Vector()
-        self.prior.init_vector(Rdiff_x,0)
-        diff_x = x[PARAMETER] - self.prior.mean
-        self.prior.R.mult(diff_x, Rdiff_x)
-        reg = .5 * diff_x.inner(Rdiff_x)
+        reg = self.Prior.costvect(x[PARAMETER])
         
         c = misfit + reg
         
@@ -214,25 +229,25 @@ class Poisson:
         A.init_vector(out, 1)
         solver = dl.PETScKrylovSolver("cg", amg_method())
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
         solver.set_operator(A)
         nit = solver.solve(out,b)
         
-#        print "FWD", (self.A*out - b).norm("l2")/b.norm("l2"), nit
-
     
     def solveAdj(self, out, x, tol=1e-9):
         """
         Solve the adjoint problem.
         """
-        At, badj = self.assembleA(x, assemble_adjoint = True,assemble_rhs = True)
+        At, badj = self.assembleA(x, assemble_adjoint = True, assemble_rhs = True)
         At.init_vector(out, 1)
-        
         solver = dl.PETScKrylovSolver("cg", amg_method())
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
         solver.set_operator(At)
         nit = solver.solve(out,badj)
         
-#        print "ADJ", (self.At*out - badj).norm("l2")/badj.norm("l2"), nit
     
     def evalGradientParameter(self,x, mg):
         """
@@ -246,18 +261,15 @@ class Poisson:
         """ 
         C = self.assembleC(x)
 
-        self.prior.init_vector(mg,0)
+        self.Prior.init_vector(mg,0)
         C.transpmult(x[ADJOINT], mg)
-        Rdx = dl.Vector()
-        self.prior.init_vector(Rdx,0)
-        dx = x[PARAMETER] - self.prior.mean
-        self.prior.R.mult(dx, Rdx)   
-        mg.axpy(1., Rdx)
+
+        mg.axpy(self.alphareg, self.Prior.gradvect(x[PARAMETER]))
         
         g = dl.Vector()
-        self.prior.init_vector(g,1)
+        self.Prior.init_vector(g,1)
         
-        self.prior.Msolver.solve(g, mg)
+        self.Prior.Msolver.solve(g, mg)
         g_norm = dl.sqrt( g.inner(mg) )
         
         return g_norm
@@ -273,6 +285,7 @@ class Poisson:
         self.C  = self.assembleC(x)
         self.Wau = self.assembleWau(x)
         self.Raa = self.assembleRaa(x)
+        self.Prior.assemble_hessian(x[PARAMETER])
 
         
     def solveFwdIncremental(self, sol, rhs, tol):
@@ -282,9 +295,10 @@ class Poisson:
         solver = dl.PETScKrylovSolver("cg", amg_method())
         solver.set_operator(self.A)
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
         self.A.init_vector(sol,1)
         nit = solver.solve(sol,rhs)
-#        print "FwdInc", (self.A*sol-rhs).norm("l2")/rhs.norm("l2"), nit
         
     def solveAdjIncremental(self, sol, rhs, tol):
         """
@@ -293,9 +307,10 @@ class Poisson:
         solver = dl.PETScKrylovSolver("cg", amg_method())
         solver.set_operator(self.At)
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
         self.At.init_vector(sol,1)
         nit = solver.solve(sol, rhs)
-#        print "AdjInc", (self.At*sol-rhs).norm("l2")/rhs.norm("l2"), nit
     
     def applyC(self, da, out):
         self.C.mult(da,out)
@@ -308,31 +323,27 @@ class Poisson:
         self.B.init_vector(help, 0)
         self.B.mult(du, help)
         self.B.transpmult(help, out)
-        out *= 1./self.noise_variance
+        #out *= 1./self.noise_variance
     
     def applyWua(self, da, out):
         self.Wau.transpmult(da,out)
-
     
     def applyWau(self, du, out):
         self.Wau.mult(du, out)
     
     def applyR(self, da, out):
-        self.prior.R.mult(da, out)
+        out.zero()
+        out.axpy(self.alphareg, self.Prior.hessian(da))
         
     def Rsolver(self):        
-        return self.prior.Rsolver
+        return self.Prior.getprecond()
     
     def applyRaa(self, da, out):
         self.Raa.mult(da, out)
             
 if __name__ == "__main__":
     dl.set_log_active(False)
-    sep = "\n"+"#"*80+"\n"
-    
-    ndim = 2
-    nx = 64
-    ny = 64
+    nx, ny = 64, 64 
     mesh = dl.UnitSquareMesh(nx, ny)
     
     rank = dl.MPI.rank(mesh.mpi_comm())
@@ -341,69 +352,66 @@ if __name__ == "__main__":
     if nproc > 1:
         Random.split(rank, nproc, 1000000, 1)
     
-    if rank == 0:  
-        print sep, "Set up the mesh and finite element spaces", sep
-    
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
-    ndofs = [Vh[ii].dim() for ii in [STATE, PARAMETER, ADJOINT]]
-    if rank == 0:
-        print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(*ndofs)
     
-    if rank == 0:
-        print sep, "Set up the location of observation, Prior Information, and model", sep
-    ntargets = 300
-    np.random.seed(seed=1)
-    targets = np.random.uniform(0.1,0.9, [ntargets, ndim] )
-    if rank == 0:
-        print "Number of observation points: {0}".format(ntargets)
-    
-    orderPrior = 2
-        
-    if orderPrior == 1:
-        gamma = 30
-        delta = 30
-        prior = LaplacianPrior(Vh[PARAMETER], gamma, delta)
-    elif orderPrior == 2:
-        gamma = 2
-        delta = 5
-        prior = BiLaplacianPrior(Vh[PARAMETER], gamma, delta)
-    
-    if rank == 0:   
-        print "Prior regularization: (delta - gamma*Laplacian)^order: delta={0}, gamma={1}, order={2}".format(delta, gamma,orderPrior)    
-    
-    
-    atrue_expression = dl.Expression('log(2+7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2)) - log(10)', element=Vh[PARAMETER].ufl_element())
-    prior_mean_expression = dl.Expression('log(9) - log(10)', element=Vh[PARAMETER].ufl_element())
-    
-    atrue = dl.interpolate(atrue_expression, Vh[PARAMETER]).vector()
-    prior.mean = dl.interpolate(prior_mean_expression, Vh[PARAMETER]).vector()
-    
-    rel_noise = 0.01
-    model = Poisson(mesh, Vh, atrue, targets, prior, rel_noise )
+    #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-9, 'eps':1e-3})
 
-    if rank == 0: 
-        print sep, "Test the gradient and the Hessian of the model", sep
-    a0 = dl.interpolate(dl.Expression("sin(x[0])", element=Vh[PARAMETER].ufl_element()), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank == 0))
-    
-    if rank == 0:
-        print sep, "Find the MAP point", sep
-    a0 = prior.mean.copy()
+    a1true = dl.Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))')
+    a2true = dl.Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))')
+
+    nbobsperdir=50
+    targets = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
+    for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
+
+    model1 = Poisson(mesh, Vh, a1true, targets, Prior, noiselevel=0.02, alphareg=1.0)
+    model2 = Poisson(mesh, Vh, a2true, targets, Prior, noiselevel=0.02, alphareg=1.0)
+    PltFen = PlotFenics()
+    PltFen.set_varname('a1')
+    PltFen.plot_vtk(model1.at)
+    PltFen.set_varname('a2')
+    PltFen.plot_vtk(model2.at)
+
+    # modify here! #######
+    model = model2
+    PltFen.set_varname('solutionptwise2-k1e-9')
+    ######################
+        
+    if rank == 0 and Prior.isTV():
+        print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
+        Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
+
     solver = ReducedSpaceNewtonCG(model)
-    solver.parameters["rel_tolerance"] = 1e-9
+    solver.parameters["rel_tolerance"] = 1e-10
     solver.parameters["abs_tolerance"] = 1e-12
-    solver.parameters["max_iter"]      = 25
     solver.parameters["inner_rel_tolerance"] = 1e-15
-    solver.parameters["c_armijo"] = 1e-4
-    solver.parameters["GN_iter"] = 5
+    solver.parameters["gda_tolerance"] = 1e-24
+    solver.parameters["c_armijo"] = 5e-5
+    solver.parameters["max_backtracking_iter"] = 12
+    solver.parameters["GN_iter"] = 0
+    solver.parameters["max_iter"] = 2000
+    solver.parameters["print_level"] = 0
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    x = solver.solve(a0)
-    
+    InexactCG = 0
+    GN = True
+    a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
+    x = solver.solve(a0.vector(), InexactCG, GN)
+
+    minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
+    maxaf = dl.MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
+    mdmis, mdmisperc = model.mediummisfit(x[PARAMETER])
     if rank == 0:
+        print 'min(af)={}, max(af)={}, medmisft={:e} ({:.1f}%)'.format(\
+        minaf, maxaf, mdmis, mdmisperc)
         if solver.converged:
             print "\nConverged in ", solver.it, " iterations."
         else:
@@ -412,82 +420,5 @@ if __name__ == "__main__":
         print "Termination reason: ", solver.termination_reasons[solver.reason]
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
-        
-    if rank == 0:
-        print sep, "Compute the low rank Gaussian Approximation of the posterior", sep
     
-    model.setPointForHessianEvaluations(x)
-    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-    k = 50
-    p = 20
-    if rank == 0:
-        print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
-
-    Omega = MultiVector(x[PARAMETER], k+p)
-    for i in range(k+p):
-        Random.normal(Omega[i], 1., True)
-
-    d, U = doublePassG(Hmisfit, prior.R, prior.Rsolver, Omega, k, s=1, check=False)
-    posterior = GaussianLRPosterior(prior, d, U)
-    posterior.mean = x[PARAMETER]
-        
-    post_tr, prior_tr, corr_tr = posterior.trace(method="Estimator", tol=1e-1, min_iter=20, max_iter=100)
-    if rank == 0:
-        print "Posterior trace {0:5e}; Prior trace {1:5e}; Correction trace {2:5e}".format(post_tr, prior_tr, corr_tr)
-    
-    post_pw_variance, pr_pw_variance, corr_pw_variance = posterior.pointwise_variance("Exact")
-    fid = dl.File("results/pointwise_variance.pvd")
-    fid << vector2Function(post_pw_variance, Vh[PARAMETER], name="Posterior")
-    fid << vector2Function(pr_pw_variance, Vh[PARAMETER], name="Prior")
-    fid << vector2Function(corr_pw_variance, Vh[PARAMETER], name="Correction")
-        
-    if rank == 0:
-        print sep, "Save State, Parameter, Adjoint, and observation in paraview", sep
-    xxname = ["State", "exp(Parameter)", "Adjoint"]
-    xx = [vector2Function(x[i], Vh[i], name=xxname[i]) for i in range(len(Vh))]
-    dl.File("results/poisson_state.pvd") << xx[STATE]
-    expc = dl.project( dl.exp( xx[PARAMETER] ), Vh[PARAMETER] )
-    expc.rename("exp(Parameter)", "ignore_this")
-    dl.File("results/poisson_parameter.pvd") << expc
-    expc = dl.project( dl.exp( vector2Function(model.atrue, Vh[PARAMETER]) ), Vh[PARAMETER])
-    expc.rename("exp(Parameter)", "ignore_this")
-    dl.File("results/poisson_parameter_true.pvd") << expc
-    dl.File("results/poisson_adjoint.pvd") << xx[ADJOINT]
-    
-    exportPointwiseObservation(Vh[STATE], model.B, model.u_o, "results/poisson_observation.vtp")
-    
-    
-    if rank == 0:
-        print sep, "Generate samples from Prior and Posterior\n","Export generalized Eigenpairs", sep
-    
-    fid_prior = dl.File("samples/sample_prior.pvd")
-    fid_post  = dl.File("samples/sample_post.pvd")
-    nsamples = 500
-    noise = dl.Vector()
-    posterior.init_vector(noise,"noise")
-    s_prior = dl.Function(Vh[PARAMETER], name="sample_prior")
-    s_post = dl.Function(Vh[PARAMETER], name="sample_post")
-    for i in range(nsamples):
-        Random.normal(noise, 1., True )
-        posterior.sample(noise, s_prior.vector(), s_post.vector())
-        fid_prior << s_prior
-        fid_post << s_post
-        
-    #Save eigenvalues for printing:
-    U.export(Vh[PARAMETER], "hmisfit/evect.pvd", varname = "gen_evects", normalize = True)
-    if rank == 0:
-        np.savetxt("hmisfit/eigevalues.dat", d)
-        
-    if nproc == 1:
-        print sep, "Visualize results", sep
-        dl.plot(xx[STATE], title = xxname[STATE])
-        dl.plot(dl.exp(xx[PARAMETER]), title = xxname[PARAMETER])
-        dl.plot(xx[ADJOINT], title = xxname[ADJOINT])
-        dl.interactive()
-    
-    if rank == 0:
-        plt.figure()
-        plt.plot(range(0,k), d, 'b*', range(0,k), np.ones(k), '-r')
-        plt.yscale('log')
-        plt.show()  
-    
+    PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))

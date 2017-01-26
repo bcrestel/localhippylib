@@ -199,7 +199,7 @@ class Poisson:
             print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
 
         return noise_level*noise_level
-        
+       
     def mediummisfit(self, m):
         """
         Compute medium misfit
@@ -332,7 +332,6 @@ class Poisson:
     
     def applyWua(self, da, out):
         self.Wau.transpmult(da,out)
-
     
     def applyWau(self, du, out):
         self.Wau.mult(du, out)
@@ -364,19 +363,16 @@ if __name__ == "__main__":
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-9, 'eps':1e-3})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-9, 'eps':1e-3})
 
-#       target media for 'quarters':
     a1true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
-    '6*(x[0]>0.5)*(x[1]<=0.5) + 8*(x[0]>0.5)*(x[1]>0.5) ))')
+    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))')
     a2true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '6*(x[0]<=0.5)*(x[1]<=0.5) + 8*(x[0]<=0.5)*(x[1]>0.5) + ' + \
-    '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
-    model1 = Poisson(mesh, Vh, a1true, Prior, noiselevel=0.01, alphareg=1.0)
-    model2 = Poisson(mesh, Vh, a2true, Prior, noiselevel=0.01, alphareg=1.0)
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))')
+    model1 = Poisson(mesh, Vh, a1true, Prior, noiselevel=0.02, alphareg=1.0)
+    model2 = Poisson(mesh, Vh, a2true, Prior, noiselevel=0.02, alphareg=1.0)
     PltFen = PlotFenics()
     PltFen.set_varname('a1')
     PltFen.plot_vtk(model1.at)
@@ -384,8 +380,8 @@ if __name__ == "__main__":
     PltFen.plot_vtk(model2.at)
 
     # modify here! #######
-    model = model1
-    PltFen.set_varname('solutioncont1')
+    model = model2
+    PltFen.set_varname('solutioncont2-k1e-9')
     ######################
         
     if rank == 0 and Prior.isTV():
@@ -401,7 +397,7 @@ if __name__ == "__main__":
     solver.parameters["max_backtracking_iter"] = 12
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
-    solver.parameters["print_level"] = 5
+    solver.parameters["print_level"] = 0
     if rank != 0:
         solver.parameters["print_level"] = -1
     
@@ -426,35 +422,3 @@ if __name__ == "__main__":
         print "Final cost: ", solver.final_cost
     
     PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))
-
-
-#       target media for 'quarters':
-#    a1true = Expression('log(10 - ' + \
-#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-#    '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
-#    '6*(x[0]>0.5)*(x[1]<=0.5) + 8*(x[0]>0.5)*(x[1]>0.5) ))')
-#    a2true = Expression('log(10 - ' + \
-#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-#    '6*(x[0]<=0.5)*(x[1]<=0.5) + 8*(x[0]<=0.5)*(x[1]>0.5) + ' + \
-#    '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
-
-
-#       target media for 'quarters-bis':
-#    a1true = Expression('log(10 - ' + \
-#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-#    '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
-#    '+ 8*(x[0]>0.5) ))')
-#    a2true = Expression('log(10 - ' + \
-#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-#    '+ 8*(x[0]<=0.5) + ' + \
-#    '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
-
-
-#   target media for 'ghost'
-#    a1true = Expression('log(10' + \
-#    '- 8*(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4)' + \
-#    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
-#    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
-#    a2true = Expression('log(2' + \
-#    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
-#    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
