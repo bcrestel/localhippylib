@@ -386,7 +386,7 @@ noiselevel=0.01):
 
 if __name__ == "__main__":
     set_log_active(False)
-    nx, ny = 64, 64 
+    nx, ny = 64, 64
     mesh = UnitSquareMesh(nx, ny)
     
     rank = MPI.rank(mesh.mpi_comm())

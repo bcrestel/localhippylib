@@ -15,3 +15,4 @@ applications/poisson/results
 applications/poisson/samples
 teaching/python/ad_diff/results/
 doc/.build
+applications/*/Output*/
