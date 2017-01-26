@@ -44,7 +44,7 @@ public:
 	MultiVector(const GenericVector & v, int nvec);
 	MultiVector(const MultiVector & orig);
 
-	int nvec(){return mv.size();}
+	int nvec() const {return mv.size();}
 
 	void setSizeFromVector(const GenericVector & v, int nvec);
 
