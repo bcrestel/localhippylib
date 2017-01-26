@@ -15,8 +15,8 @@ import dolfin as dl
 import numpy as np
 import matplotlib.pyplot as plt
 
-import sys
-sys.path.append( "../../" )
+#import sys
+#sys.path.append( "../../" )
 from hippylib import *
 
 from fenicstools.prior import LaplacianPrior
@@ -109,7 +109,8 @@ class Poisson:
         else:
             # Assemble the adjoint of A (i.e. the transpose of A)
             s = vector2Function(x[STATE], self.Vh[STATE])
-            bform = dl.inner(dl.Constant(0.), test)*dl.dx
+            obs = vector2Function(self.u_o, self.Vh[STATE])
+            bform = dl.inner(obs - s, test)*dl.dx
             Matrix, rhs = dl.assemble_system(dl.adjoint(Avarf), bform, self.bc0)
             
         if assemble_rhs:
@@ -366,14 +367,15 @@ if __name__ == "__main__":
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
     Prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-9, 'eps':1e-3})
 
-#   target media for 'ghost'
-    a1true = dl.Expression('log(10' + \
-    '- 8*(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4)' + \
-    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
-    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
-    a2true = dl.Expression('log(2' + \
-    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
-    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
+#       target media for 'quarters':
+    a1true = Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+    '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
+    '6*(x[0]>0.5)*(x[1]<=0.5) + 8*(x[0]>0.5)*(x[1]>0.5) ))')
+    a2true = Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+    '6*(x[0]<=0.5)*(x[1]<=0.5) + 8*(x[0]<=0.5)*(x[1]>0.5) + ' + \
+    '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
     model1 = Poisson(mesh, Vh, a1true, Prior, noiselevel=0.01, alphareg=1.0)
     model2 = Poisson(mesh, Vh, a2true, Prior, noiselevel=0.01, alphareg=1.0)
     PltFen = PlotFenics()
@@ -384,7 +386,7 @@ if __name__ == "__main__":
 
     # modify here! #######
     model = model1
-    PltFen.set_varname('solution1')
+    PltFen.set_varname('solutioncont1')
     ######################
         
     if rank == 0 and Prior.isTV():
@@ -400,7 +402,7 @@ if __name__ == "__main__":
     solver.parameters["max_backtracking_iter"] = 12
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
-    solver.parameters["print_level"] = 0
+    solver.parameters["print_level"] = 5
     if rank != 0:
         solver.parameters["print_level"] = -1
     
