@@ -11,13 +11,14 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-from dolfin import *
+import dolfin as dl
 import numpy as np
 import matplotlib.pyplot as plt
 
 import sys
-#sys.path.append( "../../" )
+sys.path.append( "../../" )
 from hippylib import *
+
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 from fenicstools.plotfenics import PlotFenics
@@ -27,9 +28,7 @@ def u_boundary(x, on_boundary):
     return on_boundary
 
 class Poisson:
-    def __init__(self, mesh, Vh, Prior, alphareg=1.0, atrue = \
-Expression('log(2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2))'), \
-noiselevel=0.01):
+    def __init__(self, mesh, Vh, atrue, prior, noiselevel, alphareg=1.0):
         """
         Construct a model by proving
         - the mesh
@@ -37,57 +36,55 @@ noiselevel=0.01):
         - the Prior information
         """
         self.mesh = mesh
-        rank = MPI.rank(self.mesh.mpi_comm())
         self.Vh = Vh
         
         # Initialize Expressions
         self.atrue = atrue
-        self.f = Expression("1.0")
-        self.u_o = Vector()
+        self.f = dl.Constant(1.0)
+        self.u_o = dl.Vector()
         
-        self.u_bdr = Expression("0.0")
-        self.u_bdr0 = Expression("0.0")
-        self.bc = DirichletBC(self.Vh[STATE], self.u_bdr, u_boundary)
-        self.bc0 = DirichletBC(self.Vh[STATE], self.u_bdr0, u_boundary)
-        
+        self.u_bdr = dl.Constant(0.0)
+        self.u_bdr0 = dl.Constant(0.0)
+        self.bc = dl.DirichletBC(self.Vh[STATE], self.u_bdr, u_boundary)
+        self.bc0 = dl.DirichletBC(self.Vh[STATE], self.u_bdr0, u_boundary)
+                
         # Assemble constant matrices      
-        self.Prior = Prior
+        self.Prior = prior
         self.Wuu = self.assembleWuu()
 
         self.alphareg = alphareg
-        
-        self.computeObservation(self.u_o, noiselevel, mesh.mpi_comm())
+                
+        _ = self.computeObservation(self.u_o, noiselevel, mesh.mpi_comm())
                 
         self.A = []
         self.At = []
         self.C = []
         self.Raa = []
         self.Wau = []
-
         
     def generate_vector(self, component="ALL"):
         """
         Return the list x=[u,a,p] where:
         - u is any object that describes the state variable
-        - a is a Vector object that describes the parameter variable.
+        - a is a Vector object that describes the parameter.
           (Need to support linear algebra operations)
         - p is any object that describes the adjoint variable
         
         If component is STATE, PARAMETER, or ADJOINT return x[component]
         """
         if component == "ALL":
-            x = [Vector(), Vector(), Vector()]
+            x = [dl.Vector(), dl.Vector(), dl.Vector()]
             self.Wuu.init_vector(x[STATE],0)
             self.Prior.init_vector(x[PARAMETER],0)
             self.Wuu.init_vector(x[ADJOINT], 0)
         elif component == STATE:
-            x = Vector()
+            x = dl.Vector()
             self.Wuu.init_vector(x,0)
         elif component == PARAMETER:
-            x = Vector()
+            x = dl.Vector()
             self.Prior.init_vector(x,0)
         elif component == ADJOINT:
-            x = Vector()
+            x = dl.Vector()
             self.Wuu.init_vector(x,0)
             
         return x
@@ -102,19 +99,18 @@ noiselevel=0.01):
         """
         Assemble the matrices and rhs for the forward/adjoint problems
         """
-        trial = TrialFunction(self.Vh[STATE])
-        test = TestFunction(self.Vh[STATE])
+        trial = dl.TrialFunction(self.Vh[STATE])
+        test = dl.TestFunction(self.Vh[STATE])
         c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
-        Avarf = inner(exp(c)*nabla_grad(trial), nabla_grad(test))*dx
+        Avarf = dl.inner(dl.exp(c)*dl.nabla_grad(trial), dl.nabla_grad(test))*dl.dx
         if not assemble_adjoint:
-            bform = inner(self.f, test)*dx
-            Matrix, rhs = assemble_system(Avarf, bform, self.bc)
+            bform = dl.inner(self.f, test)*dl.dx
+            Matrix, rhs = dl.assemble_system(Avarf, bform, self.bc)
         else:
             # Assemble the adjoint of A (i.e. the transpose of A)
             s = vector2Function(x[STATE], self.Vh[STATE])
-            obs = vector2Function(self.u_o, self.Vh[STATE])
-            bform = inner(obs - s, test)*dx
-            Matrix, rhs = assemble_system(adjoint(Avarf), bform, self.bc0)
+            bform = dl.inner(dl.Constant(0.), test)*dl.dx
+            Matrix, rhs = dl.assemble_system(dl.adjoint(Avarf), bform, self.bc0)
             
         if assemble_rhs:
             return Matrix, rhs
@@ -125,40 +121,39 @@ noiselevel=0.01):
         """
         Assemble the derivative of the forward problem with respect to the parameter
         """
-        trial = TrialFunction(self.Vh[PARAMETER])
-        test = TestFunction(self.Vh[STATE])
-        s = vector2Function(x[STATE], self.Vh[STATE])
-        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
-        Cvarf = inner(exp(c) * trial * nabla_grad(s), nabla_grad(test)) * dx
-        C = assemble(Cvarf)
-#        print "||c||", x[PARAMETER].norm("l2"), "||s||", x[STATE].norm("l2"), "||C||", C.norm("linf")
+        trial = dl.TrialFunction(self.Vh[PARAMETER])
+        test = dl.TestFunction(self.Vh[STATE])
+        s = vector2Function(x[STATE], Vh[STATE])
+        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
+        Cvarf = dl.inner(dl.exp(c) * trial * dl.nabla_grad(s), dl.nabla_grad(test)) * dl.dx
+        C = dl.assemble(Cvarf)
         self.bc0.zero(C)
         return C
-       
+                
     def assembleWuu(self):
         """
         Assemble the misfit operator
         """
-        trial = TrialFunction(self.Vh[STATE])
-        test = TestFunction(self.Vh[STATE])
-        varf = inner(trial, test)*dx
-        Wuu = assemble(varf)
+        trial = dl.TrialFunction(self.Vh[STATE])
+        test = dl.TestFunction(self.Vh[STATE])
+        varf = dl.inner(trial, test)*dl.dx
+        Wuu = dl.assemble(varf)
         Wuu_t = Transpose(Wuu)
         self.bc0.zero(Wuu_t)
         Wuu = Transpose(Wuu_t)
         self.bc0.zero(Wuu)
         return Wuu
-    
+
     def assembleWau(self, x):
         """
         Assemble the derivative of the parameter equation with respect to the state
         """
-        trial = TrialFunction(self.Vh[STATE])
-        test  = TestFunction(self.Vh[PARAMETER])
-        a = vector2Function(x[ADJOINT], self.Vh[ADJOINT])
-        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
-        varf = inner(exp(c)*nabla_grad(trial),nabla_grad(a))*test*dx
-        Wau = assemble(varf)
+        trial = dl.TrialFunction(self.Vh[STATE])
+        test  = dl.TestFunction(self.Vh[PARAMETER])
+        a = vector2Function(x[ADJOINT], Vh[ADJOINT])
+        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
+        varf = dl.inner(dl.exp(c)*dl.nabla_grad(trial),dl.nabla_grad(a))*test*dl.dx
+        Wau = dl.assemble(varf)
         Wau_t = Transpose(Wau)
         self.bc0.zero(Wau_t)
         Wau = Transpose(Wau_t)
@@ -168,48 +163,50 @@ noiselevel=0.01):
         """
         Assemble the derivative of the parameter equation with respect to the parameter (Newton method)
         """
-        trial = TrialFunction(self.Vh[PARAMETER])
-        test  = TestFunction(self.Vh[PARAMETER])
-        s = vector2Function(x[STATE], self.Vh[STATE])
-        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
-        a = vector2Function(x[ADJOINT], self.Vh[ADJOINT])
-        varf = inner(nabla_grad(a),exp(c)*nabla_grad(s))*trial*test*dx
-        return assemble(varf)
+        trial = dl.TrialFunction(self.Vh[PARAMETER])
+        test  = dl.TestFunction(self.Vh[PARAMETER])
+        s = vector2Function(x[STATE], Vh[STATE])
+        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
+        a = vector2Function(x[ADJOINT], Vh[ADJOINT])
+        varf = dl.inner(dl.nabla_grad(a),dl.exp(c)*dl.nabla_grad(s))*trial*test*dl.dx
+        return dl.assemble(varf)
 
         
-    def computeObservation(self, u_o, noiselevel, mpi_comm):
+    def computeObservation(self, u_o, rel_noise_level, mpi_comm):
         """
         Compute the syntetic observation
         """
-        self.at = interpolate(self.atrue, self.Vh[PARAMETER])
-        rank = MPI.rank(mpi_comm)
-        minatrue = MPI.min(mpi_comm, np.amin(self.at.vector().array()))
-        maxatrue = MPI.max(mpi_comm, np.amax(self.at.vector().array()))
+        self.at = dl.interpolate(self.atrue, self.Vh[PARAMETER])
+        rank = dl.MPI.rank(mpi_comm)
+        minatrue = dl.MPI.min(mpi_comm, np.amin(self.at.vector().array()))
+        maxatrue = dl.MPI.max(mpi_comm, np.amax(self.at.vector().array()))
         if rank == 0:
             print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
         x = [self.generate_vector(STATE), self.at.vector(), None]
-        A, b = self.assembleA(x, assemble_rhs = True)
+        self.solveFwd(x[STATE], x, tol=1e-9)
         
-        A.init_vector(u_o, 1)
-        solve(A, u_o, b, "cg", amg_method())
-
         # Create noisy data, ud
-        MAX = u_o.norm("linf")
-        randn_perturb(u_o, noiselevel * MAX)
-
+        MAX = x[STATE].norm("linf")
+        noise_level = rel_noise_level * MAX
+        Random.normal(x[STATE], noise_level, False)
+        
+        self.Wuu.init_vector(u_o, 1)
+        u_o.axpy(1.0, x[STATE])
+        
+        x[STATE].zero()
         c, r, m = self.cost(x)
         if rank == 0:
             print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
 
-
+        return noise_level*noise_level
+        
     def mediummisfit(self, m):
         """
         Compute medium misfit
         """
         diff = m - self.at.vector()
-        nd = norm(diff)
-        return nd, 100.*nd/norm(self.at.vector())
-        
+        nd = dl.norm(diff)
+        return nd, 100.*nd/dl.norm(self.at.vector())
     
     def cost(self, x):
         """
@@ -227,71 +224,39 @@ noiselevel=0.01):
         Wuudiff = self.Wuu*diff
         misfit = .5 * diff.inner(Wuudiff)
         
-#        Rx = Vector()
-#        self.Prior.init_vector(Rx,0)
-#        self.Prior.R.mult(x[PARAMETER], Rx)
-#        reg = .5 * x[PARAMETER].inner(Rx)
         reg = self.Prior.costvect(x[PARAMETER])
         
-        c = misfit + self.alphareg*reg
+        c = misfit + reg
         
         return c, reg, misfit
     
-
     def solveFwd(self, out, x, tol=1e-9):
         """
         Solve the forward problem.
         """
-        # return zero if medium parameter coefficient is too large or too small
-        # to avoid indefiniteness of matrix A
-        c_arr = x[PARAMETER].array()
-        bound = 25.
-        if min(c_arr) < -1.0*bound:
-            #c_cc = np.where(c_arr < -1.0*bound)[0]
-            #print '*** Warning: Found {} values of medium parameter less than {}'.format(len(c_cc), -1.0*bound)
-            out.zero()
-            return
-        if max(c_arr) > bound:
-            #c_cc = np.where(c_arr > bound)[0]
-            #print '*** Warning: Found {} values of medium parameter greater than {}'.format(len(c_cc), bound)
-            out.zero()
-            return
-#            x[PARAMETER][c_cc] = bound
-
         A, b = self.assembleA(x, assemble_rhs = True)
         A.init_vector(out, 1)
-        solver = PETScKrylovSolver("cg", amg_method())
+        solver = dl.PETScKrylovSolver("cg", amg_method())
         solver.parameters["relative_tolerance"] = tol
         solver.parameters["error_on_nonconvergence"] = True
         solver.parameters["nonzero_initial_guess"] = False
-#        solver = PETScLUSolver()
-#        solver.parameters['symmetric'] = True
         solver.set_operator(A)
-
-        #np.save('matrixA', A.array())
-        #np.save('xPARAM', x[PARAMETER].array())
-        #np.save('vectorb', b.array())
-
         nit = solver.solve(out,b)
-#        print "FWD", (self.A*out - b).norm("l2")/b.norm("l2"), nit
-
     
+
     def solveAdj(self, out, x, tol=1e-9):
         """
         Solve the adjoint problem.
         """
-        At, badj = self.assembleA(x, assemble_adjoint = True,assemble_rhs = True)
+        At, badj = self.assembleA(x, assemble_adjoint = True, assemble_rhs = True)
         At.init_vector(out, 1)
-        solver = PETScKrylovSolver("cg", amg_method())
+        solver = dl.PETScKrylovSolver("cg", amg_method())
         solver.parameters["relative_tolerance"] = tol
         solver.parameters["error_on_nonconvergence"] = True
         solver.parameters["nonzero_initial_guess"] = False
-#        solver = PETScLUSolver()
-#        solver.parameters['symmetric'] = True
         solver.set_operator(At)
         nit = solver.solve(out,badj)
         
-#        print "ADJ", (self.At*out - badj).norm("l2")/badj.norm("l2"), nit
     
     def evalGradientParameter(self,x, mg):
         """
@@ -308,17 +273,13 @@ noiselevel=0.01):
         self.Prior.init_vector(mg,0)
         C.transpmult(x[ADJOINT], mg)
 
-#        Rx = Vector()
-#        self.Prior.init_vector(Rx,0)
-#        self.Prior.R.mult(x[PARAMETER], Rx)   
-#        mg.axpy(1., Rx)
         mg.axpy(self.alphareg, self.Prior.gradvect(x[PARAMETER]))
         
-        g = Vector()
+        g = dl.Vector()
         self.Prior.init_vector(g,1)
         
         self.Prior.Msolver.solve(g, mg)
-        g_norm = sqrt( g.inner(mg) )
+        g_norm = dl.sqrt( g.inner(mg) )
         
         return g_norm
         
@@ -340,27 +301,25 @@ noiselevel=0.01):
         """
         Solve the incremental forward problem for a given rhs
         """
-        solver = PETScKrylovSolver("cg", amg_method())
+        solver = dl.PETScKrylovSolver("cg", amg_method())
         solver.set_operator(self.A)
         solver.parameters["relative_tolerance"] = tol
         solver.parameters["error_on_nonconvergence"] = True
         solver.parameters["nonzero_initial_guess"] = False
         self.A.init_vector(sol,1)
         nit = solver.solve(sol,rhs)
-#        print "FwdInc", (self.A*sol-rhs).norm("l2")/rhs.norm("l2"), nit
         
     def solveAdjIncremental(self, sol, rhs, tol):
         """
         Solve the incremental adjoint problem for a given rhs
         """
-        solver = PETScKrylovSolver("cg", amg_method())
+        solver = dl.PETScKrylovSolver("cg", amg_method())
         solver.set_operator(self.At)
         solver.parameters["relative_tolerance"] = tol
         solver.parameters["error_on_nonconvergence"] = True
         solver.parameters["nonzero_initial_guess"] = False
         self.At.init_vector(sol,1)
         nit = solver.solve(sol, rhs)
-#        print "AdjInc", (self.At*sol-rhs).norm("l2")/rhs.norm("l2"), nit
     
     def applyC(self, da, out):
         self.C.mult(da,out)
@@ -379,48 +338,44 @@ noiselevel=0.01):
         self.Wau.mult(du, out)
     
     def applyR(self, da, out):
-        #self.Prior.R.mult(da, out)
         out.zero()
         out.axpy(self.alphareg, self.Prior.hessian(da))
         
     def Rsolver(self):        
         return self.Prior.getprecond()
-        #return self.Prior.Rsolver
     
     def applyRaa(self, da, out):
         self.Raa.mult(da, out)
             
-
 if __name__ == "__main__":
-    set_log_active(False)
-    nx, ny = 128, 128 
-    mesh = UnitSquareMesh(nx, ny)
+    dl.set_log_active(False)
+    nx, ny = 64, 64 
+    mesh = dl.UnitSquareMesh(nx, ny)
     
-    rank = MPI.rank(mesh.mpi_comm())
-    nproc = MPI.size(mesh.mpi_comm())
+    rank = dl.MPI.rank(mesh.mpi_comm())
+    nproc = dl.MPI.size(mesh.mpi_comm())
     
     if nproc > 1:
         Random.split(rank, nproc, 1000000, 1)
     
-    Vh2 = FunctionSpace(mesh, 'Lagrange', 2)
-    Vh1 = FunctionSpace(mesh, 'Lagrange', 1)
+    Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
+    Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-9, 'eps':1e-3})
 
-#       target media for 'quarters':
-    a1true = Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '2*(x[0]<=0.5)*(x[1]<=0.5) + 4*(x[0]<=0.5)*(x[1]>0.5) + ' + \
-    '6*(x[0]>0.5)*(x[1]<=0.5) + 8*(x[0]>0.5)*(x[1]>0.5) ))')
-    a2true = Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '6*(x[0]<=0.5)*(x[1]<=0.5) + 8*(x[0]<=0.5)*(x[1]>0.5) + ' + \
-    '4*(x[0]>0.5)*(x[1]<=0.5) + 2*(x[0]>0.5)*(x[1]>0.5) ))')
-    model1 = Poisson(mesh, Vh, Prior, 1.0, atrue=a1true, noiselevel=0.01)
-    model2 = Poisson(mesh, Vh, Prior, 1.0, atrue=a2true, noiselevel=0.01)
+#   target media for 'ghost'
+    a1true = dl.Expression('log(10' + \
+    '- 8*(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4)' + \
+    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
+    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
+    a2true = dl.Expression('log(2' + \
+    '+ 8*(pow(pow(x[0]-0.25,2)+pow(x[1]-0.5,2),0.5)<0.1)' + \
+    '+ 8*((x[0]<=0.8)*(x[0]>=0.7)*(x[1]>=0.45)*(x[1]<=0.55)) )')
+    model1 = Poisson(mesh, Vh, a1true, Prior, noiselevel=0.01, alphareg=1.0)
+    model2 = Poisson(mesh, Vh, a2true, Prior, noiselevel=0.01, alphareg=1.0)
     PltFen = PlotFenics()
     PltFen.set_varname('a1')
     PltFen.plot_vtk(model1.at)
@@ -429,7 +384,7 @@ if __name__ == "__main__":
 
     # modify here! #######
     model = model1
-    PltFen.set_varname('solution1-128-e1e-3')
+    PltFen.set_varname('solution1')
     ######################
         
     if rank == 0 and Prior.isTV():
@@ -451,11 +406,11 @@ if __name__ == "__main__":
     
     InexactCG = 0
     GN = True
-    a0 = interpolate(Expression("0.0"),Vh[PARAMETER])
+    a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
     x = solver.solve(a0.vector(), InexactCG, GN)
 
-    minaf = MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
-    maxaf = MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
+    minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
+    maxaf = dl.MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
     mdmis, mdmisperc = model.mediummisfit(x[PARAMETER])
     if rank == 0:
         print 'min(af)={}, max(af)={}, medmisft={:e} ({:.1f}%)'.format(\
@@ -470,15 +425,6 @@ if __name__ == "__main__":
         print "Final cost: ", solver.final_cost
     
     PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))
-
-    if False and nproc == 1:
-        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
-        plot(xx[STATE], title = "State")
-        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
-        plot(xx[ADJOINT], title = "Adjoint")
-        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
-        interactive()
-
 
 
 #       target media for 'quarters':
