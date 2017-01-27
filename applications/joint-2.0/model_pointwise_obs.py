@@ -356,9 +356,19 @@ if __name__ == "__main__":
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
+    #TODO: need to modify data misfit so that k_TV is independent of the nb of observations
+    # change data misfit to be (data misfit)/nbobsperdir, then k_TV should be
+    # 2.10^{-7} for all cases.
+
+    # Regularization parameters:
+    #   noiselevel = 0.02, nobs = 50 x 50
+    #       TVPD: eps=1e-3, k=1e-5
+    #       Tikh: gamma,beta=5e-6
+    #   noiselevel = 0.02, nobs = 4 x 4
+    #       TVPD: eps=1e-3, k=1e-6
+    #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-6, 'beta':5e-6})
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-9, 'eps':1e-3})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-6, 'eps':1e-3})
 
     a1true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
@@ -367,7 +377,7 @@ if __name__ == "__main__":
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))')
 
-    nbobsperdir=50
+    nbobsperdir=4
     targets = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
 
@@ -380,8 +390,8 @@ if __name__ == "__main__":
     PltFen.plot_vtk(model2.at)
 
     # modify here! #######
-    model = model2
-    PltFen.set_varname('solutionptwise2-k1e-9')
+    model = model1
+    PltFen.set_varname('solutionptwise1-k1e-6')
     ######################
         
     if rank == 0 and Prior.isTV():
@@ -389,8 +399,8 @@ if __name__ == "__main__":
         Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
 
     solver = ReducedSpaceNewtonCG(model)
-    solver.parameters["rel_tolerance"] = 1e-10
-    solver.parameters["abs_tolerance"] = 1e-12
+    solver.parameters["rel_tolerance"] = 1e-12
+    solver.parameters["abs_tolerance"] = 1e-14
     solver.parameters["inner_rel_tolerance"] = 1e-15
     solver.parameters["gda_tolerance"] = 1e-24
     solver.parameters["c_armijo"] = 5e-5
