@@ -302,6 +302,8 @@ def modelVerify(model,a0, innerTol, is_quadratic = False, verbose = True, eps = 
         err_H[i] = err.norm('linf')
     
     if verbose:
+        print 'err_grad:', err_grad
+        print 'err_H:', err_H
         modelVerifyPlotErrors(is_quadratic, eps, err_grad, err_H)
 
     xx = model.generate_vector(PARAMETER)
@@ -345,3 +347,4 @@ def modelVerifyPlotErrors(is_quadratic, eps, err_grad, err_H):
         plt.subplot(122)
         plt.loglog(eps, err_H, "-ob", eps, eps*(err_H[0]/eps[0]), "-.k")
         plt.title("FD Hessian Check")
+    plt.show()
