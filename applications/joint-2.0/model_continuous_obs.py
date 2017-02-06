@@ -124,8 +124,8 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test = dl.TestFunction(self.Vh[STATE])
-        s = vector2Function(x[STATE], Vh[STATE])
-        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
+        s = vector2Function(x[STATE], self.Vh[STATE])
+        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
         Cvarf = dl.inner(dl.exp(c) * trial * dl.nabla_grad(s), dl.nabla_grad(test)) * dl.dx
         C = dl.assemble(Cvarf)
         self.bc0.zero(C)
@@ -151,8 +151,8 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[STATE])
         test  = dl.TestFunction(self.Vh[PARAMETER])
-        a = vector2Function(x[ADJOINT], Vh[ADJOINT])
-        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
+        a = vector2Function(x[ADJOINT], self.Vh[ADJOINT])
+        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
         varf = dl.inner(dl.exp(c)*dl.nabla_grad(trial),dl.nabla_grad(a))*test*dl.dx
         Wau = dl.assemble(varf)
         Wau_t = Transpose(Wau)
@@ -166,9 +166,9 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test  = dl.TestFunction(self.Vh[PARAMETER])
-        s = vector2Function(x[STATE], Vh[STATE])
-        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
-        a = vector2Function(x[ADJOINT], Vh[ADJOINT])
+        s = vector2Function(x[STATE], self.Vh[STATE])
+        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
+        a = vector2Function(x[ADJOINT], self.Vh[ADJOINT])
         varf = dl.inner(dl.nabla_grad(a),dl.exp(c)*dl.nabla_grad(s))*trial*test*dl.dx
         return dl.assemble(varf)
 
@@ -348,7 +348,7 @@ class Poisson:
             
 if __name__ == "__main__":
     dl.set_log_active(False)
-    nx, ny = 64, 64 
+    nx, ny = 128, 128
     mesh = dl.UnitSquareMesh(nx, ny)
     
     rank = dl.MPI.rank(mesh.mpi_comm())
@@ -366,8 +366,8 @@ if __name__ == "__main__":
     #       TVPD: eps=1e-3, k=5e-9
     #       Tikh: gamma,beta=5e-10
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-10, 'beta':5e-10})
-    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-9, 'eps':1e-3})
+    Prior = TV({'Vm':Vh[PARAMETER], 'k':5e-9, 'eps':1e-7, 'GNhessian':False})
+    #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-9, 'eps':1e-3})
 
     a1true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
@@ -385,7 +385,7 @@ if __name__ == "__main__":
 
     # modify here! #######
     model = model1
-    PltFen.set_varname('solutioncont1-Tikh')
+    PltFen.set_varname('solutioncont1-TV-debug')
     ######################
         
     if rank == 0 and Prior.isTV():
@@ -398,7 +398,7 @@ if __name__ == "__main__":
     solver.parameters["inner_rel_tolerance"] = 1e-15
     solver.parameters["gda_tolerance"] = 1e-24
     solver.parameters["c_armijo"] = 5e-5
-    solver.parameters["max_backtracking_iter"] = 12
+    solver.parameters["max_backtracking_iter"] = 20
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
     solver.parameters["print_level"] = 0

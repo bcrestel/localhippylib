@@ -38,8 +38,8 @@ if __name__ == "__main__":
 
     nbobsperdir=50
     targets1 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
-    for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
-    nbobsperdir=4
+    for i in range((nbobsperdir+2)/2, nbobsperdir+1) \
+    for j in range((nbobsperdir+2)/2, nbobsperdir+1)])
     targets2 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
 
@@ -57,15 +57,19 @@ if __name__ == "__main__":
     #reg1 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
     #reg2 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
 
-    #reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':5e-10, 'rescaledradiusdual':1.0})
-    #reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':5e-10, 'rescaledradiusdual':1.0})
+    reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 'rescaledradiusdual':1.0})
+    reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 'rescaledradiusdual':1.0})
 
-    #jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=0.0, coeff_vtv=1.0, \
-    #parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
+    jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=1e-4, coeff_vtv=0.0, \
+    parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
     #jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #jointregul = VTV(Vh[PARAMETER], {'k':1e-8, 'eps':1e+1})
-    #jointregul = V_TV(Vh[PARAMETER], {'k':1e-8, 'eps':1e-3})
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':1e-6, 'eps':1e-3, 'rescaledradiusdual':1.0})
+    #jointregul = V_TV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3})
+    #jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-7, 'rescaledradiusdual':1.0})
+
+    ##### Modify this #####
+    plot_suffix = 'TVPD+1e-4CG'
+    #######################
 
     jointmodel = JointModel(model1, model2, jointregul)
 
@@ -77,7 +81,7 @@ if __name__ == "__main__":
     solver.parameters["inner_rel_tolerance"] = 1e-15
     solver.parameters["gda_tolerance"] = 1e-24
     solver.parameters["c_armijo"] = 5e-5
-    solver.parameters["max_backtracking_iter"] = 12
+    solver.parameters["max_backtracking_iter"] = 20 # !!! very large
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
     solver.parameters["print_level"] = 0
@@ -110,7 +114,7 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    PltFen.set_varname('jointsolution1-VTVPD')
+    PltFen.set_varname('jointsolution1-' + plot_suffix)
     PltFen.plot_vtk(vector2Function(x1[PARAMETER], Vh[PARAMETER]))
-    PltFen.set_varname('jointsolution2-VTVPD')
+    PltFen.set_varname('jointsolution2-' + plot_suffix)
     PltFen.plot_vtk(vector2Function(x2[PARAMETER], Vh[PARAMETER]))

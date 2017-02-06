@@ -34,6 +34,7 @@ class Poisson:
         - the finite element spaces for the STATE/ADJOINT variable and the PARAMETER variable
         - the Prior information
         """
+        self.datamisfitfact = 1./np.sqrt(targets.shape[0])
         self.mesh = mesh
         self.Vh = Vh
         
@@ -49,7 +50,7 @@ class Poisson:
                 
         # Assemble constant matrices      
         self.Prior = prior
-        self.B = assemblePointwiseObservation(Vh[STATE], targets)
+        self.B = assemblePointwiseObservation(self.Vh[STATE], targets)
 
         self.alphareg = alphareg
                 
@@ -115,6 +116,7 @@ class Poisson:
             rhs = dl.Vector()
             self.B.init_vector(rhs, 1)
             self.B.transpmult(Bu,rhs)
+            rhs *= self.datamisfitfact
             #rhs *= 1.0/self.noise_variance
             
         if assemble_rhs:
@@ -128,8 +130,8 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test = dl.TestFunction(self.Vh[STATE])
-        s = vector2Function(x[STATE], Vh[STATE])
-        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
+        s = vector2Function(x[STATE], self.Vh[STATE])
+        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
         Cvarf = dl.inner(dl.exp(c) * trial * dl.nabla_grad(s), dl.nabla_grad(test)) * dl.dx
         C = dl.assemble(Cvarf)
         self.bc0.zero(C)
@@ -141,8 +143,8 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[STATE])
         test  = dl.TestFunction(self.Vh[PARAMETER])
-        a = vector2Function(x[ADJOINT], Vh[ADJOINT])
-        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
+        a = vector2Function(x[ADJOINT], self.Vh[ADJOINT])
+        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
         varf = dl.inner(dl.exp(c)*dl.nabla_grad(trial),dl.nabla_grad(a))*test*dl.dx
         Wau = dl.assemble(varf)
         Wau_t = Transpose(Wau)
@@ -156,9 +158,9 @@ class Poisson:
         """
         trial = dl.TrialFunction(self.Vh[PARAMETER])
         test  = dl.TestFunction(self.Vh[PARAMETER])
-        s = vector2Function(x[STATE], Vh[STATE])
-        c = vector2Function(x[PARAMETER], Vh[PARAMETER])
-        a = vector2Function(x[ADJOINT], Vh[ADJOINT])
+        s = vector2Function(x[STATE], self.Vh[STATE])
+        c = vector2Function(x[PARAMETER], self.Vh[PARAMETER])
+        a = vector2Function(x[ADJOINT], self.Vh[ADJOINT])
         varf = dl.inner(dl.nabla_grad(a),dl.exp(c)*dl.nabla_grad(s))*trial*test*dl.dx
         return dl.assemble(varf)
 
@@ -212,7 +214,8 @@ class Poisson:
                        
         diff = self.B*x[STATE]
         diff -= self.u_o
-        misfit = .5 * diff.inner(diff)
+        misfit = .5*self.datamisfitfact * diff.inner(diff)
+        #misfit = .5 * diff.inner(diff)
         #misfit = (.5/self.noise_variance) * diff.inner(diff)
         
         reg = self.Prior.costvect(x[PARAMETER])
@@ -225,6 +228,23 @@ class Poisson:
         """
         Solve the forward problem.
         """
+        # return zero if medium parameter coefficient is too large or too small
+        # to avoid indefiniteness of matrix A
+        c_arr = x[PARAMETER].array()
+        bound = 25.
+        if min(c_arr) < -1.0*bound:
+            c_cc = np.where(c_arr < -1.0*bound)[0]
+            print ('*** Warning: Found {} values of medium parameter' \
+            + ' less than {}').format(len(c_cc), -1.0*bound)
+            out.zero()
+            return
+        if max(c_arr) > bound:
+            c_cc = np.where(c_arr > bound)[0]
+            print ('*** Warning: Found {} values of medium parameter' \
+            + ' greater than {}').format(len(c_cc), bound)
+            out.zero()
+            return
+
         A, b = self.assembleA(x, assemble_rhs = True)
         A.init_vector(out, 1)
         solver = dl.PETScKrylovSolver("cg", amg_method())
@@ -323,6 +343,7 @@ class Poisson:
         self.B.init_vector(help, 0)
         self.B.mult(du, help)
         self.B.transpmult(help, out)
+        out *= self.datamisfitfact
         #out *= 1./self.noise_variance
     
     def applyWua(self, da, out):
@@ -356,11 +377,8 @@ if __name__ == "__main__":
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    #TODO: need to modify data misfit so that k_TV is independent of the nb of observations
-    # change data misfit to be (data misfit)/nbobsperdir, then k_TV should be
-    # 2.10^{-7} for all cases.
-
-    # Regularization parameters:
+    # These values need to be updated
+    # Regularization parameters for Poisson BEFORE modification:
     #   noiselevel = 0.02, nobs = 50 x 50
     #       TVPD: eps=1e-3, k=1e-5
     #       Tikh: gamma,beta=5e-6
@@ -368,7 +386,7 @@ if __name__ == "__main__":
     #       TVPD: eps=1e-3, k=1e-6
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-6, 'beta':5e-6})
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-6, 'eps':1e-3})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':1e-3})
 
     a1true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
@@ -377,12 +395,22 @@ if __name__ == "__main__":
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))')
 
-    nbobsperdir=4
-    targets = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
+    nbobsperdir=50
+    targets1 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
+    for i in range((nbobsperdir+2)/2, nbobsperdir+1) \
+    for j in range((nbobsperdir+2)/2, nbobsperdir+1)])
+    targets2 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
 
-    model1 = Poisson(mesh, Vh, a1true, targets, Prior, noiselevel=0.02, alphareg=1.0)
-    model2 = Poisson(mesh, Vh, a2true, targets, Prior, noiselevel=0.02, alphareg=1.0)
+    #### test gradient and Hessian ####
+#    model = Poisson(mesh, Vh, a1true, targets, ZeroPrior(Vh[PARAMETER]), noiselevel=0.02, alphareg=1.0)
+#    a0 = dl.interpolate(dl.Expression("sin(x[0])", element=Vh[PARAMETER].ufl_element()), Vh[PARAMETER])
+#    modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = True)
+#    sys.exit(0)
+    ###################################
+
+    model1 = Poisson(mesh, Vh, a1true, targets1, Prior, noiselevel=0.02, alphareg=1.0)
+    model2 = Poisson(mesh, Vh, a2true, targets2, Prior, noiselevel=0.02, alphareg=1.0)
     PltFen = PlotFenics()
     PltFen.set_varname('a1')
     PltFen.plot_vtk(model1.at)
@@ -391,7 +419,7 @@ if __name__ == "__main__":
 
     # modify here! #######
     model = model1
-    PltFen.set_varname('solutionptwise1-k1e-6')
+    PltFen.set_varname('solutionptwise1-k2e-7')
     ######################
         
     if rank == 0 and Prior.isTV():
