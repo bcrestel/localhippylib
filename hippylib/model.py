@@ -35,7 +35,7 @@ class Model:
         - misfit: the misfit componenent of the cost functional
         """
         self.problem = problem
-        self.prior = prior
+        self.Prior = prior
         self.misfit = misfit
                 
     def generate_vector(self, component = "ALL"):
@@ -52,13 +52,13 @@ class Model:
         """ 
         if component == "ALL":
             a = dl.Vector()
-            self.prior.init_vector(a,0)
+            self.Prior.init_vector(a,0)
             x = [self.problem.generate_state(), a, self.problem.generate_state()]
         elif component == STATE:
             x = self.problem.generate_state()
         elif component == PARAMETER:
             x = dl.Vector()
-            self.prior.init_vector(x,0)
+            self.Prior.init_vector(x,0)
         elif component == ADJOINT:
             x = self.problem.generate_state()
             
@@ -68,7 +68,7 @@ class Model:
         """
         Reshape a so that it is compatible with the parameter variable
         """
-        self.prior.init_vector(a,0)
+        self.Prior.init_vector(a,0)
             
     def cost(self, x):
         """
@@ -81,7 +81,7 @@ class Model:
         Note: p is not needed to compute the cost functional
         """
         misfit_cost = self.misfit.cost(x)
-        reg_cost = self.prior.cost(x[PARAMETER])
+        reg_cost = self.Prior.costvect(x[PARAMETER])
         return [misfit_cost+reg_cost, reg_cost, misfit_cost]
     
     def solveFwd(self, out, x, tol=1e-9):
@@ -131,11 +131,10 @@ class Model:
         self.misfit.grad(PARAMETER,x,tmp)
         mg.axpy(1., tmp)
         if not misfit_only:
-            self.prior.grad(x[PARAMETER], tmp)
-            mg.axpy(1., tmp)
+            mg.axpy(1., self.Prior.gradvect(x[PARAMETER]))
         
-        self.prior.Msolver.solve(tmp, mg)
-        #self.prior.Rsolver.solve(tmp, mg)
+        self.Prior.Msolver.solve(tmp, mg)
+        #self.Prior.Rsolver.solve(tmp, mg)
         return math.sqrt(mg.inner(tmp))
         
     
@@ -152,6 +151,7 @@ class Model:
         """
         self.problem.setLinearizationPoint(x)
         self.misfit.setLinearizationPoint(x)
+        self.Prior.assemble_hessian(x[PARAMETER])
 
         
     def solveFwdIncremental(self, sol, rhs, tol):
@@ -256,7 +256,8 @@ class Model:
         
         Note: this routine assumes that out has the correct shape.
         """
-        self.prior.R.mult(da, out)
+        out.zero()
+        out.axpy(1.0, self.Prior.hessian(da))
     
     def Rsolver(self):
         """
@@ -266,7 +267,7 @@ class Model:
         The solver object should implement the method Rsolver.solve(z,r) such that
         R*z \\approx r.
         """
-        return self.prior.Rsolver
+        return self.Prior.getprecond()
 
     
     def applyRaa(self, da, out):

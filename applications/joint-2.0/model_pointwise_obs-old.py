@@ -384,9 +384,9 @@ if __name__ == "__main__":
     #       Tikh: gamma,beta=5e-6
     #   noiselevel = 0.02, nobs = 4 x 4
     #       TVPD: eps=1e-3, k=1e-6
-    #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-6, 'beta':5e-6})
+    Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':1e-3})
+    #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':1e-3})
 
     a1true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
@@ -418,8 +418,8 @@ if __name__ == "__main__":
     PltFen.plot_vtk(model2.at)
 
     # modify here! #######
-    model = model1
-    PltFen.set_varname('solutionptwise1-k2e-7')
+    model = model2
+    PltFen.set_varname('solutionptwise2')
     ######################
         
     if rank == 0 and Prior.isTV():
@@ -439,7 +439,7 @@ if __name__ == "__main__":
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    InexactCG = 0
+    InexactCG = 1
     GN = True
     a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
     x = solver.solve(a0.vector(), InexactCG, GN)
@@ -459,4 +459,11 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
+    # Plot reconstruction
     PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))
+
+    if nproc == 1:
+        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
+        dl.plot(xx[STATE], title = "State")
+        dl.plot(dl.exp(xx[PARAMETER]), title = "exp(Parameter)")
+        dl.interactive()
