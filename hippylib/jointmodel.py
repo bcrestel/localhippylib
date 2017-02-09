@@ -21,9 +21,9 @@ class JointModel:
         assert self.model2.Prior.isZeroPrior()
 
         self.Vh = [None, None, None]
-        self.Vh[STATE] = self.model1.Vh[STATE] * self.model2.Vh[STATE]
-        self.Vh[ADJOINT] = self.model1.Vh[ADJOINT] * self.model2.Vh[ADJOINT]
-        self.Vh[PARAMETER] = self.model1.Vh[PARAMETER] * self.model2.Vh[PARAMETER]
+        self.Vh[STATE] = self.model1.problem.Vh[STATE] * self.model2.problem.Vh[STATE]
+        self.Vh[ADJOINT] = self.model1.problem.Vh[ADJOINT] * self.model2.problem.Vh[ADJOINT]
+        self.Vh[PARAMETER] = self.model1.problem.Vh[PARAMETER] * self.model2.problem.Vh[PARAMETER]
 
         self.M = [None, None, None]
         test, trial = dl.TestFunction(self.Vh[STATE]), dl.TrialFunction(self.Vh[STATE])
@@ -65,8 +65,8 @@ class JointModel:
                 x[cc] = self.assignvector(x1[cc], x2[cc], cc)
             return x
         else:
-            fun1 = vector2Function(x1, self.model1.Vh[component])
-            fun2 = vector2Function(x2, self.model2.Vh[component])
+            fun1 = vector2Function(x1, self.model1.problem.Vh[component])
+            fun2 = vector2Function(x2, self.model2.problem.Vh[component])
             fun = dl.Function(self.Vh[component])
             dl.assign(fun.sub(0), fun1)
             dl.assign(fun.sub(1), fun2)
