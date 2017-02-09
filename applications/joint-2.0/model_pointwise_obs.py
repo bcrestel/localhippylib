@@ -21,6 +21,7 @@ sys.path.append( "../../" )
 from hippylib import *
 
 from fenicstools.prior import LaplacianPrior
+from fenicstools.regularization import TV, TVPD
 from fenicstools.plotfenics import PlotFenics
 
 def u_boundary(x, on_boundary):
@@ -78,6 +79,10 @@ if __name__ == "__main__":
     pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
     pde.solver_adj_inc.parameters = pde.solver.parameters
  
+    # Regularization
+    #prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
+    prior = TVPD({'Vm':Vh[PARAMETER], 'k':3e-7, 'eps':1e-3})
+    
     nbobsperdir=50
     targets1 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range((nbobsperdir+2)/2, nbobsperdir+1) \
@@ -87,22 +92,21 @@ if __name__ == "__main__":
 
     SELECTMODEL = 2 ###### CHANGE THIS VALUE ########
     PltFen = PlotFenics()
+    suffix = '-k3e-7'
     if SELECTMODEL == 1:
         atrue = dl.interpolate(a1true, Vh[PARAMETER])
         targets = targets1
         PltFen.set_varname('a1')
         PltFen.plot_vtk(atrue)
-        PltFen.set_varname('solutionptwise1')
+        PltFen.set_varname('solutionptwise1'+suffix)
     else:
         atrue = dl.interpolate(a2true, Vh[PARAMETER])
         targets = targets2
         PltFen.set_varname('a2')
         PltFen.plot_vtk(atrue)
-        PltFen.set_varname('solutionptwise2')
+        PltFen.set_varname('solutionptwise2'+suffix)
 
     misfit = PointwiseStateObservation(Vh[STATE], targets)
-    
-    prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
     
     #Generate synthetic observations
     utrue = pde.generate_state()
@@ -167,9 +171,3 @@ if __name__ == "__main__":
 
     # Plot reconstruction
     PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))
-        
-    if nproc == 1:
-        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
-        dl.plot(xx[STATE], title = "State")
-        dl.plot(dl.exp(xx[PARAMETER]), title = "exp(Parameter)")
-        dl.interactive()
