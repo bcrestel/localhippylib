@@ -45,6 +45,10 @@ if __name__ == "__main__":
 
     model1 = Poisson(mesh, Vh, a1true, targets1, ZeroPrior(Vh[PARAMETER]), 0.02)
     model2 = Poisson(mesh, Vh, a2true, targets2, ZeroPrior(Vh[PARAMETER]), 0.02)
+    # for compatibility:
+    model1.problem = model1
+    model2.problem = model2
+    ####################
     PltFen = PlotFenics()
     PltFen.set_varname('jointa1')
     PltFen.plot_vtk(model1.at)

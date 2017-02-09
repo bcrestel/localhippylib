@@ -53,14 +53,16 @@ if __name__ == "__main__":
     def pde_varf(u,a,p):
         return dl.exp(a)*dl.inner(dl.nabla_grad(u), dl.nabla_grad(p))*dl.dx - f*p*dl.dx
     
-    pde = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
-    pde.solver = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver.parameters["relative_tolerance"] = 1e-15
-    pde.solver.parameters["absolute_tolerance"] = 1e-20
-    pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver_fwd_inc.parameters = pde.solver.parameters
-    pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver_adj_inc.parameters = pde.solver.parameters
+    pde1 = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
+    pde2 = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
+    for pde in [pde1, pde2]:
+        pde.solver = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver.parameters["relative_tolerance"] = 1e-15
+        pde.solver.parameters["absolute_tolerance"] = 1e-20
+        pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver_fwd_inc.parameters = pde.solver.parameters
+        pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver_adj_inc.parameters = pde.solver.parameters
  
     # Define misfit functions
     nbobsperdir=50
@@ -74,8 +76,10 @@ if __name__ == "__main__":
 
     # Generate synthetic observations
     rel_noise_level = 0.02
-    utrue = pde.generate_state()
-    for misfit, atrue, targets in zip([misfit1, misfit2], [a1true, a2true], [targets1, targets2]):
+    utrue1 = pde1.generate_state()
+    utrue2 = pde2.generate_state()
+    for misfit, atrue, targets, utrue, pde in zip([misfit1, misfit2], \
+    [a1true, a2true], [targets1, targets2], [utrue1, utrue2], [pde1, pde2]):
         x = [utrue, atrue.vector(), None]
         minatrue = dl.MPI.min(mesh.mpi_comm(), np.amin(atrue.vector().array()))
         maxatrue = dl.MPI.max(mesh.mpi_comm(), np.amax(atrue.vector().array()))
@@ -88,8 +92,8 @@ if __name__ == "__main__":
         misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
 
     # Define models
-    model1 = Model(pde, ZeroPrior(Vh[PARAMETER]), misfit1, a1true.vector())
-    model2 = Model(pde, ZeroPrior(Vh[PARAMETER]), misfit2, a2true.vector())
+    model1 = Model(pde1, ZeroPrior(Vh[PARAMETER]), misfit1, a1true.vector())
+    model2 = Model(pde2, ZeroPrior(Vh[PARAMETER]), misfit2, a2true.vector())
     x[STATE].zero()
     c1, r1, m1 = model1.cost(x)
     c2, r2, m2 = model2.cost(x)
