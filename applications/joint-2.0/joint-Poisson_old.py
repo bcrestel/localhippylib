@@ -4,6 +4,7 @@ import dolfin as dl
 from dolfin import Expression
 
 from hippylib import *
+from model_pointwise_obs_old import Poisson
 
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
@@ -11,9 +12,6 @@ from fenicstools.jointregularization import \
 SumRegularization, Tikhonovab, VTV, V_TV, V_TVPD
 from fenicstools.plotfenics import PlotFenics
 
-
-def u_boundary(x, on_boundary):
-    return on_boundary
 
 if __name__ == "__main__":
     dl.set_log_active(False)
@@ -31,91 +29,46 @@ if __name__ == "__main__":
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    a1true = dl.interpolate(dl.Expression('log(10 - ' + \
+    a1true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), Vh[PARAMETER])
-    a2true = dl.interpolate(dl.Expression('log(10 - ' + \
+    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))')
+    a2true = dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), Vh[PARAMETER])
-    PltFen = PlotFenics()
-    PltFen.set_varname('jointa1')
-    PltFen.plot_vtk(a1true)
-    PltFen.set_varname('jointa2')
-    PltFen.plot_vtk(a2true)
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))')
 
-    # Define PDE
-    f = dl.Constant(1.0)
-    u_bdr = dl.Constant(0.0)
-    u_bdr0 = dl.Constant(0.0)
-    bc = dl.DirichletBC(Vh[STATE], u_bdr, u_boundary)
-    bc0 = dl.DirichletBC(Vh[STATE], u_bdr0, u_boundary)
-    
-    def pde_varf(u,a,p):
-        return dl.exp(a)*dl.inner(dl.nabla_grad(u), dl.nabla_grad(p))*dl.dx - f*p*dl.dx
-    
-    pde = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
-    pde.solver = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver.parameters["relative_tolerance"] = 1e-15
-    pde.solver.parameters["absolute_tolerance"] = 1e-20
-    pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver_fwd_inc.parameters = pde.solver.parameters
-    pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver_adj_inc.parameters = pde.solver.parameters
- 
-    # Define misfit functions
     nbobsperdir=50
     targets1 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range((nbobsperdir+2)/2, nbobsperdir+1) \
     for j in range((nbobsperdir+2)/2, nbobsperdir+1)])
     targets2 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
-    misfit1 = PointwiseStateObservation(Vh[STATE], targets1)
-    misfit2 = PointwiseStateObservation(Vh[STATE], targets2)
 
-    # Generate synthetic observations
-    rel_noise_level = 0.02
-    utrue = pde.generate_state()
-    for misfit, atrue, targets in zip([misfit1, misfit2], [a1true, a2true], [targets1, targets2]):
-        x = [utrue, atrue.vector(), None]
-        minatrue = dl.MPI.min(mesh.mpi_comm(), np.amin(atrue.vector().array()))
-        maxatrue = dl.MPI.max(mesh.mpi_comm(), np.amax(atrue.vector().array()))
-        if rank == 0:
-            print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
-        pde.solveFwd(x[STATE], x, 1e-9)
-        noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
-        Random.normal(x[STATE], noise_level, False)
-        misfit.B.mult(x[STATE], misfit.d)
-        misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
+    model1 = Poisson(mesh, Vh, a1true, targets1, ZeroPrior(Vh[PARAMETER]), 0.02)
+    model2 = Poisson(mesh, Vh, a2true, targets2, ZeroPrior(Vh[PARAMETER]), 0.02)
+    PltFen = PlotFenics()
+    PltFen.set_varname('jointa1')
+    PltFen.plot_vtk(model1.at)
+    PltFen.set_varname('jointa2')
+    PltFen.plot_vtk(model2.at)
 
-    # Define models
-    model1 = Model(pde, ZeroPrior(Vh[PARAMETER]), misfit1, a1true.vector())
-    model2 = Model(pde, ZeroPrior(Vh[PARAMETER]), misfit2, a2true.vector())
-    x[STATE].zero()
-    c1, r1, m1 = model1.cost(x)
-    c2, r2, m2 = model2.cost(x)
-    if rank == 0:
-        print 'Cost @ MAP for m1: cost={}, misfit={}, reg={}'.format(c1, m1, r1)
-        print 'Cost @ MAP for m2: cost={}, misfit={}, reg={}'.format(c2, m2, r2)
-
-    ############ Regularization #############
     #reg1 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #reg2 = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
 
     #reg1 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
     #reg2 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
 
-    #reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 'rescaledradiusdual':1.0})
-    #reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 'rescaledradiusdual':1.0})
+    reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 'rescaledradiusdual':1.0})
+    reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 'rescaledradiusdual':1.0})
 
-    #jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=0.0, coeff_vtv=0.0, \
-    #parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
+    jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=0.0, coeff_vtv=0.0, \
+    parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
     #jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #jointregul = VTV(Vh[PARAMETER], {'k':1e-8, 'eps':1e+1})
     #jointregul = V_TV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3})
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':3e-7, 'eps':1e-3, 'rescaledradiusdual':1.0})
-    #########################################
+    #jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-7, 'rescaledradiusdual':1.0})
+
     ##### Modify this #####
-    plot_suffix = 'VTVPD-e1e-3-k3e-7'
+    plot_suffix = '-old-TVPD-e1e-3'
     #######################
 
     jointmodel = JointModel(model1, model2, jointregul)
