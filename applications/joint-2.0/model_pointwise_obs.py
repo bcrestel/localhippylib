@@ -72,7 +72,7 @@ if __name__ == "__main__":
     pde = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
     pde.solver = dl.PETScKrylovSolver("cg", amg_method())
     pde.solver.parameters["relative_tolerance"] = 1e-15
-    #pde.solver.parameters["absolute_tolerance"] = 1e-20    #TODO: uncomment line
+    pde.solver.parameters["absolute_tolerance"] = 1e-20
     pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
     pde.solver_fwd_inc.parameters = pde.solver.parameters
     pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
@@ -85,7 +85,6 @@ if __name__ == "__main__":
     targets2 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
 
-    #TODO: add medium misfit to model, and compare old and new models
     SELECTMODEL = 2 ###### CHANGE THIS VALUE ########
     PltFen = PlotFenics()
     if SELECTMODEL == 1:
@@ -119,7 +118,11 @@ if __name__ == "__main__":
     misfit.B.mult(x[STATE], misfit.d)
     misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
     
-    model = Model(pde, prior, misfit)
+    model = Model(pde, prior, misfit, atrue.vector())
+    x[STATE].zero()
+    c, r, m = model.cost(x)
+    if rank == 0:
+        print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
     
 #    if rank == 0:
 #        print sep, "Test the gradient and the Hessian of the model", sep
@@ -142,12 +145,17 @@ if __name__ == "__main__":
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    InexactCG = 1
+    InexactCG = 0
     GN = True
     a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
     x = solver.solve(a0.vector(), InexactCG, GN)
     
+    minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
+    maxaf = dl.MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
+    mdmis, mdmisperc = model.mediummisfit(x[PARAMETER])
     if rank == 0:
+        print 'min(af)={}, max(af)={}, medmisft={:e} ({:.1f}%)'.format(\
+        minaf, maxaf, mdmis, mdmisperc)
         if solver.converged:
             print "\nConverged in ", solver.it, " iterations."
         else:

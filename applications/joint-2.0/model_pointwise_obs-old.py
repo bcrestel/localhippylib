@@ -377,13 +377,9 @@ if __name__ == "__main__":
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    # These values need to be updated
-    # Regularization parameters for Poisson BEFORE modification:
-    #   noiselevel = 0.02, nobs = 50 x 50
-    #       TVPD: eps=1e-3, k=1e-5
-    #       Tikh: gamma,beta=5e-6
-    #   noiselevel = 0.02, nobs = 4 x 4
-    #       TVPD: eps=1e-3, k=1e-6
+    #   noiselevel = 0.02
+    #       Tikh: gamma,beta=5e-8
+    #       TVPD: eps=1e-3, k=
     Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'GNhessian':False})
     #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':1e-3})
@@ -439,7 +435,7 @@ if __name__ == "__main__":
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    InexactCG = 1
+    InexactCG = 0
     GN = True
     a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
     x = solver.solve(a0.vector(), InexactCG, GN)
