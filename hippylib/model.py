@@ -27,7 +27,7 @@ class Model:
         
     """
     
-    def __init__(self, problem, prior,misfit):
+    def __init__(self, problem, prior, misfit, atrue=None):
         """
         Create a model given:
         - problem: the description of the forward/adjoint problem and all the sensitivities
@@ -37,6 +37,7 @@ class Model:
         self.problem = problem
         self.Prior = prior
         self.misfit = misfit
+        self.atrue = atrue
                 
     def generate_vector(self, component = "ALL"):
         """
@@ -284,3 +285,15 @@ class Model:
         tmp = self.generate_vector(PARAMETER)
         self.misfit.apply_ij(PARAMETER,PARAMETER, da, tmp)
         out.axpy(1., tmp)
+
+
+    def mediummisfit(self, m):
+        """
+        Compute medium misfit
+        """
+        if self.atrue == None:
+            return -99, -99
+        else:
+            diff = m - self.atrue
+            nd = dl.norm(diff)
+            return nd, 100.*nd/dl.norm(self.atrue)
