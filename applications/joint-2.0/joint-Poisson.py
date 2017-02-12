@@ -31,9 +31,14 @@ if __name__ == "__main__":
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
+    # Target medium parameters
+#    # coincide:
+#    a1true = dl.interpolate(dl.Expression('log(10 - ' + \
+#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+#    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), Vh[PARAMETER])
+    # coincide2:
     a1true = dl.interpolate(dl.Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), Vh[PARAMETER])
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), Vh[PARAMETER])
     a2true = dl.interpolate(dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), Vh[PARAMETER])
@@ -108,18 +113,18 @@ if __name__ == "__main__":
     #reg1 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
     #reg2 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
 
-    #reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 'rescaledradiusdual':1.0})
-    #reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 'rescaledradiusdual':1.0})
+    reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 'rescaledradiusdual':1.0})
+    reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 'rescaledradiusdual':1.0})
 
-    #jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=0.0, coeff_vtv=0.0, \
-    #parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
+    jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=1e-4, coeff_vtv=0.0, \
+    parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
     #jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #jointregul = VTV(Vh[PARAMETER], {'k':1e-8, 'eps':1e+1})
     #jointregul = V_TV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3})
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':3e-7, 'eps':1e-3, 'rescaledradiusdual':1.0})
+    #jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3, 'rescaledradiusdual':1.0})
     #########################################
     ##### Modify this #####
-    plot_suffix = 'VTVPD-e1e-3-k3e-7'
+    plot_suffix = 'c2-SumRegul+1e-4CG-e1e-3-k4e-7'
     #######################
 
     jointmodel = JointModel(model1, model2, jointregul)
@@ -134,15 +139,13 @@ if __name__ == "__main__":
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 20 # !!! very large
     solver.parameters["GN_iter"] = 0
-    solver.parameters["max_iter"] = 2000
+    solver.parameters["max_iter"] = 10000
     solver.parameters["print_level"] = 0
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    InexactCG = 0
-    GN = True
     a0 = dl.interpolate(dl.Expression(("0.0","0.0")),jointmodel.Vh[PARAMETER])
-    x = solver.solve(a0.vector(), InexactCG, GN)
+    x = solver.solve(a0.vector(), InexactCG=0, GN=True, bounds_xPARAM=[-25., 25.])
 
     x1, x2 = jointmodel.splitvector(x)
     minaf1 = dl.MPI.min(mesh.mpi_comm(), np.amin(x1[PARAMETER].array()))

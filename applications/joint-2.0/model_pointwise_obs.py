@@ -52,15 +52,19 @@ if __name__ == "__main__":
         print sep, "Set up the mesh and finite element spaces", sep
         print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(*ndofs)
     
-    # Target medium paramters
-    a1true = dl.Expression('log(10 - ' + \
+    # Target medium parameters
+#    # coincide:
+#    a1true = dl.interpolate(dl.Expression('log(10 - ' + \
+#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+#    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), Vh[PARAMETER])
+    # coincide2:
+    a1true = dl.interpolate(dl.Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), Vh[PARAMETER])
+    a2true = dl.interpolate(dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))')
-    a2true = dl.Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))')
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), Vh[PARAMETER])
         
-    # Initialize Expressions
+    # Define PDE
     f = dl.Constant(1.0)
     u_bdr = dl.Constant(0.0)
     u_bdr0 = dl.Constant(0.0)
@@ -70,58 +74,66 @@ if __name__ == "__main__":
     def pde_varf(u,a,p):
         return dl.exp(a)*dl.inner(dl.nabla_grad(u), dl.nabla_grad(p))*dl.dx - f*p*dl.dx
     
-    pde = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
-    pde.solver = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver.parameters["relative_tolerance"] = 1e-15
-    pde.solver.parameters["absolute_tolerance"] = 1e-20
-    pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver_fwd_inc.parameters = pde.solver.parameters
-    pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver_adj_inc.parameters = pde.solver.parameters
+    pde1 = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
+    pde2 = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
+    for pde in [pde1, pde2]:
+        pde.solver = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver.parameters["relative_tolerance"] = 1e-15
+        pde.solver.parameters["absolute_tolerance"] = 1e-20
+        pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver_fwd_inc.parameters = pde.solver.parameters
+        pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver_adj_inc.parameters = pde.solver.parameters
  
-    # Regularization
-    #prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
-    prior = TVPD({'Vm':Vh[PARAMETER], 'k':3e-7, 'eps':1e-3})
-    
+    # Define misfit functions
     nbobsperdir=50
     targets1 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range((nbobsperdir+2)/2, nbobsperdir+1) \
     for j in range((nbobsperdir+2)/2, nbobsperdir+1)])
     targets2 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
+    misfit1 = PointwiseStateObservation(Vh[STATE], targets1)
+    misfit2 = PointwiseStateObservation(Vh[STATE], targets2)
 
-    SELECTMODEL = 2 ###### CHANGE THIS VALUE ########
+    # Generate synthetic observations
+    rel_noise_level = 0.02
+    utrue1 = pde1.generate_state()
+    utrue2 = pde2.generate_state()
+    for misfit, atrue, targets, utrue, pde in zip([misfit1, misfit2], \
+    [a1true, a2true], [targets1, targets2], [utrue1, utrue2], [pde1, pde2]):
+        x = [utrue, atrue.vector(), None]
+        minatrue = dl.MPI.min(mesh.mpi_comm(), np.amin(atrue.vector().array()))
+        maxatrue = dl.MPI.max(mesh.mpi_comm(), np.amax(atrue.vector().array()))
+        if rank == 0:
+            print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
+        pde.solveFwd(x[STATE], x, 1e-9)
+        noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
+        Random.normal(x[STATE], noise_level, False)
+        misfit.B.mult(x[STATE], misfit.d)
+        misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
+    
+    # Regularization
+    #prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
+    prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-7, 'eps':1e-3})
+    
+    SELECTMODEL = 1 ###### CHANGE THIS VALUE ########
     PltFen = PlotFenics()
-    suffix = '-k3e-7'
+    suffix = '-c2-k5e-7'
     if SELECTMODEL == 1:
-        atrue = dl.interpolate(a1true, Vh[PARAMETER])
-        targets = targets1
+        atrue = a1true
+        pde = pde1
+        misfit = misfit1
         PltFen.set_varname('a1')
         PltFen.plot_vtk(atrue)
         PltFen.set_varname('solutionptwise1'+suffix)
     else:
-        atrue = dl.interpolate(a2true, Vh[PARAMETER])
-        targets = targets2
+        atrue = a2true
+        pde = pde2
+        misfit = misfit2
         PltFen.set_varname('a2')
         PltFen.plot_vtk(atrue)
         PltFen.set_varname('solutionptwise2'+suffix)
 
-    misfit = PointwiseStateObservation(Vh[STATE], targets)
-    
-    #Generate synthetic observations
-    utrue = pde.generate_state()
-    x = [utrue, atrue.vector(), None]
-    minatrue = dl.MPI.min(mesh.mpi_comm(), np.amin(atrue.vector().array()))
-    maxatrue = dl.MPI.max(mesh.mpi_comm(), np.amax(atrue.vector().array()))
-    if rank == 0:
-        print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
-    pde.solveFwd(x[STATE], x, 1e-9)
-    rel_noise_level = 0.02
-    noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
-    Random.normal(x[STATE], noise_level, False)
-    misfit.B.mult(x[STATE], misfit.d)
-    misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
-    
     model = Model(pde, prior, misfit, atrue.vector())
     x[STATE].zero()
     c, r, m = model.cost(x)
