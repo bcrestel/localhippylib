@@ -92,11 +92,13 @@ class ReducedSpaceNewtonCG:
         self.reason = 0
         self.final_grad_norm = 0
         
-    def solve(self, a0, InexactCG=0, GN=False):
+    def solve(self, a0, InexactCG=0, GN=False, bounds_xPARAM=None):
         """
         Solve the constrained optimization problem with initial guess a0.
         InexactCG: use Inexact CG method to solve Newton system; tol_cg = sqrt(||grad||)
         GN: use GN Hessian
+        bounds_xPARAM: set bounds for parameter a in line search to avoid
+        potential instabilities
         Return the solution [u,a,p] 
         """
         rel_tol = self.parameters["rel_tolerance"]
@@ -177,6 +179,12 @@ class ReducedSpaceNewtonCG:
                 a.zero()
                 a.axpy(1., a0)
                 a.axpy(alpha, ahat)
+                if bounds_xPARAM is not None:
+                    if a.min() < bounds_xPARAM[0] or a.max() > bounds_xPARAM[1]:
+                        u.zero()
+                        n_backtrack += 1
+                        alpha *= 0.5
+                        continue
                 self.model.solveFwd(u, [u, a, p], innerTol)
                 
                 cost_new, reg_new, misfit_new = self.model.cost([u,a,p])
