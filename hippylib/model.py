@@ -33,6 +33,7 @@ class Model:
         - problem: the description of the forward/adjoint problem and all the sensitivities
         - prior: the prior component of the cost functional
         - misfit: the misfit componenent of the cost functional
+        - atrue: target medium (Vector)
         """
         self.problem = problem
         self.Prior = prior
