@@ -405,15 +405,16 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
+    #Prior = LaplacianPrior(Vh[PARAMETER], 1e-7, 1e-8)
     #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-3, 'print':not rank})
 
     model = Poisson(mesh, Vh, Prior, 1.0)
 #    PltFen = PlotFenics()
 #    PltFen.set_varname('truemedparm')
 #    PltFen.plot_vtk(model.at)
         
-    if rank == 0:
+    if rank == 0 and Prior.isTV():
         print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
         Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
 
@@ -435,7 +436,7 @@ if __name__ == "__main__":
     
     InexactCG = 1
     GN = True
-    x = solver.solve(a0.vector(), InexactCG, GN)
+    x = solver.solve(a0.vector(), InexactCG, GN, [-25., 25.])
 
     minaf = MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
     maxaf = MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
