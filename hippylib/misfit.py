@@ -14,6 +14,7 @@
 import dolfin as dl
 from pointwiseObservation import assemblePointwiseObservation
 from variables import STATE, PARAMETER
+from linalg import Transpose
 
 class Misfit:
     """Abstract class to model the misfit componenet of the cost functional.
@@ -110,9 +111,9 @@ class ContinuousStateObservation(Misfit):
                 
         if bc is not None:
             Wt = Transpose(self.W)
-            self.bc.zero(Wt)
+            bc.zero(Wt)
             self.W = Transpose(Wt)
-            self.bc.zero(self.W)
+            bc.zero(self.W)
         self.d = dl.Vector()
         self.W.init_vector(self.d,1)
         self.noise_variance = 0

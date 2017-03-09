@@ -289,7 +289,7 @@ def modelVerify(model,a0, innerTol, is_quadratic = False, verbose = True, eps = 
         model.solveAdj(x_plus[ADJOINT], x_plus,innerTol)
         
         dc = model.cost(x_plus)[0] - cx[0]
-        err_grad[i] = abs(dc/my_eps - grad_xh)
+        err_grad[i] = abs(dc/my_eps - grad_xh)/abs(grad_xh)
         
         #Check the Hessian
         grad_xplus = model.generate_vector(PARAMETER)

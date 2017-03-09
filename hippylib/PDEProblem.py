@@ -146,7 +146,7 @@ class PDEVariationalProblem(PDEProblem):
         dp = dl.TrialFunction(self.Vh[ADJOINT])
         varf = self.varf_handler(u,a,p)
         adj_form = dl.derivative( dl.derivative(varf, u, du), p, dp )
-        Aadj, dummy = dl.assemble_system(adj_form, dl.Constant(0.)*du*dl.dx, self.bc0)
+        Aadj, dummy = dl.assemble_system(adj_form, dl.inner(u,du)*dl.dx, self.bc0)
         self.solver.set_operator(Aadj)
         self.solver.solve(adj, adj_rhs)
      

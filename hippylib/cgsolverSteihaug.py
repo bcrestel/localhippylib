@@ -142,6 +142,10 @@ class CGSolverSteihaug:
         if den <= 0.0:
             self.converged = True
             self.reasonid = 2
+            x.axpy(1., self.d)
+            self.r.axpy(-1., self.z)
+            self.B.solve(self.z, self.r)
+            nom = self.r.inner(self.z)
             self.final_norm = math.sqrt(nom)
             if(self.parameters["print_level"] >= 0):
                 print self.reason[self.reasonid]

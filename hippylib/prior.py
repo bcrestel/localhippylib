@@ -111,11 +111,28 @@ class _Prior:
         self.init_vector(Rd,0)
         self.R.mult(d,Rd)
         return .5*Rd.inner(d)
+
+    def costvect(self, a):
+        return self.cost(a)
     
     def grad(self,a, out):
         d = a.copy()
         d.axpy(-1., self.mean)
         self.R.mult(d,out)
+
+    def gradvect(self, a):
+        d = a.copy()
+        d.axpy(-1., self.mean)
+        return self.R * d
+
+    def assemble_hessian(self, a):
+        pass
+
+    def hessian(self, a):
+        return self.R * a
+
+    def getprecond(self):
+        return self.Rsolver
 
     def isPD(self):
         return False
