@@ -20,21 +20,21 @@ import sys
 sys.path.append( "../../" )
 from hippylib import *
 
-from fenicstools.prior import LaplacianPrior
+#from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.sourceterms import PointSources
 
 def u_boundary(x, on_boundary):
-    return on_boundary
+    return on_boundary and not x[1] > 1.0 - 1e-16
 
             
 if __name__ == "__main__":
     dl.set_log_active(False)
     sep = "\n"+"#"*80+"\n"
     ndim = 2
-    nx = 40
-    ny = 40
+    nx = 50
+    ny = 50
     
     mesh = dl.UnitSquareMesh(nx, ny)
 
@@ -54,20 +54,23 @@ if __name__ == "__main__":
         print "Number of dofs: STATE={0}, PARAMETER={1}, ADJOINT={2}".format(*ndofs)
     
     # Target medium parameters
-    freq = 1.5
+    freq = 5.0
     w = 2*np.pi*freq
     wsq = dl.Constant(w*w)
     c = 3.0
     k = w/c
     l = 2*np.pi/k
     print 'f={}, w={}, c={},\nk={}, l={}, h_max={}'.format(freq, w, c, k, l, 2*np.pi/(10.*k))
-    atrue = dl.interpolate(dl.Expression('log(m)', m=c*c), Vh[PARAMETER])
-    PltFen = PlotFenics()
-    PltFen.set_varname('atrue')
-    PltFen.plot_vtk(atrue)
+    atrue = dl.interpolate(dl.Expression('log(m)', m=1./(c*c)), Vh[PARAMETER])
+    dl.plot(atrue, title="atrue")
         
     # Define PDE
-    f = dl.Constant(1.0)
+    #f = dl.Expression("10*(pow( pow(x[0]-0.5,2) + pow(x[1]-0.5,2), 0.5 ) < 0.1)")
+    f = dl.Expression("sin(x[0]*pi)*sin(x[1]*pi)")
+    #test = dl.TestFunction(Vh[STATE])
+    #f = dl.assemble(dl.Constant(0.0)*test*dl.dx)
+    #ptsrc = dl.PointSource(Vh[STATE], dl.Point(2, np.array([0.5, 0.5])))
+    #ptsrc.apply(f)
     u_bdr = dl.Constant(0.0)
     u_bdr0 = dl.Constant(0.0)
     bc = dl.DirichletBC(Vh[STATE], u_bdr, u_boundary)
@@ -75,25 +78,29 @@ if __name__ == "__main__":
     
     def pde_varf(u,a,p):
         return dl.inner(dl.nabla_grad(u), dl.nabla_grad(p))*dl.dx - dl.inner(wsq*dl.exp(a)*u, p)*dl.dx - f*p*dl.dx
-    
+
     # Helmholtz operator is indefinite -> change solver (LU or gmres)
     pde = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
-    pde.solver = dl.PETScKrylovSolver("cg", amg_method())
-    pde.solver.parameters["relative_tolerance"] = 1e-15
-    pde.solver.parameters["absolute_tolerance"] = 1e-20
-    pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
+    pde.solver = dl.PETScLUSolver("petsc")
+    pde.solver.parameters['symmetric'] = True
+#    pde.solver = dl.PETScKrylovSolver("cg", amg_method())
+#    pde.solver.parameters["relative_tolerance"] = 1e-15
+#    pde.solver.parameters["absolute_tolerance"] = 1e-20
+#    pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
+    pde.solver_fwd_inc = dl.PETScLUSolver("petsc")
     pde.solver_fwd_inc.parameters = pde.solver.parameters
-    pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
+#    pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
+    pde.solver_adj_inc = dl.PETScLUSolver("petsc")
     pde.solver_adj_inc.parameters = pde.solver.parameters
- 
+
     # Define misfit functions
-    nbobsperdir=10
+    nbobsperdir=20
     targets = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
     misfit = PointwiseStateObservation(Vh[STATE], targets)
 
     # Generate synthetic observations
-    rel_noise_level = 0.02
+    rel_noise_level = 0.1
     utrue = pde.generate_state()
     x = [utrue, atrue.vector(), None]
     minatrue = dl.MPI.min(mesh.mpi_comm(), np.amin(atrue.vector().array()))
@@ -102,12 +109,15 @@ if __name__ == "__main__":
         print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
     pde.solveFwd(x[STATE], x, 1e-9)
     noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
+    dl.plot(vector2Function(x[STATE], Vh[STATE]), title="u")
     Random.normal(x[STATE], noise_level, False)
+    dl.plot(vector2Function(x[STATE], Vh[STATE]), title="u_noisy")
+    dl.interactive()
     misfit.B.mult(x[STATE], misfit.d)
     misfit.noise_variance = 1.0
     
     # Regularization
-    prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-2, 'beta':1e-2})
+    prior = LaplacianPrior(Vh[PARAMETER], 1e-2, 1e-2, atrue.vector())
     #prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-7, 'eps':1e-3})
     
     model = Model(pde, prior, misfit, atrue.vector())
@@ -156,5 +166,4 @@ if __name__ == "__main__":
         print "Final cost: ", solver.final_cost
 
     # Plot reconstruction
-    PltFen.set_varname('solution')
-    PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))
+    dl.plot(vector2Function(x[PARAMETER], Vh[PARAMETER]), "asol")
