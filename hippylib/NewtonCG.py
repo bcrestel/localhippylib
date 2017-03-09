@@ -129,13 +129,13 @@ class ReducedSpaceNewtonCG:
         
         cost_old, reg_old, misfit_old = self.model.cost([u,a0,p])
 
+        if self.mm:
+            medmisf, perc = self.model.mediummisfit(a0)
+        else:
+            medmisf, perc = -99, -99
         if(print_level >= 0):
             print "\n{0:3} {1:3} {2:15} {3:15} {4:15} {5:15} {6:14} {7:14} {8:14} {9:14}".format(
             "It", "cg_it", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
-            if self.mm:
-                medmisf, perc = self.model.mediummisfit(a0)
-            else:
-                medmisf, perc = -99, -99
             print "{0:3d} {1:3} {2:15e} {3:15e} {4:15e} {5:15} {6:14} {7:14} {8:14} {9:14e} ({10:3.1f}%)".format(
             self.it, "", cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
         
@@ -190,7 +190,9 @@ class ReducedSpaceNewtonCG:
                 a.axpy(1., a0)
                 a.axpy(alpha, ahat)
                 if bounds_xPARAM is not None:
-                    if a.min() < bounds_xPARAM[0] or a.max() > bounds_xPARAM[1]:
+                    amin = a.min()
+                    amax = a.max()
+                    if amin < bounds_xPARAM[0] or amax > bounds_xPARAM[1]:
                         u.zero()
                         n_backtrack += 1
                         alpha *= 0.5
@@ -213,11 +215,11 @@ class ReducedSpaceNewtonCG:
             if self.model.Prior.isPD():
                 self.model.Prior.update_w(ahat, alpha)
 
+            if self.mm:
+                medmisf, perc = self.model.mediummisfit(a)
+            else:
+                medmisf, perc = -99, -99
             if print_level >= 0:
-                if self.mm:
-                    medmisf, perc = self.model.mediummisfit(a)
-                else:
-                    medmisf, perc = -99, -99
                 print "{0:3d} {1:3d} {2:15e} {3:15e} {4:15e} {5:15e} {6:14e} {7:14e} {8:14e} {9:14e} ({10:3.1f}%)".format(
                 self.it, HessApply.ncalls, cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
                 

@@ -204,7 +204,9 @@ class CGSolverSteihaug:
             
             nom = betanom
 
-        print 'Nb iter for precond in CGSolverSteihaug={} (avg={})'.format(n_PCG, float(n_PCG)/self.iter)
+        if(self.parameters["print_level"] >= -1):
+            print 'Nb iter for precond in CGSolverSteihaug={} (avg={})'.format(\
+            n_PCG, float(n_PCG)/self.iter)
 
 
 

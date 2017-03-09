@@ -134,6 +134,8 @@ class _Prior:
     def getprecond(self):
         return self.Rsolver
 
+    def isTV(self):
+        return False
     def isPD(self):
         return False
 
