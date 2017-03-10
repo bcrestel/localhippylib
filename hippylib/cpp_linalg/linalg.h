@@ -35,6 +35,10 @@ public:
 
 	void SetToOwnedGid(GenericVector & v, std::size_t gid, double val);
 	double GetFromOwnedGid(const GenericVector & v, std::size_t gid);
+
+    // out[i] = max(in[i], radius)
+    // output = nb of entries where in[i] > radius
+    int pointwiseMaxCount(GenericVector & out, const GenericVector & in, const double radius);
 };
 
 class MultiVector

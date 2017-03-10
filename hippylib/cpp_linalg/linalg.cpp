@@ -16,8 +16,10 @@
 #include <dolfin/la/PETScVector.h>
 #include <dolfin/la/GenericLinearSolver.h>
 #include <dolfin/common/Timer.h>
+#include <dolfin/common/MPI.h>
 
 #include <cassert>
+#include <vector>
 
 namespace dolfin
 {
@@ -107,6 +109,32 @@ double cpp_linalg::GetFromOwnedGid(const GenericVector & v, std::size_t gid)
 	double val;
 	la_index index = static_cast<la_index>(gid);
 	v.get(&val, 1, &index);
+}
+
+int cpp_linalg::pointwiseMaxCount(GenericVector & out, const GenericVector & in, const double radius)
+{
+    assert(out.local_size() == in.local_size());
+    int localcount = 0;
+    double maxvalue, value_in;
+    std::vector<double> values_in(in.local_size());
+    std::vector<double> values_out(out.local_size());
+    in.get_local(values_in);
+    for (int ii = 0; ii < in.local_size(); ii++)
+    {
+        value_in = values_in[ii];
+        if (value_in > radius){
+            maxvalue = value_in;
+            localcount += 1;
+        }
+        else{
+            maxvalue = radius;
+        }
+        values_out[ii] = maxvalue;
+    }
+    out.set_local(values_out);
+    out.apply("insert");
+    int globalcount = MPI::sum(in.mpi_comm(), localcount);
+    return globalcount;
 }
 
 MultiVector::MultiVector()

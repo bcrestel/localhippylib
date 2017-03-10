@@ -254,6 +254,10 @@ def SetToOwnedGid(v, gid, val):
 def GetFromOwnedGid(v, gid):
     s = cpp_module.cpp_linalg()
     return s.GetFromOwnedGid(v, gid)
+
+def pointwiseMaxCount(out, inp, radius):
+    s = cpp_module.cpp_linalg()
+    return s.pointwiseMaxCount(out, inp, radius)
     
 
 def to_dense(A):
