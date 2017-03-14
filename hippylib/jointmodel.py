@@ -32,14 +32,19 @@ class JointModel:
         self.M[ADJOINT] = dl.assemble(dl.inner(test, trial)*dl.dx)
         test, trial = dl.TestFunction(self.Vh[PARAMETER]), dl.TrialFunction(self.Vh[PARAMETER])
         self.M[PARAMETER] = dl.assemble(dl.inner(test, trial)*dl.dx)
-        self.Msolver = dl.PETScLUSolver("petsc")
-        self.Msolver.parameters['reuse_factorization'] = True
-        self.Msolver.parameters['symmetric'] = True
+        self.Msolver = dl.PETScKrylovSolver('cg', 'jacobi')
+        self.Msolver.parameters["maximum_iterations"] = 2000
+        self.Msolver.parameters["relative_tolerance"] = 1e-24
+        self.Msolver.parameters["absolute_tolerance"] = 1e-24
+        self.Msolver.parameters["error_on_nonconvergence"] = True 
+        self.Msolver.parameters["nonzero_initial_guess"] = False 
         self.Msolver.set_operator(self.M[PARAMETER])
 
         self.Prior = jointregularization
 
         self.alphareg = alphareg
+
+        self.parameters = {'print':False}
 
 
     def splitvector(self, x, component="ALL"):
@@ -160,7 +165,8 @@ class JointModel:
 
         g_n1 = self.model1.evalGradientParameter(x1, mg1)
         g_n2 = self.model2.evalGradientParameter(x2, mg2)
-        print '||g1||={}, ||g2||={}'.format(g_n1, g_n2)
+        if self.parameters['print']:
+            print '||g1||={}, ||g2||={}'.format(g_n1, g_n2)
 
         mg.zero()
         mg.axpy(1.0, self.assignvector(mg1, mg2, PARAMETER))

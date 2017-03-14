@@ -532,9 +532,12 @@ class ZeroPrior(_Prior):
     def __init__(self, Vh):
         test, trial = dl.TestFunction(Vh), dl.TrialFunction(Vh)
         self.M = dl.assemble(dl.inner(test,trial)*dl.dx)
-        self.Msolver = dl.PETScLUSolver("petsc")
-        self.Msolver.parameters['reuse_factorization'] = True
-        self.Msolver.parameters['symmetric'] = True
+        self.Msolver = dl.PETScKrylovSolver('cg', 'jacobi')
+        self.Msolver.parameters["maximum_iterations"] = 2000
+        self.Msolver.parameters["relative_tolerance"] = 1e-24
+        self.Msolver.parameters["absolute_tolerance"] = 1e-24
+        self.Msolver.parameters["error_on_nonconvergence"] = True 
+        self.Msolver.parameters["nonzero_initial_guess"] = False 
         self.Msolver.set_operator(self.M)
 
         self._zerograd = dl.Vector()
