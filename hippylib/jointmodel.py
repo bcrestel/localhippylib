@@ -3,13 +3,18 @@ import dolfin as dl
 
 from hippylib.linalg import vector2Function
 from hippylib.variables import STATE, ADJOINT, PARAMETER
+try:
+    from fenicstools.linalg.splitandassign import SplitAndAssign
+except:
+    pass
 
 
 class JointModel:
     """ This class builds a model for joint inversion in the case of two
     independent physics connected only via the regularization term (or prior) """
 
-    def __init__(self, model1, model2, jointregularization, alphareg=1.0):
+    def __init__(self, model1, model2, jointregularization, \
+        alphareg=1.0, parameters=[]):
         """ Provides models model1 and model2 with ZeroPrior as their
         regularization, and provide jointregularization. """
 
@@ -44,7 +49,25 @@ class JointModel:
 
         self.alphareg = alphareg
 
-        self.parameters = {'print':False}
+        self.parameters = {'print':False, 'splitassign':True}
+        self.parameters.update(parameters)
+
+        if self.parameters['splitassign']:
+            try:
+                self.splitassign = [None, None, None]
+                for cc in [STATE, ADJOINT, PARAMETER]:
+                    self.splitassign[cc] = SplitAndAssign( \
+                    self.model1.problem.Vh[cc], self.model2.problem.Vh[cc], \
+                    self.M[cc].mpi_comm())
+                if self.parameters['print']:
+                    print 'Using SplitAndAssign'
+            except:
+                self.parameters['splitassign'] = False
+                if self.parameters['print']:
+                    print 'NOT using SplitAndAssign'
+        else:
+            if self.parameters['print']:
+                print 'NOT using SplitAndAssign'
 
 
     def splitvector(self, x, component="ALL"):
@@ -57,9 +80,12 @@ class JointModel:
                 v1[cc], v2[cc] = self.splitvector(x[cc], cc)
             return v1, v2
         else:
-            fun = vector2Function(x, self.Vh[component])
-            fun1, fun2 = fun.split(deepcopy=True)
-            return fun1.vector(), fun2.vector()
+            if self.parameters['splitassign'] == True:
+                return self.splitassign[component].split(x)
+            else:
+                fun = vector2Function(x, self.Vh[component])
+                fun1, fun2 = fun.split(deepcopy=True)
+                return fun1.vector(), fun2.vector()
 
 
     def assignvector(self, x1, x2, component="ALL"):
@@ -70,12 +96,15 @@ class JointModel:
                 x[cc] = self.assignvector(x1[cc], x2[cc], cc)
             return x
         else:
-            fun1 = vector2Function(x1, self.model1.problem.Vh[component])
-            fun2 = vector2Function(x2, self.model2.problem.Vh[component])
-            fun = dl.Function(self.Vh[component])
-            dl.assign(fun.sub(0), fun1)
-            dl.assign(fun.sub(1), fun2)
-            return fun.vector()
+            if self.parameters['splitassign'] == True:
+                return self.splitassign[component].assign(x1, x2)
+            else:
+                fun1 = vector2Function(x1, self.model1.problem.Vh[component])
+                fun2 = vector2Function(x2, self.model2.problem.Vh[component])
+                fun = dl.Function(self.Vh[component])
+                dl.assign(fun.sub(0), fun1)
+                dl.assign(fun.sub(1), fun2)
+                return fun.vector()
 
 
     def generate_vector(self, component="ALL"):
@@ -161,7 +190,11 @@ class JointModel:
         Returns the norm of the gradient in the correct inner product g_norm = sqrt(g,g)
         """ 
         x1, x2 = self.splitvector(x, "ALL")
-        mg1, mg2 = self.splitvector(mg, PARAMETER)
+        if self.parameters['splitassign']:
+            mg1 = self.model1.generate_vector(PARAMETER)
+            mg2 = self.model2.generate_vector(PARAMETER)
+        else:
+            mg1, mg2 = self.splitvector(mg, PARAMETER)
 
         g_n1 = self.model1.evalGradientParameter(x1, mg1)
         g_n2 = self.model2.evalGradientParameter(x2, mg2)
