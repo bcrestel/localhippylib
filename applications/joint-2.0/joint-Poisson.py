@@ -11,6 +11,7 @@ from fenicstools.jointregularization import \
 SumRegularization, Tikhonovab, VTV, V_TV, V_TVPD
 from fenicstools.plotfenics import PlotFenics
 
+PLOT = False
 
 def u_boundary(x, on_boundary):
     return on_boundary
@@ -42,11 +43,12 @@ if __name__ == "__main__":
     a2true = dl.interpolate(dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), Vh[PARAMETER])
-    PltFen = PlotFenics()
-    PltFen.set_varname('jointa1')
-    PltFen.plot_vtk(a1true)
-    PltFen.set_varname('jointa2')
-    PltFen.plot_vtk(a2true)
+    if PLOT:
+        PltFen = PlotFenics()
+        PltFen.set_varname('jointa1')
+        PltFen.plot_vtk(a1true)
+        PltFen.set_varname('jointa2')
+        PltFen.plot_vtk(a2true)
 
     # Define PDE
     f = dl.Constant(1.0)
@@ -120,14 +122,16 @@ if __name__ == "__main__":
     #parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
     #jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #jointregul = VTV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-2})
-    jointregul = V_TV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3})
-    #jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3, 'rescaledradiusdual':1.0})
+    #jointregul = V_TV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3})
+    jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3, \
+    'rescaledradiusdual':1.0, 'print':not rank})
     #########################################
     ##### Modify this #####
-    plot_suffix = 'VTV-e1e-3-k4e-7-noabstol-inexCG1'
+    plot_suffix = 'VTV-e1e-3-k4e-7'
     #######################
 
-    jointmodel = JointModel(model1, model2, jointregul)
+    jointmodel = JointModel(model1, model2, jointregul,\
+    parameters={'print':(not rank), 'splitassign':True})
 
     solver = ReducedSpaceNewtonCG(jointmodel)
     solver.parameters["rel_tolerance"] = 1e-12
@@ -168,7 +172,8 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    PltFen.set_varname('jointsolution1-' + plot_suffix)
-    PltFen.plot_vtk(vector2Function(x1[PARAMETER], Vh[PARAMETER]))
-    PltFen.set_varname('jointsolution2-' + plot_suffix)
-    PltFen.plot_vtk(vector2Function(x2[PARAMETER], Vh[PARAMETER]))
+    if PLOT:
+        PltFen.set_varname('jointsolution1-' + plot_suffix)
+        PltFen.plot_vtk(vector2Function(x1[PARAMETER], Vh[PARAMETER]))
+        PltFen.set_varname('jointsolution2-' + plot_suffix)
+        PltFen.plot_vtk(vector2Function(x2[PARAMETER], Vh[PARAMETER]))
