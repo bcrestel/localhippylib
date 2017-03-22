@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import dolfin as dl
@@ -8,8 +9,9 @@ from hippylib import *
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 from fenicstools.jointregularization import \
-SumRegularization, Tikhonovab, VTV, V_TV, V_TVPD
+SumRegularization, VTV, V_TV, V_TVPD
 from fenicstools.plotfenics import PlotFenics
+
 
 PLOT = False
 
@@ -44,7 +46,7 @@ if __name__ == "__main__":
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), Vh[PARAMETER])
     if PLOT:
-        PltFen = PlotFenics()
+        PltFen = PlotFenics(comm=mesh.mpi_comm())
         PltFen.set_varname('jointa1')
         PltFen.plot_vtk(a1true)
         PltFen.set_varname('jointa2')
@@ -81,6 +83,12 @@ if __name__ == "__main__":
     misfit1 = PointwiseStateObservation(Vh[STATE], targets1)
     misfit2 = PointwiseStateObservation(Vh[STATE], targets2)
 
+    #TODO: apply same noise in serial and parallell
+    # could save noise vector, along with corresponding coordinates to a file,
+    # then read noise in serial/parallel for each observation point
+    # 1. generate noise in serial for each obs points
+    # 2. save to file: x|y|noise1|noise2    
+    # 3. read file from each processor
     # Generate synthetic observations
     rel_noise_level = 0.02
     utrue1 = pde1.generate_state()
@@ -115,22 +123,29 @@ if __name__ == "__main__":
     #reg1 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
     #reg2 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':1e-8})
 
-    #reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 'rescaledradiusdual':1.0})
-    #reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 'rescaledradiusdual':1.0})
+    reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 
+    'rescaledradiusdual':1.0, 'print':(not rank)})
+    reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 
+    'rescaledradiusdual':1.0, 'print':(not rank)})
 
-    #jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=1e-6, coeff_vtv=0.0, \
-    #parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
+    jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), 
+    coeff_cg=0.0,
+    coeff_ncg=1e-4, parameters_ncg={'eps':1e-4},
+    coeff_vtv=0.0, parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0},
+    isprint=(not rank))
     #jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #jointregul = VTV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-2})
     #jointregul = V_TV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3})
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3, \
-    'rescaledradiusdual':1.0, 'print':not rank})
+    #jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3, \
+    #'rescaledradiusdual':1.0, 'print':not rank})
     #########################################
-    ##### Modify this #####
-    plot_suffix = 'VTV-e1e-3-k4e-7'
+    if jointregul.coeff_cg > 0.0:
+        plot_suffix = 'TVPD+' + str(jointregul.coeff_cg) + 'CG'
+    elif jointregul.coeff_ncg > 0.0:
+        plot_suffix = 'TVPD+' + str(jointregul.coeff_ncg) + 'NCG'
     #######################
 
-    jointmodel = JointModel(model1, model2, jointregul,\
+    jointmodel = JointModel(model1, model2, jointregul,
     parameters={'print':(not rank), 'splitassign':True})
 
     solver = ReducedSpaceNewtonCG(jointmodel)
@@ -149,7 +164,7 @@ if __name__ == "__main__":
         solver.parameters["print_level"] = -1
     
     a0 = dl.interpolate(dl.Expression(("0.0","0.0")),jointmodel.Vh[PARAMETER])
-    x = solver.solve(a0.vector(), InexactCG=1, GN=True, bounds_xPARAM=[-25., 25.])
+    x = solver.solve(a0.vector(), InexactCG=0, GN=True, bounds_xPARAM=[-20., 25.])
 
     x1, x2 = jointmodel.splitvector(x)
     minaf1 = dl.MPI.min(mesh.mpi_comm(), np.amin(x1[PARAMETER].array()))
