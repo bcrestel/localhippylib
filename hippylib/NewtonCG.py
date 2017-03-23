@@ -11,10 +11,16 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
+import sys
+import dolfin as dl
+
 import math
 from variables import PARAMETER
 from cgsolverSteihaug import CGSolverSteihaug
 from reducedHessian import ReducedHessian
+
+from fenicstools.plotfenics import PlotFenics
+from fenicstools.linalg.miscroutines import compute_eigfenics
 
 class ReducedSpaceNewtonCG:
     
@@ -110,6 +116,7 @@ class ReducedSpaceNewtonCG:
         print_level = self.parameters["print_level"]
         GN_iter = self.parameters["GN_iter"]
         cg_coarse_tolerance = self.parameters["cg_coarse_tolerance"]
+        mpirank = dl.MPI.rank(a0.mpi_comm())
 
         try:
             self.model.mediummisfit(a0)
@@ -175,7 +182,34 @@ class ReducedSpaceNewtonCG:
             solver.parameters["zero_initial_guess"] = True
             solver.parameters["print_level"] = print_level-1
             
-            solver.solve(ahat, -mg)
+            try:
+                solver.solve(ahat, -mg)
+                if mpirank == 0:
+                    print 'it={}, solver.solve(ahat, -mg) performed successfully'.format(self.it)
+            except RuntimeError as err:
+                print 'rank={}: Houston, we ve got a problem!'.format(mpirank)
+
+                if mpirank == 0:    print 'plot a1, a2, mg1, mg2'
+                a0fun = vector2Function(a0, self.model.Vh[PARAMETER])
+                a1, a2 = a0fun.split(deepcopy=True)
+                mgfun = vector2Function(mg, self.model.Vh[PARAMETER])
+                mg1, mg2 = mgfun.split(deepcopy=True)
+                plt = PlotFenics('Output-failure-NewtonCG')
+                plt.set_varname('a1')
+                plt.plot_vtk(a1)
+                plt.set_varname('a2')
+                plt.plot_vtk(a2)
+                plt.set_varname('mg1')
+                plt.plot_vtk(mg1)
+                plt.set_varname('mg2')
+                plt.plot_vtk(mg2)
+
+                if mpirank == 0:    print 'compute and print eigenvalues preconditioner'
+                compute_eigfenics(self.model.Prior.precond,
+                'Output-failure-NewtonCG/eigvaluesPrecond.txt')
+
+                print str(err)
+                sys.exit(1)
             self.total_cg_iter += HessApply.ncalls
             
             alpha = 1.0
@@ -197,8 +231,31 @@ class ReducedSpaceNewtonCG:
                         n_backtrack += 1
                         alpha *= 0.5
                         continue
-                self.model.solveFwd(u, [u, a, p], innerTol)
-                
+                try:
+                    self.model.solveFwd(u, [u, a, p], innerTol)
+                except RuntimeError as err:
+                    print 'rank={}: Houston, we ve got a problem!'.format(mpirank)
+
+                    if mpirank == 0:    print 'plot a1, a2'
+                    afun = vector2Function(a, self.model.Vh[PARAMETER])
+                    a1, a2 = afun.split(deepcopy=True)
+    
+                    a1min = a1.vector().min()
+                    a1max = a1.vector().max()
+                    a2min = a2.vector().min()
+                    a2max = a2.vector().max()
+                    if mpirank == 0:
+                        print 'min(a1)={}, max(a1)={}, min(a2)={}, max(a2)={}'.format(\
+                        a1min, a1max, a2min, a2max)
+                    plt = PlotFenics('Output-failure-NewtonCG')
+                    plt.set_varname('a1')
+                    plt.plot_vtk(a1)
+                    plt.set_varname('a2')
+                    plt.plot_vtk(a2)
+
+                    print str(err)
+                    sys.exit(1)
+
                 cost_new, reg_new, misfit_new = self.model.cost([u,a,p])
                 
                 # Check if armijo conditions are satisfied
