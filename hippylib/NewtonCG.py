@@ -18,6 +18,7 @@ import math
 from variables import PARAMETER
 from cgsolverSteihaug import CGSolverSteihaug
 from reducedHessian import ReducedHessian
+from linalg import vector2Function
 
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.linalg.miscroutines import compute_eigfenics
@@ -184,12 +185,10 @@ class ReducedSpaceNewtonCG:
             
             try:
                 solver.solve(ahat, -mg)
-                if mpirank == 0:
-                    print 'it={}, solver.solve(ahat, -mg) performed successfully'.format(self.it)
             except RuntimeError as err:
-                print 'rank={}: Houston, we ve got a problem!'.format(mpirank)
-
-                if mpirank == 0:    print 'plot a1, a2, mg1, mg2'
+                if mpirank == 0:    
+                    print 'Could not solve Newton system'
+                    print 'plot a1, a2, mg1, mg2'
                 a0fun = vector2Function(a0, self.model.Vh[PARAMETER])
                 a1, a2 = a0fun.split(deepcopy=True)
                 mgfun = vector2Function(mg, self.model.Vh[PARAMETER])
@@ -234,9 +233,9 @@ class ReducedSpaceNewtonCG:
                 try:
                     self.model.solveFwd(u, [u, a, p], innerTol)
                 except RuntimeError as err:
-                    print 'rank={}: Houston, we ve got a problem!'.format(mpirank)
-
-                    if mpirank == 0:    print 'plot a1, a2'
+                    if mpirank == 0:    
+                        print 'Forward solve failed during line search'
+                        print 'plot a1, a2'
                     afun = vector2Function(a, self.model.Vh[PARAMETER])
                     a1, a2 = afun.split(deepcopy=True)
     
