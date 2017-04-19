@@ -186,6 +186,7 @@ class ReducedSpaceNewtonCG:
             try:
                 solver.solve(ahat, -mg)
             except RuntimeError as err:
+                print str(err)
                 if mpirank == 0:    
                     print 'Could not solve Newton system'
                     print 'plot a1, a2, mg1, mg2'
@@ -207,7 +208,6 @@ class ReducedSpaceNewtonCG:
                 compute_eigfenics(self.model.Prior.precond,
                 'Output-failure-NewtonCG/eigvaluesPrecond.txt')
 
-                print str(err)
                 sys.exit(1)
             self.total_cg_iter += HessApply.ncalls
             
