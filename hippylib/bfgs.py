@@ -11,6 +11,7 @@ from fenicstools.linalg.miscroutines import compute_eigfenics
 
 
 #TODO: convert into L-BFGS
+#TODO: create mode to compute BFGS approx to data misfit Hessian only
 class BFGS:
     """
     Implement BFGS technique with backtracking inexact line search and damped updating
