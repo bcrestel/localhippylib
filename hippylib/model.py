@@ -136,7 +136,6 @@ class Model:
             mg.axpy(1., self.Prior.gradvect(x[PARAMETER]))
         
         self.Prior.Msolver.solve(tmp, mg)
-        #self.Prior.Rsolver.solve(tmp, mg)
         return math.sqrt(mg.inner(tmp))
         
     
