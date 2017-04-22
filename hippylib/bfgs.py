@@ -56,11 +56,9 @@ class BFGS:
         max_iter              --> maximum number of iterations
         inner_rel_tolerance   --> relative tolerance used for the solution of the
                                   forward, adjoint, and incremental (fwd,adj) problems
-        c1_armijo              --> Armijo constant for sufficient reduction
-        c2_armijo              --> Armijo constant for curvature condition
+        c_armijo              --> Armijo constant for sufficient reduction
         max_backtracking_iter --> Maximum number of backtracking iterations
         print_level           --> Print info on screen
-        GN_iter               --> Number of Gauss Newton iterations before switching to Newton
         """
         self.model = model
         
@@ -70,11 +68,9 @@ class BFGS:
         self.parameters["gda_tolerance"]         = 1e-18
         self.parameters["max_iter"]              = 20
         self.parameters["inner_rel_tolerance"]   = 1e-9
-        self.parameters["c1_armijo"]             = 1e-4
-        self.parameters["c2_armijo"]             = 0.9
+        self.parameters["c_armijo"]              = 1e-4
         self.parameters["max_backtracking_iter"] = 10
         self.parameters["print_level"]           = 0
-        self.parameters["GN_iter"]               = 5
         self.parameters["BFGS_damping"]          = 0.2
         
         self.it = 0
@@ -127,11 +123,9 @@ class BFGS:
         abs_tol = self.parameters["abs_tolerance"]
         max_iter = self.parameters["max_iter"]
         innerTol = self.parameters["inner_rel_tolerance"]
-        c1_armijo = self.parameters["c1_armijo"]
-        c2_armijo = self.parameters["c2_armijo"]
+        c_armijo = self.parameters["c_armijo"]
         max_backtracking_iter = self.parameters["max_backtracking_iter"]
         print_level = self.parameters["print_level"]
-        GN_iter = self.parameters["GN_iter"]
         damp = self.parameters["BFGS_damping"]
         mpirank = dl.MPI.rank(a0.mpi_comm())
 
@@ -159,18 +153,20 @@ class BFGS:
         else:
             medmisf, perc = -99, -99
         if(print_level >= 0):
-            print "\n{0:3} {1:3} {2:15} {3:15} {4:15} {5:15} {6:14} {7:14} {8:14} {9:14}".format(
-            "It", "cg_it", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
-            print "{0:3d} {1:3} {2:15e} {3:15e} {4:15e} {5:15} {6:14} {7:14} {8:14} {9:14e} ({10:3.1f}%)".format(
-            self.it, "", cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
+            print "\n{:3} {:15} {:15} {:15} {:15} {:14} {:14} {:14} {:14}".format(
+            "It", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "theta", "medmisf")
+            print "{:3d} {:15e} {:15e} {:15e} {:15} {:14} {:14} {:14} {:14e} ({:3.1f}%)".format(
+            self.it, cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
         
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
             
             self.model.setPointForHessianEvaluations([u,a0,p])
+
             mg_old = mg.copy()
             gradnorm = self.model.evalGradientParameter([u,a0,p], mg)
             # Update BFGS with damped update
+            theta = 1.0 # default value
             if self.it > 0:
                 s = ahat * alpha
                 y = mg - mg_old
@@ -187,6 +183,7 @@ class BFGS:
                 self.S.append(s.copy())
                 self.Y.append(y.copy())
                 self.R.append(rho)
+                # re-scale H0 based on first update
                 if self.it == 1:
                     self.d0 = sy/y.inner(y)
             
@@ -205,13 +202,11 @@ class BFGS:
             # compute search direction with BFGS:
             self.apply_Hk(-mg, ahat)
             
+            # backtracking line-search
             alpha = 1.0
             descent = 0
             n_backtrack = 0
-            
             mg_ahat = mg.inner(ahat)
-            
-            # backtracking line-search
             while descent == 0 and n_backtrack < max_backtracking_iter:
                 # update a and u
                 a.zero()
@@ -233,7 +228,6 @@ class BFGS:
                         print 'plot a1, a2'
                     afun = vector2Function(a, self.model.Vh[PARAMETER])
                     a1, a2 = afun.split(deepcopy=True)
-    
                     a1min = a1.vector().min()
                     a1max = a1.vector().max()
                     a2min = a2.vector().min()
@@ -246,7 +240,6 @@ class BFGS:
                     plt.plot_vtk(a1)
                     plt.set_varname('a2')
                     plt.plot_vtk(a2)
-
                     print str(err)
                     sys.exit(1)
 
@@ -267,8 +260,8 @@ class BFGS:
             else:
                 medmisf, perc = -99, -99
             if print_level >= 0:
-                print "{0:3d} {1:3d} {2:15e} {3:15e} {4:15e} {5:15e} {6:14e} {7:14e} {8:14e} {9:14e} ({10:3.1f}%)".format(
-                self.it, HessApply.ncalls, cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
+                print "{:3d} {:15e} {:15e} {:15e} {:15e} {:14e} {:14e} {:14e} {:14e} ({:3.1f}%)".format(
+                self.it, cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, theta, medmisf, perc)
                 
             if n_backtrack == max_backtracking_iter:
                 self.converged = False

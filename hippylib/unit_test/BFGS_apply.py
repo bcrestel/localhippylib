@@ -235,6 +235,9 @@ def test4():
             rho = 1./s.inner(y)
             bfgs.R.append(rho)
 
+            if ii == 0 and True:
+                bfgs.d0 = s.inner(y)/y.inner(y)
+
             if ii%100 == 0:
                 Hk = assemble_Hk(bfgs)
                 diffBHk = np.linalg.norm(Hk-invB)/norminvB
