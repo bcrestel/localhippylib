@@ -150,10 +150,104 @@ def test3():
 
 
 
-#TODO:def test4():
+def test4():
     """
-    Check how quickly BFGS Hessian converges toward Hessian of quadratic form
+    Check how quickly BFGS Hessian converges toward inverse Hessian of quadratic form
+    f(x) = f(x0) + g^T (x-x0) + 1/2 (x-x0)^T B (x-x0)
     """
+    def grad(x, x0, g, B):
+        return g + B.dot(x-x0)
+
+    mesh = dl.UnitSquareMesh(10, 10)
+    V = dl.FunctionSpace(mesh, 'CG', 1)
+    zp = ZeroPrior(V)
+    model = Model([], zp, [])
+
+    s, y, = dl.Vector(), dl.Vector()
+    zp.init_vector(s, 0)
+    zp.init_vector(y, 0)
+    dim = len(s.array())
+    print 'dim={}'.format(dim)
+
+    for ii in range(7):
+        print '\nTest {}'.format(ii)
+        if ii == 0:
+            # exact solution: Hk=I for all k provided H0=I
+            B = np.eye(dim)
+            invB = np.eye(dim)
+            print 'B=Id'
+        elif ii == 1:
+            q, r = np.linalg.qr(np.random.randn(dim*dim).reshape((dim,dim)))
+            l = np.linspace(1.,1.1,dim)
+            print 'min(eig)={}, max(eig)={}'.format(np.min(l), np.max(l))
+            B = q.dot(np.diag(l).dot(q.T))
+            invB = q.dot(np.diag(1./l).dot(q.T))
+        elif ii == 2:
+            q, r = np.linalg.qr(np.random.randn(dim*dim).reshape((dim,dim)))
+            l = np.linspace(1.,10.,dim)
+            print 'min(eig)={}, max(eig)={}'.format(np.min(l), np.max(l))
+            B = q.dot(np.diag(l).dot(q.T))
+            invB = q.dot(np.diag(1./l).dot(q.T))
+        elif ii == 3:
+            q, r = np.linalg.qr(np.random.randn(dim*dim).reshape((dim,dim)))
+            l = np.linspace(1.,1000.,dim)
+            print 'min(eig)={}, max(eig)={}'.format(np.min(l), np.max(l))
+            B = q.dot(np.diag(l).dot(q.T))
+            invB = q.dot(np.diag(1./l).dot(q.T))
+        elif ii == 4:
+            q, r = np.linalg.qr(np.random.randn(dim*dim).reshape((dim,dim)))
+            l = np.linspace(1e-1, 1.0, dim)
+            print 'min(eig)={}, max(eig)={}'.format(np.min(l), np.max(l))
+            B = q.dot(np.diag(l).dot(q.T))
+            invB = q.dot(np.diag(1./l).dot(q.T))
+        elif ii == 5:
+            q, r = np.linalg.qr(np.random.randn(dim*dim).reshape((dim,dim)))
+            l = np.linspace(1e-5, 1.0, dim)
+            print 'min(eig)={}, max(eig)={}'.format(np.min(l), np.max(l))
+            B = q.dot(np.diag(l).dot(q.T))
+            invB = q.dot(np.diag(1./l).dot(q.T))
+        else:
+            q, r = np.linalg.qr(np.random.randn(dim*dim).reshape((dim,dim)))
+            l = np.random.randn(dim)**2
+            print 'min(eig)={}, max(eig)={}'.format(np.min(l), np.max(l))
+            B = q.dot(np.diag(l).dot(q.T))
+            invB = q.dot(np.diag(1./l).dot(q.T))
+        print '|B*invB-I|={:.2e}, |invB*B-I|={:.2e}'.format(
+        np.linalg.norm(B.dot(invB)-np.eye(dim)),
+        np.linalg.norm(invB.dot(B)-np.eye(dim)))
+        g = np.random.randn(dim).reshape((dim,-1))
+        x0 = np.random.randn(dim).reshape((dim,-1))
+        x1 = np.random.randn(dim).reshape((dim,-1))
+        x2 = np.random.randn(dim).reshape((dim,-1))
+
+        bfgs = BFGS(model)
+
+        norminvB = np.linalg.norm(invB)
+        # uncomment next line for better convergence results
+        #bfgs.d0 = norminvB/np.linalg.norm(np.eye(dim))
+
+        for ii in range(1000):
+            s.set_local(x2-x1)
+            y.set_local(grad(x2,x0,g,B) - grad(x1,x0,g,B))
+            assert(s.inner(y) > 0.0)
+            bfgs.S.append(s.copy())
+            bfgs.Y.append(y.copy())
+            rho = 1./s.inner(y)
+            bfgs.R.append(rho)
+
+            if ii%100 == 0:
+                Hk = assemble_Hk(bfgs)
+                diffBHk = np.linalg.norm(Hk-invB)/norminvB
+                print 'ii={}; |Hk|={:.2e}, |inv(B)|={:.2e}, |Hk-inv(B)|/|inv(B)|={:.2e}'.format(
+                ii, np.linalg.norm(Hk), norminvB, diffBHk)
+
+            x1 = x2
+            x2 = x1 + np.random.randn(dim).reshape((dim,-1))
+
+        Hk = assemble_Hk(bfgs)
+        diffBHk = np.linalg.norm(Hk-invB)/norminvB
+        print 'ii={}; |Hk|={:.2e}, |inv(B)|={:.2e}, |Hk-inv(B)|/|inv(B)|={:.2e}'.format(
+        ii, np.linalg.norm(Hk), norminvB, diffBHk)
 
 
 if __name__ == "__main__":
@@ -169,3 +263,8 @@ if __name__ == "__main__":
         test2()
     elif case == 3:
         test3()
+    elif case == 4:
+        test4()
+    else:
+        print 'Test case {} not implemented yet'.format(case)
+        sys.exit(1)
