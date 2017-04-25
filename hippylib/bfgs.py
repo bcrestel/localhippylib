@@ -175,10 +175,11 @@ class BFGS:
         else:
             medmisf, perc = -99, -99
         if(print_level >= 0):
-            print "\n{:3} {:15} {:15} {:15} {:15} {:14} {:14} {:14} {:14}".format(
-            "It", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "theta", "medmisf")
-            print "{:3d} {:15e} {:15e} {:15e} {:15} {:14} {:14} {:14} {:14e} ({:3.1f}%)".format(
-            self.it, cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
+            print "\n {:3} {:5} {:15} {:15} {:15} {:15} {:14} {:14} {:14} {:14}".format(
+            "It", "nbPDE", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "theta", "medmisf")
+            print "{:3d} {:3d} {:15e} {:15e} {:15e} {:15} {:14} {:14} {:14} {:14e} ({:3.1f}%)".format(
+            self.it, self.model.problem.PDEcounts, cost_old, misfit_old, 
+            reg_old, "", "", "", "", medmisf, perc)
         
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
@@ -284,8 +285,9 @@ class BFGS:
             else:
                 medmisf, perc = -99, -99
             if print_level >= 0:
-                print "{:3d} {:15e} {:15e} {:15e} {:15e} {:14e} {:14e} {:14e} {:14e} ({:3.1f}%)".format(
-                self.it, cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, theta, medmisf, perc)
+                print "{:3d} {:3d} {:15e} {:15e} {:15e} {:15e} {:14e} {:14e} {:14e} {:14e} ({:3.1f}%)".format(
+                self.it, self.model.problem.PDEcounts, cost_new, misfit_new, 
+                reg_new, mg_ahat, gradnorm, alpha, theta, medmisf, perc)
                 
             if n_backtrack == max_backtracking_iter:
                 self.converged = False

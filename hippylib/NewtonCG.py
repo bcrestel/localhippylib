@@ -142,10 +142,10 @@ class ReducedSpaceNewtonCG:
         else:
             medmisf, perc = -99, -99
         if(print_level >= 0):
-            print "\n{0:3} {1:3} {2:15} {3:15} {4:15} {5:15} {6:14} {7:14} {8:14} {9:14}".format(
-            "It", "cg_it", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
-            print "{0:3d} {1:3} {2:15e} {3:15e} {4:15e} {5:15} {6:14} {7:14} {8:14} {9:14e} ({10:3.1f}%)".format(
-            self.it, "", cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
+            print "\n {:3} {:5} {:5} {:15} {:15} {:15} {:15} {:14} {:14} {:14} {:14}".format(
+            "It", "cg_it", "nbPDE", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
+            print "{:3d} {:5} {:3d} {:15e} {:15e} {:15e} {:15} {:14} {:14} {:14} {:14e} ({:3.1f}%)".format(
+            self.it, "", self.model.problem.PDEcounts, cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
         
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
@@ -276,8 +276,9 @@ class ReducedSpaceNewtonCG:
             else:
                 medmisf, perc = -99, -99
             if print_level >= 0:
-                print "{0:3d} {1:3d} {2:15e} {3:15e} {4:15e} {5:15e} {6:14e} {7:14e} {8:14e} {9:14e} ({10:3.1f}%)".format(
-                self.it, HessApply.ncalls, cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
+                print "{:3d} {:5d} {:3d} {:15e} {:15e} {:15e} {:15e} {:14e} {:14e} {:14e} {:14e} ({:3.1f}%)".format(
+                self.it, HessApply.ncalls, self.model.problem.PDEcounts, 
+                cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
                 
             if n_backtrack == max_backtracking_iter:
                 self.converged = False

@@ -92,6 +92,8 @@ class PDEVariationalProblem(PDEProblem):
         self.solver_adj_inc = None
         
         self.is_fwd_linear = is_fwd_linear
+
+        self.PDEcounts = 0
         
     def generate_state(self):
         """ return a vector in the shape of the state """
@@ -130,6 +132,7 @@ class PDEVariationalProblem(PDEProblem):
             dl.solve(res_form == 0, u, self.bc)
             state.zero()
             state.axpy(1., u.vector())
+        self.PDEcounts += 1
         
     def solveAdj(self, adj, x, adj_rhs, tol):
         """ Solve the linear Adj Problem: 
@@ -149,6 +152,7 @@ class PDEVariationalProblem(PDEProblem):
         Aadj, dummy = dl.assemble_system(adj_form, dl.inner(u,du)*dl.dx, self.bc0)
         self.solver.set_operator(Aadj)
         self.solver.solve(adj, adj_rhs)
+        self.PDEcounts += 1
      
     def eval_da(self, x, out):
         """Given u,a,p; eval \delta_a F(u,a,p; \hat_a) \for all \hat_a """
@@ -214,6 +218,7 @@ class PDEVariationalProblem(PDEProblem):
             self.solver_fwd_inc.solve(out, rhs)
         else:
             self.solver_adj_inc.solve(out, rhs)
+        self.PDEcounts += 1
             
         
     
