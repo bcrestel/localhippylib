@@ -70,7 +70,7 @@ class SteepestDescent:
         self.reason = 0
         self.final_grad_norm = 0
         
-    def solve(self,a0):
+    def solve(self, a0, bounds_xPARAM=None):
         """
         Solve the constrained optimization problem with initial guess a0.
         Return the solution [u,a,p] 
@@ -84,6 +84,12 @@ class SteepestDescent:
         alpha = self.parameters["alpha"]
         print_level = self.parameters["print_level"]
         
+        try:
+            self.model.mediummisfit(a0)
+            self.mm = True
+        except:
+            self.mm = False
+
         [u,a,p] = self.model.generate_vector()
         self.model.solveFwd(u, [u, a0, p], innerTol)
         
@@ -113,7 +119,9 @@ class SteepestDescent:
             
             self.it += 1
                         
-            self.model.Rsolver().solve(ahat, -mg)
+            #TODO: Check with Umbe why we do this instead of ahat=-M^{-1}.mg
+            #self.model.Rsolver().solve(ahat, -mg)
+            self.model.Prior.Msolver.solve(ahat, -mg)
             
             alpha *= 2.
             descent = 0
@@ -126,6 +134,14 @@ class SteepestDescent:
                 a.zero()
                 a.axpy(1., a0)
                 a.axpy(alpha, ahat)
+                if bounds_xPARAM is not None:
+                    amin = a.min()
+                    amax = a.max()
+                    if amin < bounds_xPARAM[0] or amax > bounds_xPARAM[1]:
+                        u.zero()
+                        n_backtrack += 1
+                        alpha *= 0.5
+                        continue
                 self.model.solveFwd(u, [u, a, p], innerTol)
                 
                 cost_new, reg_new, misfit_new = self.model.cost([u,a,p])
@@ -139,14 +155,18 @@ class SteepestDescent:
                 else:
                     n_backtrack += 1
                     alpha *= 0.5
-                            
+
             if(print_level >= 0) and (self.it == 1):
-                print "\n{0:3} {1:15} {2:15} {3:15} {4:15} {5:15}".format(
-                      "It", "cost", "misfit", "reg", "||g||L2", "alpha")
+                print "\n{:3} {:15} {:15} {:15} {:15} {:15} {:15}".format(
+                "It", "cost", "misfit", "reg", "||g||L2", "alpha", "medmisfit")
                 
+            if self.mm:
+                medmisf, perc = self.model.mediummisfit(a)
+            else:
+                medmisf, perc = -99, -99
             if print_level >= 0:
-                print "{0:3d} {1:15e} {2:15e} {3:15e} {4:15e} {5:15e}".format(
-                        self.it, cost_new, misfit_new, reg_new, gradnorm, alpha)
+                print "{:3d} {:15e} {:15e} {:15e} {:15e} {:15e} {:15e} ({:3.1f}%)".format(
+                self.it, cost_new, misfit_new, reg_new, gradnorm, alpha, medmisf, perc)
                 
             if n_backtrack == max_backtracking_iter:
                 self.converged = False
