@@ -130,27 +130,27 @@ if __name__ == "__main__":
     if rank == 0:
         print sep, "Find the MAP point", sep
 
-    if False:
-        if rank == 0:
-            print 'Solver: Inexact Newton CG'
+    SOLVER = 'Newton'   # 'Newton'/'BFGS'/'Steepest'
+    if SOLVER == 'Newton':
+        if rank == 0:   print 'Solver: Inexact Newton CG'
         suffix += '-InexNewtonCG'
         solver = ReducedSpaceNewtonCG(model)
+        solver.parameters["GN_iter"] = 5
         solver.parameters["rel_tolerance"] = 1e-12
         solver.parameters["abs_tolerance"] = 1e-14
         solver.parameters["inner_rel_tolerance"] = 1e-15
         solver.parameters["gda_tolerance"] = 1e-24
         solver.parameters["c_armijo"] = 5e-5
         solver.parameters["max_backtracking_iter"] = 12
-        solver.parameters["GN_iter"] = 0
         solver.parameters["max_iter"] = 2000
         solver.parameters["print_level"] = 0
         if rank != 0:
             solver.parameters["print_level"] = -1
         a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
-        x = solver.solve(a0.vector(), InexactCG=1, GN=True)
-    else:
-        if rank == 0:
-            print 'Solver: BFGS'
+        x = solver.solve(a0.vector(), InexactCG=1, GN=False)
+        suffix += 'fullH'
+    elif SOLVER == 'BFGS':
+        if rank == 0:   print 'Solver: BFGS'
         suffix += '-BFGS'
         solver = BFGS(model)
         solver.parameters["rel_tolerance"] = 1e-12
@@ -158,14 +158,34 @@ if __name__ == "__main__":
         solver.parameters["inner_rel_tolerance"] = 1e-15
         solver.parameters["gda_tolerance"] = 1e-24
         solver.parameters["c_armijo"] = 5e-5
-        solver.parameters["max_backtracking_iter"] = 12
-        solver.parameters["max_iter"] = 2000
+        solver.parameters["max_backtracking_iter"] = 25
+        solver.parameters["max_iter"] = 5000
+        solver.parameters["print_level"] = 0
+        if rank != 0:
+            solver.parameters["print_level"] = -1
+        #solver.apply_H0 = solver.apply_Rinv # H0 = R^{-1}
+        #suffix += '-H0Rinv'
+        solver.apply_H0 = solver.apply_Minv # H0 = M^{-1}
+        suffix += '-H0Minv'
+        a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
+        x = solver.solve(a0.vector(), bounds_xPARAM=[-20.,25.])
+    elif SOLVER == 'Steepest':
+        if rank == 0:   print 'Solver: Steepest descent'
+        suffix += '-Steepest'
+        solver = SteepestDescent(model)
+        solver.parameters["rel_tolerance"] = 1e-12
+        solver.parameters["abs_tolerance"] = 1e-14
+        solver.parameters["inner_rel_tolerance"] = 1e-15
+        solver.parameters["gda_tolerance"] = 1e-24
+        solver.parameters["c_armijo"] = 5e-5
+        solver.parameters["max_backtracking_iter"] = 25 # LARGE!!
+        solver.parameters["max_iter"] = 10000
         solver.parameters["print_level"] = 0
         if rank != 0:
             solver.parameters["print_level"] = -1
         a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
-        x = solver.solve(a0.vector())
-    
+        x = solver.solve(a0.vector(), bounds_xPARAM=[-20.,25.])
+
     minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
     maxaf = dl.MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
     mdmis, mdmisperc = model.mediummisfit(x[PARAMETER])
