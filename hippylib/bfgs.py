@@ -11,7 +11,6 @@ from fenicstools.linalg.miscroutines import compute_eigfenics
 
 
 #TODO: convert into L-BFGS
-#TODO: use H0 = R^{-1} (inverse(?) of Hessian of regularization)
 #TODO: create mode to compute BFGS approx to data misfit Hessian only (???)
 #TODO: count PDE solves
 class BFGS:
@@ -94,6 +93,16 @@ class BFGS:
         xcopy = x_in.copy()
         Hx_out.zero()
         Hx_out.axpy(self.d0, xcopy)
+
+    def apply_Rinv(self, x_in, Hx_out):
+        xcopy = x_in.copy()
+        Rinvsolver = self.model.Prior.getprecond()
+        Rinvsolver.solve(Hx_out, xcopy)
+
+    def apply_Minv(self, x_in, Hx_out):
+        xcopy = x_in.copy()
+        Minvsolver = self.model.Prior.Msolver
+        Minvsolver.solve(Hx_out, xcopy)
 
 
 
