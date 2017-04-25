@@ -11,7 +11,9 @@ from fenicstools.linalg.miscroutines import compute_eigfenics
 
 
 #TODO: convert into L-BFGS
-#TODO: create mode to compute BFGS approx to data misfit Hessian only
+#TODO: use H0 = R^{-1} (inverse(?) of Hessian of regularization)
+#TODO: create mode to compute BFGS approx to data misfit Hessian only (???)
+#TODO: count PDE solves
 class BFGS:
     """
     Implement BFGS technique with backtracking inexact line search and damped updating
@@ -80,7 +82,18 @@ class BFGS:
         self.final_grad_norm = 0
 
         self.S, self.Y, self.R = [], [], []
+        self.apply_H0 = self.apply_H0_default
         self.d0 = 1.0   # H0 = d0 x Identity_matrix
+
+
+
+    def apply_H0_default(self, x_in, Hx_out):
+        """
+        Default application of component H0
+        """
+        xcopy = x_in.copy()
+        Hx_out.zero()
+        Hx_out.axpy(self.d0, xcopy)
 
 
 
@@ -104,7 +117,7 @@ class BFGS:
             A.append(a)
             Hx_out.axpy(-a, y)
 
-        Hx_out *= self.d0
+        self.apply_H0(Hx_out, Hx_out)
 
         for s, y, r, a in zip(self.S, self.Y, self.R, reversed(A)):
             b = r * y.inner(Hx_out)
@@ -173,6 +186,8 @@ class BFGS:
                 sy = s.inner(y)
                 self.apply_Hk(y, Hy)
                 yHy = y.inner(Hy)
+                if mpirank == 0:
+                    print 'sy={}, yHy={}, damp*yHy={}'.format(sy, yHy, damp*yHy)
                 if sy < damp*yHy:
                     theta = (1.0-damp)*yHy/(yHy-sy)
                     s *= theta
