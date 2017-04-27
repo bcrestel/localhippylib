@@ -234,23 +234,30 @@ class ReducedSpaceNewtonCG:
                     if mpirank == 0:    
                         print 'Forward solve failed during line search'
                         print 'plot a1, a2'
-                    afun = vector2Function(a, self.model.Vh[PARAMETER])
-                    a1, a2 = afun.split(deepcopy=True)
-    
-                    a1min = a1.vector().min()
-                    a1max = a1.vector().max()
-                    a2min = a2.vector().min()
-                    a2max = a2.vector().max()
-                    if mpirank == 0:
-                        print 'min(a1)={}, max(a1)={}, min(a2)={}, max(a2)={}'.format(\
-                        a1min, a1max, a2min, a2max)
-                    plt = PlotFenics('Output-failure-NewtonCG')
-                    plt.set_varname('a1')
-                    plt.plot_vtk(a1)
-                    plt.set_varname('a2')
-                    plt.plot_vtk(a2)
-
-                    print str(err)
+                        print str(err)
+                    try:
+                        afun = vector2Function(a, self.model.Vh[PARAMETER])
+                        a1, a2 = afun.split(deepcopy=True)
+                        a1min = a1.vector().min()
+                        a1max = a1.vector().max()
+                        a2min = a2.vector().min()
+                        a2max = a2.vector().max()
+                        if mpirank == 0:
+                            print 'min(a1)={}, max(a1)={}, min(a2)={}, max(a2)={}'.format(\
+                            a1min, a1max, a2min, a2max)
+                        plt = PlotFenics('Output-failure-NewtonCG')
+                        plt.set_varname('a1')
+                        plt.plot_vtk(a1)
+                        plt.set_varname('a2')
+                        plt.plot_vtk(a2)
+                    except:
+                        amin = a.min()
+                        amax = a.max()
+                        if mpirank == 0:
+                            print 'min(a)={}, max(a)={}'.format(amin, amax)
+                        plt = PlotFenics('Output-failure-NewtonCG')
+                        plt.set_varname('a')
+                        plt.plot_vtk(vector2Function(a, self.model.Vh[PARAMETER]))
                     sys.exit(1)
 
                 cost_new, reg_new, misfit_new = self.model.cost([u,a,p])
