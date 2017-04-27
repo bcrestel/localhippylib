@@ -192,7 +192,7 @@ class BFGS:
             print "\n {:3} {:5} {:15} {:15} {:15} {:15} {:14} {:14} {:14} {:14}".format(
             "It", "nbPDE", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "theta", "medmisf")
             print "{:3d} {:3d} {:15e} {:15e} {:15e} {:15} {:14} {:14} {:14} {:14e} ({:3.1f}%)".format(
-            self.it, self.model.problem.PDEcounts, cost_old, misfit_old, 
+            self.it, self.model.getPDEcounts(), cost_old, misfit_old, 
             reg_old, "", "", "", "", medmisf, perc)
         
         while (self.it < max_iter) and (self.converged == False):
@@ -310,7 +310,7 @@ class BFGS:
                 medmisf, perc = -99, -99
             if print_level >= 0:
                 print "{:3d} {:3d} {:15e} {:15e} {:15e} {:15e} {:14e} {:14e} {:14e} {:14e} ({:3.1f}%)".format(
-                self.it, self.model.problem.PDEcounts, cost_new, misfit_new, 
+                self.it, self.model.getPDEcounts(), cost_new, misfit_new, 
                 reg_new, mg_ahat, gradnorm, alpha, theta, medmisf, perc)
                 
             if n_backtrack == max_backtracking_iter:
