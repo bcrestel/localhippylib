@@ -145,7 +145,7 @@ class ReducedSpaceNewtonCG:
             print "\n {:3} {:5} {:5} {:15} {:15} {:15} {:15} {:14} {:14} {:14} {:14}".format(
             "It", "cg_it", "nbPDE", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
             print "{:3d} {:5} {:3d} {:15e} {:15e} {:15e} {:15} {:14} {:14} {:14} {:14e} ({:3.1f}%)".format(
-            self.it, "", self.model.problem.PDEcounts, cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
+            self.it, "", self.model.getPDEcounts(), cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
         
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
@@ -203,11 +203,9 @@ class ReducedSpaceNewtonCG:
                 plt.plot_vtk(mg1)
                 plt.set_varname('mg2')
                 plt.plot_vtk(mg2)
-
                 if mpirank == 0:    print 'compute and print eigenvalues preconditioner'
                 compute_eigfenics(self.model.Prior.precond,
                 'Output-failure-NewtonCG/eigvaluesPrecond.txt')
-
                 sys.exit(1)
             self.total_cg_iter += HessApply.ncalls
             
@@ -277,7 +275,7 @@ class ReducedSpaceNewtonCG:
                 medmisf, perc = -99, -99
             if print_level >= 0:
                 print "{:3d} {:5d} {:3d} {:15e} {:15e} {:15e} {:15e} {:14e} {:14e} {:14e} {:14e} ({:3.1f}%)".format(
-                self.it, HessApply.ncalls, self.model.problem.PDEcounts, 
+                self.it, HessApply.ncalls, self.model.getPDEcounts(), 
                 cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
                 
             if n_backtrack == max_backtracking_iter:

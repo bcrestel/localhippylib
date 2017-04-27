@@ -325,3 +325,6 @@ class JointModel:
         nd1, nd1p = self.model1.mediummisfit(a1)
         nd2, nd2p = self.model2.mediummisfit(a2)
         return 0.5*(nd1+nd2), 0.5*(nd1p+nd2p)
+
+    def getPDEcounts(self):
+        return self.model1.problem.PDEcounts + self.model2.problem.PDEcounts

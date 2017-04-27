@@ -297,3 +297,6 @@ class Model:
             diff = m - self.atrue
             nd = dl.norm(diff)
             return nd, 100.*nd/dl.norm(self.atrue)
+
+    def getPDEcounts(self):
+        return self.problem.PDEcounts
