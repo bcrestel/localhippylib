@@ -83,6 +83,7 @@ class BFGS:
         self.S, self.Y, self.R = [], [], []
         self.apply_H0 = self.apply_H0_default
         self.d0 = 1.0   # H0 = d0 x Identity_matrix
+        self.H0solver = None
 
 
 
@@ -95,14 +96,27 @@ class BFGS:
         Hx_out.axpy(self.d0, xcopy)
 
     def apply_Rinv(self, x_in, Hx_out):
+        """
+        Apply the inverse of the Hessian of the prior
+        """
         xcopy = x_in.copy()
         Rinvsolver = self.model.Prior.getprecond()
         Rinvsolver.solve(Hx_out, xcopy)
 
     def apply_Minv(self, x_in, Hx_out):
+        """
+        Apply the inverse of the mass matrix
+        """
         xcopy = x_in.copy()
         Minvsolver = self.model.Prior.Msolver
         Minvsolver.solve(Hx_out, xcopy)
+
+    def apply_H0_userdefined(self, x_in, Hx_out):
+        """
+        Apply a user-defined H0
+        """
+        xcopy = x_in.copy()
+        self.H0solver.solve(Hx_out, xcopy)
 
 
 
@@ -184,6 +198,7 @@ class BFGS:
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
             
+            # needed to update H0 if using Rinv:
             self.model.setPointForHessianEvaluations([u,a0,p])
 
             mg_old = mg.copy()
@@ -196,8 +211,8 @@ class BFGS:
                 sy = s.inner(y)
                 self.apply_Hk(y, Hy)
                 yHy = y.inner(Hy)
-                if mpirank == 0:
-                    print 'sy={}, yHy={}, damp*yHy={}'.format(sy, yHy, damp*yHy)
+                #if mpirank == 0:
+                #    print 'sy={}, yHy={}, damp*yHy={}'.format(sy, yHy, damp*yHy)
                 if sy < damp*yHy:
                     theta = (1.0-damp)*yHy/(yHy-sy)
                     s *= theta
@@ -251,21 +266,30 @@ class BFGS:
                     if mpirank == 0:    
                         print 'Forward solve failed during line search'
                         print 'plot a1, a2'
-                    afun = vector2Function(a, self.model.Vh[PARAMETER])
-                    a1, a2 = afun.split(deepcopy=True)
-                    a1min = a1.vector().min()
-                    a1max = a1.vector().max()
-                    a2min = a2.vector().min()
-                    a2max = a2.vector().max()
-                    if mpirank == 0:
-                        print 'min(a1)={}, max(a1)={}, min(a2)={}, max(a2)={}'.format(\
-                        a1min, a1max, a2min, a2max)
-                    plt = PlotFenics('Output-failure-NewtonCG')
-                    plt.set_varname('a1')
-                    plt.plot_vtk(a1)
-                    plt.set_varname('a2')
-                    plt.plot_vtk(a2)
-                    print str(err)
+                        print str(err)
+                    try:
+                        afun = vector2Function(a, self.model.Vh[PARAMETER])
+                        a1, a2 = afun.split(deepcopy=True)
+                        a1min = a1.vector().min()
+                        a1max = a1.vector().max()
+                        a2min = a2.vector().min()
+                        a2max = a2.vector().max()
+                        if mpirank == 0:
+                            print 'min(a1)={}, max(a1)={}, min(a2)={}, max(a2)={}'.format(\
+                            a1min, a1max, a2min, a2max)
+                        plt = PlotFenics('Output-failure-NewtonCG')
+                        plt.set_varname('a1')
+                        plt.plot_vtk(a1)
+                        plt.set_varname('a2')
+                        plt.plot_vtk(a2)
+                    except:
+                        amin = a.min()
+                        amax = a.max()
+                        if mpirank == 0:
+                            print 'min(a)={}, max(a)={}'.format(amin, amax)
+                        plt = PlotFenics('Output-failure-NewtonCG')
+                        plt.set_varname('a')
+                        plt.plot_vtk(vector2Function(a, self.model.Vh[PARAMETER]))
                     sys.exit(1)
 
                 cost_new, reg_new, misfit_new = self.model.cost([u,a,p])
