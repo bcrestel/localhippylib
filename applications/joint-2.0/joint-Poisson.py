@@ -9,11 +9,11 @@ from hippylib import *
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 from fenicstools.jointregularization import \
-SumRegularization, VTV, V_TV, V_TVPD, NuclearNormformula
+SumRegularization, VTV, V_TV, V_TVPD, NuclearNormformula, NuclearNormSVD2D
 from fenicstools.plotfenics import PlotFenics
 
 
-PLOT = False
+PLOT = True
 
 def u_boundary(x, on_boundary):
     return on_boundary
@@ -136,10 +136,11 @@ if __name__ == "__main__":
     #jointregul = Tikhonovab({'Vm':Vh[PARAMETER], 'gamma':1e-8, 'beta':1e-8})
     #jointregul = VTV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-2})
     #jointregul = V_TV(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3})
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3, \
-    'rescaledradiusdual':1.0, 'print':not rank})
+    #jointregul = V_TVPD(Vh[PARAMETER], {'k':4e-7, 'eps':1e-3, \
+    #'rescaledradiusdual':1.0, 'print':not rank})
     #jointregul = NuclearNormformula(mesh, {'eps':1000., 'k':1e-7}, 
     #isprint=(not rank))
+    jointregul = NuclearNormSVD2D(mesh, {'eps':1e-8, 'k':1e-7}, isprint=(not rank))
     #########################################
     try:
         if jointregul.coeff_cg > 0.0:
@@ -147,15 +148,18 @@ if __name__ == "__main__":
         elif jointregul.coeff_ncg > 0.0:
             plot_suffix = 'TVPD+' + str(jointregul.coeff_ncg) + 'NCG'
     except:
-        #plot_suffix = 'NN-e' + str(jointregul.parameters['eps'])
-        plot_suffix = 'TVPD-e' + str(jointregul.parameters['eps'])
-        plot_suffix += '-k' + str(jointregul.parameters['k'])
+        #plot_suffix = 'NN'
+        #plot_suffix = 'TVPD'
+        plot_suffix = 'NNsvd'
+        plot_suffix += '-e' + str(jointregul.parameters['eps']) \
+        + '-k' + str(jointregul.parameters['k'])
     #######################
 
     jointmodel = JointModel(model1, model2, jointregul,
     parameters={'print':(not rank), 'splitassign':True})
 
-    solver = ReducedSpaceNewtonCG(jointmodel)
+    #solver = ReducedSpaceNewtonCG(jointmodel)
+    solver = BFGS(jointmodel)
     solver.parameters["rel_tolerance"] = 1e-12
     solver.parameters["abs_tolerance"] = 1e-14
 #    solver.parameters["rel_tolerance"] = 1e-10
@@ -171,7 +175,8 @@ if __name__ == "__main__":
         solver.parameters["print_level"] = -1
     
     a0 = dl.interpolate(dl.Expression(("0.0","0.0")),jointmodel.Vh[PARAMETER])
-    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[-20., 25.])
+    #x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[-10., 25.])
+    x = solver.solve(a0.vector(), bounds_xPARAM=[-10., 25.])
 
     x1, x2 = jointmodel.splitvector(x)
     minaf1 = dl.MPI.min(mesh.mpi_comm(), np.amin(x1[PARAMETER].array()))
