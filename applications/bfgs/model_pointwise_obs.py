@@ -27,6 +27,7 @@ from fenicstools.plotfenics import PlotFenics
 def u_boundary(x, on_boundary):
     return on_boundary
 
+PLOT = False
             
 if __name__ == "__main__":
     dl.set_log_active(False)
@@ -106,14 +107,17 @@ if __name__ == "__main__":
     misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
     
     # Regularization
-    prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
-    suffix += '-Tikh-g{}-b{}'.format(prior.gamma, prior.beta)
-    #prior = TVPD({'Vm':Vh[PARAMETER], 'k':5e-7, 'eps':1e-3})
-    #suffix += '-TV-k{}-e{}'.format(prior.parameters['k'], prior.parameters['eps'])
+    #prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
+    #suffix += '-Tikh-g{}-b{}'.format(prior.gamma, prior.beta)
+    #prior = TVPD({'Vm':Vh[PARAMETER], 'k':4e-7, 'eps':1e-3, 'print':not rank})
+    #suffix += '-TVPD-k{}-e{}'.format(prior.parameters['k'], prior.parameters['eps'])
+    prior = TV({'Vm':Vh[PARAMETER], 'k':4e-7, 'eps':1e-3, 'GNhessian':True})
+    suffix += '-TV-k{}-e{}'.format(prior.parameters['k'], prior.parameters['eps'])
     
-    PltFen = PlotFenics()
-    PltFen.set_varname('atrue')
-    PltFen.plot_vtk(atrue)
+    if PLOT:
+        PltFen = PlotFenics()
+        PltFen.set_varname('atrue')
+        PltFen.plot_vtk(atrue)
 
     model = Model(pde, prior, misfit, atrue.vector())
     x[STATE].zero()
@@ -130,7 +134,7 @@ if __name__ == "__main__":
     if rank == 0:
         print sep, "Find the MAP point", sep
 
-    SOLVER = 'Newton'   # 'Newton'/'BFGS'/'Steepest'
+    SOLVER = 'BFGS'   # 'Newton'/'BFGS'/'Steepest'
     if SOLVER == 'Newton':
         if rank == 0:   print 'Solver: Inexact Newton CG'
         suffix += '-InexNewtonCG'
@@ -141,13 +145,13 @@ if __name__ == "__main__":
         solver.parameters["inner_rel_tolerance"] = 1e-15
         solver.parameters["gda_tolerance"] = 1e-24
         solver.parameters["c_armijo"] = 5e-5
-        solver.parameters["max_backtracking_iter"] = 12
+        solver.parameters["max_backtracking_iter"] = 20
         solver.parameters["max_iter"] = 2000
         solver.parameters["print_level"] = 0
         if rank != 0:
             solver.parameters["print_level"] = -1
         a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
-        x = solver.solve(a0.vector(), InexactCG=1, GN=False)
+        x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[-10.,25.])
         suffix += 'fullH'
     elif SOLVER == 'BFGS':
         if rank == 0:   print 'Solver: BFGS'
@@ -163,12 +167,15 @@ if __name__ == "__main__":
         solver.parameters["print_level"] = 0
         if rank != 0:
             solver.parameters["print_level"] = -1
-        #solver.apply_H0 = solver.apply_Rinv # H0 = R^{-1}
-        #suffix += '-H0Rinv'
-        solver.apply_H0 = solver.apply_Minv # H0 = M^{-1}
-        suffix += '-H0Minv'
+        solver.apply_H0 = solver.apply_Rinv # H0 = R^{-1}
+        suffix += '-H0Rinv'
+        #solver.apply_H0 = solver.apply_Minv # H0 = M^{-1}
+        #suffix += '-H0Minv'
+        #Lapl = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-5, 'beta':1e-7})
+        #solver.H0solver = Lapl.getprecond()
+        #solver.apply_H0 = solver.apply_H0_userdefined
         a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
-        x = solver.solve(a0.vector(), bounds_xPARAM=[-20.,25.])
+        x = solver.solve(a0.vector(), bounds_xPARAM=[-9.,25.])
     elif SOLVER == 'Steepest':
         if rank == 0:   print 'Solver: Steepest descent'
         suffix += '-Steepest'
@@ -202,5 +209,6 @@ if __name__ == "__main__":
         print "Final cost: ", solver.final_cost
 
     # Plot reconstruction
-    PltFen.set_varname('solutionptwise-'+suffix)
-    PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))
+    if PLOT:
+        PltFen.set_varname('solutionptwise-'+suffix)
+        PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))

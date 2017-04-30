@@ -36,20 +36,20 @@ if __name__ == "__main__":
     
     # Target medium parameters
     # coincide:
-    a1true = dl.interpolate(dl.Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), Vh[PARAMETER])
-#    # coincide2:
 #    a1true = dl.interpolate(dl.Expression('log(10 - ' + \
-#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), Vh[PARAMETER])
+#    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+#    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), Vh[PARAMETER])
+#    # coincide2:
+    a1true = dl.interpolate(dl.Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), Vh[PARAMETER])
     a2true = dl.interpolate(dl.Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), Vh[PARAMETER])
     if PLOT:
         PltFen = PlotFenics(comm=mesh.mpi_comm())
-        PltFen.set_varname('jointa1')
+        PltFen.set_varname('jointa1-c2')
         PltFen.plot_vtk(a1true)
-        PltFen.set_varname('jointa2')
+        PltFen.set_varname('jointa2-c2')
         PltFen.plot_vtk(a2true)
 
     # Define PDE
@@ -140,7 +140,7 @@ if __name__ == "__main__":
     #'rescaledradiusdual':1.0, 'print':not rank})
     #jointregul = NuclearNormformula(mesh, {'eps':1000., 'k':1e-7}, 
     #isprint=(not rank))
-    jointregul = NuclearNormSVD2D(mesh, {'eps':1e-8, 'k':1e-7}, isprint=(not rank))
+    jointregul = NuclearNormSVD2D(mesh, {'eps':1e-4, 'k':5e-7}, isprint=(not rank))
     #########################################
     try:
         if jointregul.coeff_cg > 0.0:
@@ -154,6 +154,7 @@ if __name__ == "__main__":
         plot_suffix += '-e' + str(jointregul.parameters['eps']) \
         + '-k' + str(jointregul.parameters['k'])
     #######################
+    plot_suffix += '-c2'    # coincide-2
 
     jointmodel = JointModel(model1, model2, jointregul,
     parameters={'print':(not rank), 'splitassign':True})
@@ -169,7 +170,7 @@ if __name__ == "__main__":
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 20 # !!! very large
     solver.parameters["GN_iter"] = 10
-    solver.parameters["max_iter"] = 10000
+    solver.parameters["max_iter"] = 100000
     solver.parameters["print_level"] = 0
     if rank != 0:
         solver.parameters["print_level"] = -1
