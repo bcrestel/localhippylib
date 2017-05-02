@@ -11,13 +11,13 @@ from fenicstools.jointregularization import \
 SumRegularization, V_TVPD, NuclearNormSVD2D
 from fenicstools.plotfenics import PlotFenics
 
-from targetmedium_coincide1 import targetmedium
+from targetmedium_coincide2 import targetmedium
 from definePDE import pdes
 from definemisfit import defmisfit
 
 PLOT = False
-SOLVER = 'BFGS'
-suffix = '-c1'
+SOLVER = 'Newton'
+suffix = '-c2'
 
 if __name__ == "__main__":
     dl.set_log_active(False)
@@ -79,6 +79,7 @@ if __name__ == "__main__":
         print 'Cost @ MAP for m2: cost={}, misfit={}, reg={}'.format(c2, m2, r2)
 
     ############ Regularization #############
+    """
     if SOLVER == 'Newton':
         reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 
         'rescaledradiusdual':1.0, 'print':(not rank)})
@@ -97,13 +98,12 @@ if __name__ == "__main__":
     suffix += '-TV-e' + str(reg1.parameters['eps']) \
     + '-CG' + str(jointregul.coeff_cg) \
     + '-NCG' + str(jointregul.coeff_ncg) 
-
     """
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':3e-7, 'eps':1e-3, \
+
+    jointregul = V_TVPD(Vh[PARAMETER], {'k':5e-7, 'eps':1e-3, \
     'rescaledradiusdual':1.0, 'print':not rank})
     suffix += '-VTV-k' + str(jointregul.parameters['k']) \
     + '-e' + str(jointregul.parameters['eps'])
-    """
 
     """
     jointregul = NuclearNormSVD2D(mesh, {'eps':1e-3, 'k':2e-7}, isprint=(not rank))
