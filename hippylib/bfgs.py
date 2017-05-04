@@ -1,6 +1,7 @@
 
 import sys
 import dolfin as dl
+import numpy as np
 
 import math
 from variables import PARAMETER
@@ -23,7 +24,6 @@ class H0invdefault():
         x.axpy(self.d0, b)
 
 
-#TODO: convert into L-BFGS
 class BFGS_operator:
 
     def __init__(self, parameters_in=[]):
@@ -35,6 +35,7 @@ class BFGS_operator:
 
         self.parameters = {}
         self.parameters['BFGS_damping']     = 0.2
+        self.parameters['memory_limit']     = np.inf
         self.parameters.update(parameters_in)
 
 
@@ -87,6 +88,7 @@ class BFGS_operator:
             y = Vector (Fenics) [in]; corresponds to update in gradient
         """
         damp = self.parameters["BFGS_damping"]
+        memlim = self.parameters["memory_limit"]
         Hy = y.copy()
 
         sy = s.inner(y)
@@ -104,12 +106,19 @@ class BFGS_operator:
         self.Y.append(y.copy())
         self.R.append(rho)
 
+        # if L-BFGS
+        if len(self.S) > memlim:
+            self.S.pop(0)
+            self.Y.pop(0)
+            self.R.pop(0)
+            self.updated0 = True
+
         # re-scale H0 based on earliest secant information
         if self.isH0invdefault and self.updated0:
             s0  = self.S[0]
             y0 = self.Y[0]
-            self.d0 = s0.inner(y0) / y0.inner(y0)
-            self.H0inv.d0 = self.d0
+            d0 = s0.inner(y0) / y0.inner(y0)
+            self.H0inv.d0 = d0
             self.udpated0 = False
 
         return theta
@@ -176,6 +185,7 @@ class BFGS:
         self.parameters["max_backtracking_iter"] = 10
         self.parameters["print_level"]           = 0
         self.parameters['BFGS_damping']          = 0.2
+        self.parameters['memory_limit']          = np.inf
         self.parameters['H0inv']                 = 'Rinv'
         
         self.it = 0
@@ -204,6 +214,7 @@ class BFGS:
 
         H0inv = self.parameters['H0inv']
         self.BFGSop.parameters["BFGS_damping"] = self.parameters["BFGS_damping"]
+        self.BFGSop.parameters["memory_limit"] = self.parameters["memory_limit"]
 
         mpirank = dl.MPI.rank(a0.mpi_comm())
 
