@@ -26,7 +26,7 @@ from fenicstools.plotfenics import PlotFenics
 
 
 PLOT = False
-SOLVER = 'Newton'   # 'Newton'/'BFGS'/'Steepest'
+SOLVER = 'BFGS'   # 'Newton'/'BFGS'/'Steepest'
 OBS = 2
 
 
@@ -171,13 +171,8 @@ if __name__ == "__main__":
         solver.parameters["print_level"] = 0
         if rank != 0:
             solver.parameters["print_level"] = -1
-        solver.apply_H0 = solver.apply_Rinv # H0 = R^{-1}
+        solver.parameters['H0inv'] = 'Rinv'
         suffix += '-H0Rinv'
-        #solver.apply_H0 = solver.apply_Minv # H0 = M^{-1}
-        #suffix += '-H0Minv'
-        #Lapl = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-5, 'beta':1e-7})
-        #solver.H0solver = Lapl.getprecond()
-        #solver.apply_H0 = solver.apply_H0_userdefined
         a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
         x = solver.solve(a0.vector(), bounds_xPARAM=[-9.,25.])
     elif SOLVER == 'Steepest':

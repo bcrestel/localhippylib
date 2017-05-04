@@ -22,19 +22,14 @@ def test1():
     zp.init_vector(Hy, 0)
     dim = len(s.array())
 
-    bfgs = BFGS(model)
+    bfgs = BFGS_operator()
 
     for ii in range(10):
         s.set_local((ii+1.0)*np.random.randn(dim))
         y.set_local(np.random.randn(dim))
-        # for BFGS, we need to have s^T.y > 0
-        if s.inner(y) < 0.0:
-            y *= -1.0
-        bfgs.S.append(s.copy())
-        bfgs.Y.append(y.copy())
-        bfgs.R.append(1./s.inner(y))
+        bfgs.update(s, y)
 
-        bfgs.apply_Hk(y, Hy)
+        bfgs.solve(Hy, y)
         ns = dl.norm(s)
         ny = dl.norm(y)
         nHy = dl.norm(Hy)
@@ -57,7 +52,7 @@ def assemble_Hk(bfgs_in):
     for ii in range(dim):
         e.zero()
         e[ii] = 1.0
-        bfgs_in.apply_Hk(e, Hy)
+        bfgs_in.BFGSop.solve(Hy, e)
         Hk.append(Hy.array())
     return np.array(Hk)
 
@@ -79,16 +74,12 @@ def test2():
     for ii in range(10):
         print '\nTest {}'.format(ii)
         bfgs = BFGS(model)
+        bfgs.parameters['H0inv'] = 'default'
 
         for ii in range(10):
             s.set_local((ii+1.0)*np.random.randn(dim))
             y.set_local(np.random.randn(dim))
-            # for BFGS, we need to have s^T.y > 0
-            if s.inner(y) < 0.0:
-                y *= -1.0
-            bfgs.S.append(s.copy())
-            bfgs.Y.append(y.copy())
-            bfgs.R.append(1./s.inner(y))
+            bfgs.BFGSop.update(s,y)
 
         Hk = assemble_Hk(bfgs)
 
@@ -122,22 +113,20 @@ def test3():
     for ii in range(10):
         print '\nTest {}'.format(ii)
         bfgs = BFGS(model)
+        bfgs.parameters['H0inv'] = 'default'
+        bfgs.BFGSop.updated0 = False
+
         Hm = np.eye(dim)
 
         for ii in range(30):
             s.set_local((ii+1.0)*np.random.randn(dim))
             y.set_local(np.random.randn(dim))
-            # for BFGS, we need to have s^T.y > 0
-            if s.inner(y) < 0.0:
-                y *= -1.0
-            bfgs.S.append(s.copy())
-            bfgs.Y.append(y.copy())
-            rho = 1./s.inner(y)
-            bfgs.R.append(rho)
+            bfgs.BFGSop.update(s, y)
 
             # Update matrix form
             sk = s.array().reshape((dim,-1))
             yk = y.array().reshape((dim,-1))
+            rho = bfgs.BFGSop.R[-1]
             Ir = np.eye(dim) - rho*sk.dot(yk.T)
             Hm = Ir.dot(Hm.dot(Ir.T)) + rho*sk.dot(sk.T)
 
@@ -221,22 +210,14 @@ def test4():
         x2 = np.random.randn(dim).reshape((dim,-1))
 
         bfgs = BFGS(model)
+        bfgs.parameters['H0inv'] = 'default'
 
         norminvB = np.linalg.norm(invB)
-        # uncomment next line for better convergence results
-        #bfgs.d0 = norminvB/np.linalg.norm(np.eye(dim))
 
         for ii in range(1000):
             s.set_local(x2-x1)
             y.set_local(grad(x2,x0,g,B) - grad(x1,x0,g,B))
-            assert(s.inner(y) > 0.0)
-            bfgs.S.append(s.copy())
-            bfgs.Y.append(y.copy())
-            rho = 1./s.inner(y)
-            bfgs.R.append(rho)
-
-            if ii == 0 and True:
-                bfgs.d0 = s.inner(y)/y.inner(y)
+            bfgs.BFGSop.update(s, y)
 
             if ii%100 == 0:
                 Hk = assemble_Hk(bfgs)
@@ -269,5 +250,5 @@ if __name__ == "__main__":
     elif case == 4:
         test4()
     else:
-        print 'Test case {} not implemented yet'.format(case)
+        print 'Test case {} not implemented (yet)'.format(case)
         sys.exit(1)
