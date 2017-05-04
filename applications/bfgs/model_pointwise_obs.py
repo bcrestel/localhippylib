@@ -24,10 +24,14 @@ from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 from fenicstools.plotfenics import PlotFenics
 
-def u_boundary(x, on_boundary):
-    return on_boundary
 
 PLOT = False
+SOLVER = 'Newton'   # 'Newton'/'BFGS'/'Steepest'
+OBS = 2
+
+
+def u_boundary(x, on_boundary):
+    return on_boundary
             
 if __name__ == "__main__":
     dl.set_log_active(False)
@@ -84,7 +88,6 @@ if __name__ == "__main__":
     for j in range((nbobsperdir+2)/2, nbobsperdir+1)])
     targets2 = np.array([ [float(i)/(nbobsperdir+1), float(j)/(nbobsperdir+1)] \
     for i in range(1, nbobsperdir+1) for j in range(1, nbobsperdir+1)])
-    OBS = 2
     if OBS == 1:
         targets = targets1
     elif OBS == 2:
@@ -109,10 +112,12 @@ if __name__ == "__main__":
     # Regularization
     #prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
     #suffix += '-Tikh-g{}-b{}'.format(prior.gamma, prior.beta)
-    #prior = TVPD({'Vm':Vh[PARAMETER], 'k':4e-7, 'eps':1e-3, 'print':not rank})
-    #suffix += '-TVPD-k{}-e{}'.format(prior.parameters['k'], prior.parameters['eps'])
-    prior = TV({'Vm':Vh[PARAMETER], 'k':4e-7, 'eps':1e-3, 'GNhessian':True})
-    suffix += '-TV-k{}-e{}'.format(prior.parameters['k'], prior.parameters['eps'])
+    if SOLVER == 'BFGS':
+        prior = TV({'Vm':Vh[PARAMETER], 'k':4e-7, 'eps':1e-3, 'GNhessian':True})
+        suffix += '-TV-k{}-e{}'.format(prior.parameters['k'], prior.parameters['eps'])
+    else:
+        prior = TVPD({'Vm':Vh[PARAMETER], 'k':4e-7, 'eps':1e-3, 'print':not rank})
+        suffix += '-TVPD-k{}-e{}'.format(prior.parameters['k'], prior.parameters['eps'])
     
     if PLOT:
         PltFen = PlotFenics()
@@ -134,7 +139,6 @@ if __name__ == "__main__":
     if rank == 0:
         print sep, "Find the MAP point", sep
 
-    SOLVER = 'BFGS'   # 'Newton'/'BFGS'/'Steepest'
     if SOLVER == 'Newton':
         if rank == 0:   print 'Solver: Inexact Newton CG'
         suffix += '-InexNewtonCG'
