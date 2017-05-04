@@ -51,7 +51,7 @@ from jointmodel import JointModel
 from cgsolverSteihaug import CGSolverSteihaug
 from NewtonCG import ReducedSpaceNewtonCG
 from FDNewtonCG import ReducedSpaceFDNewtonCG
-from bfgs import BFGS
+from bfgs import BFGS, BFGS_operator
 from steepestDescent import SteepestDescent
 from randomizedEigensolver import singlePass, doublePass, singlePassG, doublePassG
 from lowRankOperator import LowRankOperator
