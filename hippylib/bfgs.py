@@ -2,6 +2,7 @@
 import sys
 import dolfin as dl
 import numpy as np
+from collections import deque
 
 import math
 from variables import PARAMETER
@@ -27,7 +28,7 @@ class H0invdefault():
 class BFGS_operator:
 
     def __init__(self, parameters_in=[]):
-        self.S, self.Y, self.R = [], [], []
+        self.S, self.Y, self.R = deque(), deque(), deque()
 
         self.H0inv = H0invdefault()
         self.isH0invdefault = True
@@ -108,9 +109,9 @@ class BFGS_operator:
 
         # if L-BFGS
         if len(self.S) > memlim:
-            self.S.pop(0)
-            self.Y.pop(0)
-            self.R.pop(0)
+            self.S.popleft()
+            self.Y.popleft()
+            self.R.popleft()
             self.updated0 = True
 
         # re-scale H0 based on earliest secant information
