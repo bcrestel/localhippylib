@@ -22,6 +22,7 @@ class H0invdefault():
     def solve(self, x, b):
         x.zero()
         x.axpy(self.d0, b)
+        return 0
 
 
 class BFGS_operator:
@@ -73,11 +74,13 @@ class BFGS_operator:
             x.axpy(-a, y)
 
         x_copy = x.copy()
-        self.H0inv.solve(x, x_copy)     # x = H0 * x_copy
+        out = self.H0inv.solve(x, x_copy)     # x = H0 * x_copy
 
         for s, y, r, a in zip(self.S, self.Y, self.R, reversed(A)):
             b = r * y.inner(x)
             x.axpy(a - b, s)
+
+        return out
 
 
     #@profile
@@ -96,13 +99,14 @@ class BFGS_operator:
         sy = s.inner(y)
         self.solve(Hy, y)
         yHy = y.inner(Hy)
+        assert yHy > 0.0, 'yHy={}, |y|^2={}'.format(yHy, y.inner(y))
         theta = 1.0
         if sy < damp*yHy:
             theta = (1.0-damp)*yHy/(yHy-sy)
             s *= theta
             s.axpy(1-theta, Hy)
             sy = s.inner(y)
-        assert(sy > 0.)
+        assert sy > 0., 'sy={}, theta={}'.format(sy, theta)
         rho = 1./sy
         self.S.append(s.copy())
         self.Y.append(y.copy())
@@ -252,13 +256,6 @@ class BFGS:
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
             
-            # update H0
-            if H0inv == 'Rinv':
-                self.model.setPointForHessianEvaluations([u,a0,p])
-                self.BFGSop.set_H0inv(self.model.Prior.getprecond())
-            elif H0inv == 'Minv':
-                self.BFGSop.set_H0inv(self.model.Prior.Msolver)
-
             mg_old = mg.copy()
             gradnorm = self.model.evalGradientParameter([u,a0,p], mg)
             # Update BFGS
@@ -271,6 +268,13 @@ class BFGS:
                 tol = max(abs_tol, gradnorm_ini*rel_tol)
                 theta = 1.0
                 
+            # update H0
+            if H0inv == 'Rinv':
+                self.model.setPointForHessianEvaluations([u,a0,p])
+                self.BFGSop.set_H0inv(self.model.Prior.getprecond())
+            elif H0inv == 'Minv':
+                self.BFGSop.set_H0inv(self.model.Prior.Msolver)
+
             # check if solution is reached
             if (gradnorm < tol) and (self.it > 0):
                 self.converged = True
