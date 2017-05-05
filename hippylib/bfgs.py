@@ -2,7 +2,6 @@
 import sys
 import dolfin as dl
 import numpy as np
-from collections import deque
 
 import math
 from variables import PARAMETER
@@ -28,7 +27,7 @@ class H0invdefault():
 class BFGS_operator:
 
     def __init__(self, parameters_in=[]):
-        self.S, self.Y, self.R = deque(), deque(), deque()
+        self.S, self.Y, self.R = [],[],[]
 
         self.H0inv = H0invdefault()
         self.isH0invdefault = True
@@ -50,6 +49,7 @@ class BFGS_operator:
         self.isH0invdefault = False
 
 
+    #@profile
     def solve(self, x, b):
         """
         Solve system:           H_bfgs * x = b
@@ -80,6 +80,7 @@ class BFGS_operator:
             x.axpy(a - b, s)
 
 
+    #@profile
     def update(self, s, y):
         """
         Update BFGS operator with most recent gradient update
@@ -109,9 +110,9 @@ class BFGS_operator:
 
         # if L-BFGS
         if len(self.S) > memlim:
-            self.S.popleft()
-            self.Y.popleft()
-            self.R.popleft()
+            self.S.pop(0)
+            self.Y.pop(0)
+            self.R.pop(0)
             self.updated0 = True
 
         # re-scale H0 based on earliest secant information
