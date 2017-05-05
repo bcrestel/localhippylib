@@ -19,6 +19,7 @@ from variables import PARAMETER
 from cgsolverSteihaug import CGSolverSteihaug
 from reducedHessian import ReducedHessian
 from linalg import vector2Function
+from bfgs import BFGS_operator
 
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.linalg.miscroutines import compute_eigfenics
@@ -77,6 +78,10 @@ class ReducedSpaceNewtonCG:
         print_level           --> Print info on screen
         GN_iter               --> Number of Gauss Newton iterations before switching to Newton
         cg_coarse_tolerance   --> Coarsest tolerance for the CG method (Eisenstat-Walker)
+        PC                    --> type of preconditioner for inexact CG ('prior' or 'BFGS')
+        parameters for BFGS (optional):
+        memory_limit
+        H0inv
         """
         self.model = model
         
@@ -91,6 +96,10 @@ class ReducedSpaceNewtonCG:
         self.parameters["print_level"]           = 0
         self.parameters["GN_iter"]               = 5
         self.parameters["cg_coarse_tolerance"]   = .5
+        self.parameters['PC']                    = 'prior' 
+        # BFGS parameters:
+        self.parameters['memory_limit']          = 50
+        self.parameters['H0inv']                 = 'Rinv'
         
         self.it = 0
         self.converged = False
@@ -117,6 +126,8 @@ class ReducedSpaceNewtonCG:
         print_level = self.parameters["print_level"]
         GN_iter = self.parameters["GN_iter"]
         cg_coarse_tolerance = self.parameters["cg_coarse_tolerance"]
+        PC = self.parameters['PC']
+
         mpirank = dl.MPI.rank(a0.mpi_comm())
 
         try:
@@ -124,6 +135,10 @@ class ReducedSpaceNewtonCG:
             self.mm = True
         except:
             self.mm = False
+
+        if PC == 'BFGS':
+            bfgsPC = BFGS_operator(self.parameters)
+            H0inv = bfgsPC.parameters['H0inv']
 
         [u,a,p] = self.model.generate_vector()
         self.model.solveFwd(u, [u, a0, p], innerTol)
@@ -151,12 +166,27 @@ class ReducedSpaceNewtonCG:
             self.model.solveAdj(p, [u,a0,p], innerTol)
             
             self.model.setPointForHessianEvaluations([u,a0,p])
+            mg_old = mg.copy()
             gradnorm = self.model.evalGradientParameter([u,a0,p], mg)
             
+            if PC == 'BFGS':
+                # update s and y
+                if self.it > 0:
+                    s = ahat * alpha
+                    y = mg - mg_old
+                    theta = bfgsPC.update(s, y)
+                else:
+                    theta = 1.0
+                # update H0
+                if H0inv == 'Rinv':
+                    bfgsPC.set_H0inv(self.model.Prior.getprecond())
+                elif H0inv == 'Minv':
+                    bfgsPC.set_H0inv(self.model.Prior.Msolver)
+
             if self.it == 0:
                 gradnorm_ini = gradnorm
                 tol = max(abs_tol, gradnorm_ini*rel_tol)
-                
+
             # check if solution is reached
             if (gradnorm < tol) and (self.it > 0):
                 self.converged = True
@@ -178,7 +208,10 @@ class ReducedSpaceNewtonCG:
                 HessApply = ReducedHessian(self.model, innerTol, self.it < GN_iter)
             solver = CGSolverSteihaug()
             solver.set_operator(HessApply)
-            solver.set_preconditioner(self.model.Rsolver())
+            if PC == 'prior':
+                solver.set_preconditioner(self.model.Rsolver())
+            elif PC == 'BFGS':
+                solver.set_preconditioner(bfgsPC)
             solver.parameters["rel_tolerance"] = tolcg
             solver.parameters["zero_initial_guess"] = True
             solver.parameters["print_level"] = print_level-1
