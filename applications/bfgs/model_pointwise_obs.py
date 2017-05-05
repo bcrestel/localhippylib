@@ -26,7 +26,7 @@ from fenicstools.plotfenics import PlotFenics
 
 
 PLOT = False
-SOLVER = 'BFGS'   # 'Newton'/'BFGS'/'Steepest'
+SOLVER = 'Newton'   # 'Newton'/'BFGS'/'Steepest'
 OBS = 2
 
 
@@ -110,8 +110,8 @@ if __name__ == "__main__":
     misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
     
     # Regularization
-    #prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
-    #suffix += '-Tikh-g{}-b{}'.format(prior.gamma, prior.beta)
+#    prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':5e-8, 'beta':5e-8})
+#    suffix += '-Tikh-g{}-b{}'.format(prior.gamma, prior.beta)
     if SOLVER == 'Newton':
         prior = TVPD({'Vm':Vh[PARAMETER], 'k':4e-7, 'eps':1e-3, 'print':not rank})
         suffix += '-TVPD-k{}-e{}'.format(prior.parameters['k'], prior.parameters['eps'])
@@ -152,6 +152,7 @@ if __name__ == "__main__":
         solver.parameters["max_backtracking_iter"] = 20
         solver.parameters["max_iter"] = 2000
         solver.parameters["print_level"] = 0
+        solver.parameters['PC'] = 'BFGS'
         if rank != 0:
             solver.parameters["print_level"] = -1
         a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
@@ -173,7 +174,7 @@ if __name__ == "__main__":
             solver.parameters["print_level"] = -1
         solver.parameters['H0inv'] = 'Rinv'
         suffix += '-H0Rinv'
-        solver.parameters['memory_limit'] = 100
+        #solver.parameters['memory_limit'] = 100
         a0 = dl.interpolate(dl.Expression("0.0"),Vh[PARAMETER])
         x = solver.solve(a0.vector(), bounds_xPARAM=[-9.,25.])
     elif SOLVER == 'Steepest':
