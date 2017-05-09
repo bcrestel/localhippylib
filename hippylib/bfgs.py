@@ -1,6 +1,7 @@
 
 import sys
 import dolfin as dl
+import numpy as np
 
 import math
 from variables import PARAMETER
@@ -10,9 +11,126 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.linalg.miscroutines import compute_eigfenics
 
 
-#TODO: convert into L-BFGS
-#TODO: create mode to compute BFGS approx to data misfit Hessian only (???)
-#TODO: count PDE solves
+class H0invdefault():
+    """
+    Default operator for H0inv
+    Corresponds to applying d0*I
+    """
+    def __init__(self):
+        self.d0 = 1.0
+
+    def solve(self, x, b):
+        x.zero()
+        x.axpy(self.d0, b)
+        return 0
+
+
+class BFGS_operator:
+
+    def __init__(self, parameters_in=[]):
+        self.S, self.Y, self.R = [],[],[]
+
+        self.H0inv = H0invdefault()
+        self.isH0invdefault = True
+        self.updated0 = True
+
+        self.parameters = {}
+        self.parameters['BFGS_damping']     = 0.2
+        self.parameters['memory_limit']     = np.inf
+        self.parameters.update(parameters_in)
+
+
+    def set_H0inv(self, H0inv):
+        """
+        Set user-defined operator corresponding to H0inv
+        Input:
+            H0inv: Fenics operator with method 'solve'
+        """
+        self.H0inv = H0inv
+        self.isH0invdefault = False
+
+
+    #@profile
+    def solve(self, x, b):
+        """
+        Solve system:           H_bfgs * x = b
+        where H_bfgs is the approximation to the Hessian build by BFGS. 
+        That is, we apply
+                                x = (H_bfgs)^{-1} * b
+                                  = Hk * b
+        where Hk matrix is BFGS approximation to the inverse of the Hessian.
+        Computation done via double-loop algorithm.
+        Inputs:
+            x = vector (Fenics) [out]; x = Hk*b
+            b = vector (Fenics) [in]
+        """
+        A = []
+        x.zero()
+        x.axpy(1.0, b)
+
+        for s, y, r in zip(reversed(self.S), reversed(self.Y), reversed(self.R)):
+            a = r * s.inner(x)
+            A.append(a)
+            x.axpy(-a, y)
+
+        x_copy = x.copy()
+        out = self.H0inv.solve(x, x_copy)     # x = H0 * x_copy
+
+        for s, y, r, a in zip(self.S, self.Y, self.R, reversed(A)):
+            b = r * y.inner(x)
+            x.axpy(a - b, s)
+
+        return out
+
+
+    #@profile
+    def update(self, s, y):
+        """
+        Update BFGS operator with most recent gradient update
+        To handle potential break from secant condition, update done via damping
+        Input:
+            s = Vector (Fenics) [in]; corresponds to update in medium parameters
+            y = Vector (Fenics) [in]; corresponds to update in gradient
+        """
+        damp = self.parameters["BFGS_damping"]
+        memlim = self.parameters["memory_limit"]
+        Hy = y.copy()
+
+        sy = s.inner(y)
+        self.solve(Hy, y)
+        yHy = y.inner(Hy)
+        assert yHy > 0.0, 'yHy={}, |y|^2={}'.format(yHy, y.inner(y))
+        theta = 1.0
+        if sy < damp*yHy:
+            theta = (1.0-damp)*yHy/(yHy-sy)
+            s *= theta
+            s.axpy(1-theta, Hy)
+            sy = s.inner(y)
+        assert sy > 0., 'sy={}, theta={}'.format(sy, theta)
+        rho = 1./sy
+        self.S.append(s.copy())
+        self.Y.append(y.copy())
+        self.R.append(rho)
+
+        # if L-BFGS
+        if len(self.S) > memlim:
+            self.S.pop(0)
+            self.Y.pop(0)
+            self.R.pop(0)
+            self.updated0 = True
+
+        # re-scale H0 based on earliest secant information
+        if self.isH0invdefault and self.updated0:
+            s0  = self.S[0]
+            y0 = self.Y[0]
+            d0 = s0.inner(y0) / y0.inner(y0)
+            self.H0inv.d0 = d0
+            self.udpated0 = False
+
+        return theta
+
+
+
 class BFGS:
     """
     Implement BFGS technique with backtracking inexact line search and damped updating
@@ -72,7 +190,9 @@ class BFGS:
         self.parameters["c_armijo"]              = 1e-4
         self.parameters["max_backtracking_iter"] = 10
         self.parameters["print_level"]           = 0
-        self.parameters["BFGS_damping"]          = 0.2
+        self.parameters['BFGS_damping']          = 0.2
+        self.parameters['memory_limit']          = np.inf
+        self.parameters['H0inv']                 = 'Rinv'
         
         self.it = 0
         self.converged = False
@@ -80,72 +200,7 @@ class BFGS:
         self.reason = 0
         self.final_grad_norm = 0
 
-        self.S, self.Y, self.R = [], [], []
-        self.apply_H0 = self.apply_H0_default
-        self.d0 = 1.0   # H0 = d0 x Identity_matrix
-        self.H0solver = None
-
-
-
-    def apply_H0_default(self, x_in, Hx_out):
-        """
-        Default application of component H0
-        """
-        xcopy = x_in.copy()
-        Hx_out.zero()
-        Hx_out.axpy(self.d0, xcopy)
-
-    def apply_Rinv(self, x_in, Hx_out):
-        """
-        Apply the inverse of the Hessian of the prior
-        """
-        xcopy = x_in.copy()
-        Rinvsolver = self.model.Prior.getprecond()
-        Rinvsolver.solve(Hx_out, xcopy)
-
-    def apply_Minv(self, x_in, Hx_out):
-        """
-        Apply the inverse of the mass matrix
-        """
-        xcopy = x_in.copy()
-        Minvsolver = self.model.Prior.Msolver
-        Minvsolver.solve(Hx_out, xcopy)
-
-    def apply_H0_userdefined(self, x_in, Hx_out):
-        """
-        Apply a user-defined H0
-        """
-        xcopy = x_in.copy()
-        self.H0solver.solve(Hx_out, xcopy)
-
-
-
-    def apply_Hk(self, x_in, Hx_out):
-        """
-        Compute matvec between current Hk matrix (approx to inverse of Hessian)
-        and a vector x_in:  
-                            Hx_out = Hk * x_in
-        The Hk matrix is the BFGS approximation to the inverse of the Hessian
-        Computation done via double-loop algorithm
-        Input:
-            x_in = vector (Fenics)  [in]
-            Hx_out = vector(Fenics) [out]
-        """
-        A = []
-        Hx_out.zero()
-        Hx_out.axpy(1.0, x_in)
-
-        for s, y, r in zip(reversed(self.S), reversed(self.Y), reversed(self.R)):
-            a = r * s.inner(Hx_out)
-            A.append(a)
-            Hx_out.axpy(-a, y)
-
-        self.apply_H0(Hx_out, Hx_out)
-
-        for s, y, r, a in zip(self.S, self.Y, self.R, reversed(A)):
-            b = r * y.inner(Hx_out)
-            Hx_out.axpy(a - b, s)
-
+        self.BFGSop = BFGS_operator(self.parameters)
 
 
     def solve(self, a0, bounds_xPARAM=None):
@@ -162,7 +217,11 @@ class BFGS:
         c_armijo = self.parameters["c_armijo"]
         max_backtracking_iter = self.parameters["max_backtracking_iter"]
         print_level = self.parameters["print_level"]
-        damp = self.parameters["BFGS_damping"]
+
+        H0inv = self.parameters['H0inv']
+        self.BFGSop.parameters["BFGS_damping"] = self.parameters["BFGS_damping"]
+        self.BFGSop.parameters["memory_limit"] = self.parameters["memory_limit"]
+
         mpirank = dl.MPI.rank(a0.mpi_comm())
 
         try:
@@ -180,7 +239,6 @@ class BFGS:
         
         ahat = self.model.generate_vector(PARAMETER)    
         mg = self.model.generate_vector(PARAMETER)
-        Hy = self.model.generate_vector(PARAMETER)
         
         cost_old, reg_old, misfit_old = self.model.cost([u,a0,p])
 
@@ -198,39 +256,25 @@ class BFGS:
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
             
-            # needed to update H0 if using Rinv:
-            self.model.setPointForHessianEvaluations([u,a0,p])
-
             mg_old = mg.copy()
             gradnorm = self.model.evalGradientParameter([u,a0,p], mg)
-            # Update BFGS with damped update
-            theta = 1.0 # default value
+            # Update BFGS
             if self.it > 0:
                 s = ahat * alpha
                 y = mg - mg_old
-                sy = s.inner(y)
-                self.apply_Hk(y, Hy)
-                yHy = y.inner(Hy)
-                #if mpirank == 0:
-                #    print 'sy={}, yHy={}, damp*yHy={}'.format(sy, yHy, damp*yHy)
-                if sy < damp*yHy:
-                    theta = (1.0-damp)*yHy/(yHy-sy)
-                    s *= theta
-                    s.axpy(1-theta, Hy)
-                    sy = s.inner(y)
-                assert(sy > 0.)
-                rho = 1./sy
-                self.S.append(s.copy())
-                self.Y.append(y.copy())
-                self.R.append(rho)
-                # re-scale H0 based on first update
-                if self.it == 1:
-                    self.d0 = sy/y.inner(y)
-            
-            if self.it == 0:
+                theta = self.BFGSop.update(s, y)
+            else:
                 gradnorm_ini = gradnorm
                 tol = max(abs_tol, gradnorm_ini*rel_tol)
+                theta = 1.0
                 
+            # update H0
+            if H0inv == 'Rinv':
+                self.model.setPointForHessianEvaluations([u,a0,p])
+                self.BFGSop.set_H0inv(self.model.Prior.getprecond())
+            elif H0inv == 'Minv':
+                self.BFGSop.set_H0inv(self.model.Prior.Msolver)
+
             # check if solution is reached
             if (gradnorm < tol) and (self.it > 0):
                 self.converged = True
@@ -240,7 +284,7 @@ class BFGS:
             self.it += 1
 
             # compute search direction with BFGS:
-            self.apply_Hk(-mg, ahat)
+            self.BFGSop.solve(ahat, -mg)
             
             # backtracking line-search
             alpha = 1.0
