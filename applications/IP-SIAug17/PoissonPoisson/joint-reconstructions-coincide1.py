@@ -16,6 +16,7 @@ from definePDE import pdes
 from definemisfit import defmisfit
 
 PLOT = False
+EIG = False
 SOLVER = 'BFGS'
 suffix = '-c1'
 
@@ -91,7 +92,7 @@ if __name__ == "__main__":
         'GNhessian':True, 'print':(not rank)})
     jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), 
     coeff_cg=0.0,
-    coeff_ncg=1e-3, parameters_ncg={'eps':1e-3},
+    coeff_ncg=1e-6, parameters_ncg={'eps':1e-9},
     coeff_vtv=0.0, parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0},
     isprint=(not rank))
     suffix += '-TV-e' + str(reg1.parameters['eps']) \
@@ -173,4 +174,19 @@ if __name__ == "__main__":
         PltFen.set_varname('joint-model2' + suffix)
         PltFen.plot_vtk(vector2Function(x2[PARAMETER], Vh[PARAMETER]))
 
+    if EIG:
+        jointmodel.setPointForHessianEvaluations(x)
+        H = ReducedHessian(jointmodel, solver.parameters["inner_rel_tolerance"], 
+        gauss_newton_approx=False, misfit_only=False)
+        k = x[PARAMETER].size()
+        p = 20
+        if rank == 0:
+            print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
 
+        Omega = MultiVector(x[PARAMETER], k+p)
+        for i in range(k+p):
+            Random.normal(Omega[i], 1., True)
+
+        d, U = doublePassG(H, jointmodel.M[PARAMETER], jointmodel.Msolver, Omega, k, s=1, check=False)
+        if rank == 0:
+            np.savetxt('eigenvaluesatMAP' + suffix + '.txt', d)
