@@ -108,6 +108,7 @@ class ReducedSpaceNewtonCG:
         self.reason = 0
         self.final_grad_norm = 0
         
+    # add callback function for ReducedHessian (allow user-defined)
     def solve(self, a0, InexactCG=0, GN=False, bounds_xPARAM=None):
         """
         Solve the constrained optimization problem with initial guess a0.
@@ -219,8 +220,8 @@ class ReducedSpaceNewtonCG:
             try:
                 solver.solve(ahat, -mg)
             except RuntimeError as err:
-                print str(err)
                 if mpirank == 0:    
+                    print str(err)
                     print 'Could not solve Newton system'
                     print 'plot a1, a2, mg1, mg2'
                 a0fun = vector2Function(a0, self.model.Vh[PARAMETER])

@@ -17,7 +17,8 @@ from definemisfit import defmisfit
 
 PLOT = False
 EIG = False
-SOLVER = 'BFGS'
+SOLVER = 'Newton'
+useTVPD = True
 suffix = '-c1'
 
 if __name__ == "__main__":
@@ -80,31 +81,31 @@ if __name__ == "__main__":
         print 'Cost @ MAP for m2: cost={}, misfit={}, reg={}'.format(c2, m2, r2)
 
     ############ Regularization #############
-    if SOLVER == 'Newton':
+    """
+    if SOLVER == 'Newton' and useTVPD:
         reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 
-        'rescaledradiusdual':1.0, 'print':(not rank)})
+        'rescaledradiusdual':1.0, 'print':(not rank), 'PCGN':True})
         reg2 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 
-        'rescaledradiusdual':1.0, 'print':(not rank)})
-    elif SOLVER == 'BFGS':
+        'rescaledradiusdual':1.0, 'print':(not rank), 'PCGN':True})
+    else:
         reg1 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 
         'GNhessian':True, 'print':(not rank)})
         reg2 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 
         'GNhessian':True, 'print':(not rank)})
     jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), 
     coeff_cg=0.0,
-    coeff_ncg=1e-6, parameters_ncg={'eps':1e-9},
+    coeff_ncg=5e-6, parameters_ncg={'eps':1e-5},
     coeff_vtv=0.0, parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0},
     isprint=(not rank))
     suffix += '-TV-e' + str(reg1.parameters['eps']) \
     + '-CG' + str(jointregul.coeff_cg) \
     + '-NCG' + str(jointregul.coeff_ncg) 
-
     """
+
     jointregul = V_TVPD(Vh[PARAMETER], {'k':3e-7, 'eps':1e-3, \
-    'rescaledradiusdual':1.0, 'print':not rank})
+    'rescaledradiusdual':1.0, 'print':not rank, 'PCGN':False})
     suffix += '-VTV-k' + str(jointregul.parameters['k']) \
     + '-e' + str(jointregul.parameters['eps'])
-    """
 
     """
     jointregul = NuclearNormSVD2D(mesh, {'eps':1e-3, 'k':2e-7}, isprint=(not rank))
@@ -113,7 +114,6 @@ if __name__ == "__main__":
     """
     #########################################
 
-
     jointmodel = JointModel(model1, model2, jointregul,
     parameters={'print':(not rank), 'splitassign':True})
 
@@ -121,10 +121,14 @@ if __name__ == "__main__":
     #########################################
     if SOLVER == 'Newton':
         solver = ReducedSpaceNewtonCG(jointmodel)
+        solver.parameters['PC'] = 'BFGS'
+        solver.parameters['memory_limit'] = 1000
+        solver.parameters['H0inv'] = 'Rinv'
         suffix += '-Newton'
     elif SOLVER == 'BFGS':
         solver = BFGS(jointmodel)
-        #solver.apply_H0 = solver.apply_Rinv #note: for TV+CG only
+        solver.parameters['H0inv'] = 'default'
+        solver.parameters['memory_limit'] = 5000
         suffix += '-BFGS'
     #########################################
 
