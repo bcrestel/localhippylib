@@ -287,6 +287,8 @@ class Model:
         out.axpy(1., tmp)
 
 
+#TODO: this is the l2-norm of the vector
+# we want L2-norm of the function
     def mediummisfit(self, m):
         """
         Compute medium misfit
