@@ -16,7 +16,7 @@ from definePDE import pdes
 from definemisfit import defmisfit
 
 PLOT = False
-SOLVER = 'Newton'
+SOLVER = 'BFGS'
 suffix = '-c2'
 
 if __name__ == "__main__":
@@ -79,7 +79,6 @@ if __name__ == "__main__":
         print 'Cost @ MAP for m2: cost={}, misfit={}, reg={}'.format(c2, m2, r2)
 
     ############ Regularization #############
-    """
     if SOLVER == 'Newton':
         reg1 = TVPD({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':3e-7, 
         'rescaledradiusdual':1.0, 'print':(not rank)})
@@ -92,21 +91,22 @@ if __name__ == "__main__":
         'GNhessian':True, 'print':(not rank)})
     jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), 
     coeff_cg=0.0,
-    coeff_ncg=1e-3, parameters_ncg={'eps':1e-3},
+    coeff_ncg=1e-6, parameters_ncg={'eps':1e-6},
     coeff_vtv=0.0, parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0},
     isprint=(not rank))
     suffix += '-TV-e' + str(reg1.parameters['eps']) \
     + '-CG' + str(jointregul.coeff_cg) \
     + '-NCG' + str(jointregul.coeff_ncg) 
-    """
 
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':5e-7, 'eps':1e-3, \
+    """
+    jointregul = V_TVPD(Vh[PARAMETER], {'k':3e-7, 'eps':1e-3, \
     'rescaledradiusdual':1.0, 'print':not rank})
     suffix += '-VTV-k' + str(jointregul.parameters['k']) \
     + '-e' + str(jointregul.parameters['eps'])
+    """
 
     """
-    jointregul = NuclearNormSVD2D(mesh, {'eps':1e-3, 'k':2e-7}, isprint=(not rank))
+    jointregul = NuclearNormSVD2D(mesh, {'eps':1e-3, 'k':3e-7}, isprint=(not rank))
     suffix += '-NN-k' + str(jointregul.parameters['k']) \
     + '-e' + str(jointregul.parameters['eps'])
     """
