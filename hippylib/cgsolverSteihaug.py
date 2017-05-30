@@ -121,7 +121,7 @@ class CGSolverSteihaug:
         nom = nom0
         
         if self.parameters["print_level"] == 1:
-            print " Iteration : ", 0, " (B r, r) = ", nom
+            print " Iteration : ", 0, " (B^{-1}r, r) = ", nom
             
         rtol2 = nom * self.parameters["rel_tolerance"] * self.parameters["rel_tolerance"]
         atol2 = self.parameters["abs_tolerance"] * self.parameters["abs_tolerance"]
@@ -164,7 +164,8 @@ class CGSolverSteihaug:
             betanom = self.r.inner(self.z)
             
             if self.parameters["print_level"] == 1:
-                print " Iteration : ", self.iter, " (B r, r) = ", betanom
+                print ' Iteration:{}, den={}, betanom={}'.format(\
+                self.iter, den, betanom)
                 
             if betanom < r0:
                 self.converged = True
