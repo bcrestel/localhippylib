@@ -423,3 +423,14 @@ def vector2Function(x,Vh, **kwargs):
     fun.vector().axpy(1., x)
     
     return fun
+
+
+def scaledinner(u, v):
+    """
+    Compute inner-product u^T.v but with u, v scaled by largest entry
+    """
+    coeffu = max(u.max(), np.abs(u.min()))
+    coeffv = max(v.max(), np.abs(v.min()))
+    usc = u/coeffu
+    vsc = v/coeffv
+    return (usc.inner(vsc))*coeffu*coeffv

@@ -13,6 +13,7 @@
 
 from dolfin import Vector
 import math
+from hippylib.linalg import scaledinner
 
 class CGSolverSteihaug:
     """
@@ -90,7 +91,7 @@ class CGSolverSteihaug:
         """
         self.B = B
         
-    def solve(self,x,b):
+    def solve(self, x, b, sclinner=False):
         """
         Solve the linear system Ax = b
         """
@@ -117,11 +118,11 @@ class CGSolverSteihaug:
         self.d.zero()
         self.d.axpy(1.,self.z); #d = z
         
-        nom0 = self.d.inner(self.r)
+        nom0 = self.localinner(self.d, self.r, sclinner)
         nom = nom0
         
         if self.parameters["print_level"] == 1:
-            print ' Iteration 0: nom={:.6e} '.format(nom)
+            print ' Iteration 0: nom={:.16e} '.format(nom)
             
         rtol2 = nom * self.parameters["rel_tolerance"] * self.parameters["rel_tolerance"]
         atol2 = self.parameters["abs_tolerance"] * self.parameters["abs_tolerance"]
@@ -137,7 +138,7 @@ class CGSolverSteihaug:
             return
         
         self.A.mult(self.d, self.z)  #z = A d
-        den = self.z.inner(self.d)
+        den = self.localinner(self.z, self.d, sclinner)
         
         if den <= 0.0:
             self.converged = True
@@ -145,7 +146,7 @@ class CGSolverSteihaug:
             x.axpy(1., self.d)
             self.r.axpy(-1., self.z)
             self.B.solve(self.z, self.r)
-            nom = self.r.inner(self.z)
+            nom = self.localinner(self.r, self.z, sclinner)
             self.final_norm = math.sqrt(nom)
             if(self.parameters["print_level"] >= 0):
                 print self.reason[self.reasonid]
@@ -161,10 +162,10 @@ class CGSolverSteihaug:
             
             n_pcg = self.B.solve(self.z, self.r)     # z = B^-1 r
             n_PCG += n_pcg
-            betanom = self.r.inner(self.z)
+            betanom = self.localinner(self.r, self.z, sclinner)
             
             if self.parameters["print_level"] == 1:
-                print ' Iteration {}: betanom={:.8e}, beta={:.8e}, den={:.8e}'.format(\
+                print ' Iteration {}: betanom={:.16e}, beta={:.16e}, den={:.16e}'.format(\
                 self.iter, betanom, beta, den)
                 
             if betanom < r0:
@@ -192,7 +193,7 @@ class CGSolverSteihaug:
             
             self.A.mult(self.d,self.z)   # z = A d
             
-            den = self.d.inner(self.z)
+            den = self.localinner(self.d, self.z, sclinner)
             
             if den <= 0.0:
                 self.converged = True
@@ -210,6 +211,11 @@ class CGSolverSteihaug:
             n_PCG, float(n_PCG)/self.iter)
 
 
+    def localinner(self, u, v, rescaledinner=False):
+        if rescaledinner:
+            return scaledinner(u, v)
+        else:
+            return u.inner(v)
 
                 
             
