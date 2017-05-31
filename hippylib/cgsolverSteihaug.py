@@ -118,7 +118,7 @@ class CGSolverSteihaug:
         self.d.zero()
         self.d.axpy(1.,self.z); #d = z
         
-        nom0 = self.localinner(self.d, self.r, sclinner)
+        nom0 = self.localinner(self.d, self.r, False)
         nom = nom0
         
         if self.parameters["print_level"] == 1:
@@ -138,7 +138,7 @@ class CGSolverSteihaug:
             return
         
         self.A.mult(self.d, self.z)  #z = A d
-        den = self.localinner(self.z, self.d, sclinner)
+        den = self.localinner(self.z, self.d, False)
         
         if den <= 0.0:
             self.converged = True
@@ -146,7 +146,7 @@ class CGSolverSteihaug:
             x.axpy(1., self.d)
             self.r.axpy(-1., self.z)
             self.B.solve(self.z, self.r)
-            nom = self.localinner(self.r, self.z, sclinner)
+            nom = self.localinner(self.r, self.z, False)
             self.final_norm = math.sqrt(nom)
             if(self.parameters["print_level"] >= 0):
                 print self.reason[self.reasonid]
