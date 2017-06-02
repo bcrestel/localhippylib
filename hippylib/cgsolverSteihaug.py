@@ -11,9 +11,9 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 
-from dolfin import Vector
+from dolfin import Vector, mpi_comm_self, MPI
 import math
-from hippylib.linalg import scaledinner
+from hippylib.linalg import scaledinner, MPIAllReduceVector
 
 class CGSolverSteihaug:
     """
@@ -73,6 +73,7 @@ class CGSolverSteihaug:
         self.final_norm = 0
         
         self.r = Vector()
+        self.zloc = Vector()
         self.z = Vector()
         self.d = Vector()
                 
@@ -82,6 +83,7 @@ class CGSolverSteihaug:
         """
         self.A = A
         self.A.init_vector(self.r,0)
+        self.A.init_vector(self.zloc,0)
         self.A.init_vector(self.z,0)
         self.A.init_vector(self.d,0)
         
@@ -91,13 +93,14 @@ class CGSolverSteihaug:
         """
         self.B = B
         
-    def solve(self, x, b, sclinner=False):
+    def solve(self, x, b, comm=mpi_comm_self(), sclinner=False):
         """
         Solve the linear system Ax = b
         """
         self.iter = 0
         self.converged = False
         self.reasonid  = 0
+        commsize = MPI.size(comm)
         
         betanom = 0.0
         alpha = 0.0 
@@ -112,8 +115,11 @@ class CGSolverSteihaug:
             self.r *= -1.0
             self.r.axpy(1.0, b)
         
-        self.z.zero()
-        n_PCG = self.B.solve(self.z,self.r) #z = B^-1 r  
+        self.zloc.zero()
+        n_PCG = self.B.solve(self.zloc,self.r) #z = B^-1 r  
+        # if PC=ml_amg, self.zloc not guaranteed to be the same on all proc
+        MPIAllReduceVector(self.zloc, self.z, comm)
+        self.z /= commsize
               
         self.d.zero()
         self.d.axpy(1.,self.z); #d = z
@@ -145,7 +151,10 @@ class CGSolverSteihaug:
             self.reasonid = 2
             x.axpy(1., self.d)
             self.r.axpy(-1., self.z)
-            self.B.solve(self.z, self.r)
+            self.B.solve(self.zloc, self.r)
+            # if PC=ml_amg, self.zloc not guaranteed to be the same on all proc
+            MPIAllReduceVector(self.zloc, self.z, comm)
+            self.z /= commsize
             nom = self.localinner(self.r, self.z, False)
             self.final_norm = math.sqrt(nom)
             if(self.parameters["print_level"] >= 0):
@@ -160,7 +169,10 @@ class CGSolverSteihaug:
             x.axpy(alpha,self.d)        # x = x + alpha d
             self.r.axpy(-alpha, self.z) # r = r - alpha A d
             
-            n_pcg = self.B.solve(self.z, self.r)     # z = B^-1 r
+            n_pcg = self.B.solve(self.zloc, self.r)     # z = B^-1 r
+            # if PC=ml_amg, self.zloc not guaranteed to be the same on all proc
+            MPIAllReduceVector(self.zloc, self.z, comm)
+            self.z /= commsize
             n_PCG += n_pcg
             betanom = self.localinner(self.r, self.z, sclinner)
             
