@@ -17,6 +17,7 @@
 #include <dolfin/la/GenericVector.h>
 #include <dolfin/la/PETScMatrix.h>
 #include <dolfin/common/Array.h>
+#include <dolfin/common/MPI.h>
 
 namespace dolfin
 {
@@ -39,6 +40,8 @@ public:
     // out[i] = max(in[i], radius)
     // output = nb of entries where in[i] > radius
     int pointwiseMaxCount(GenericVector & out, const GenericVector & in, const double radius);
+
+    void MPIAllReduceVector(const GenericVector & send, GenericVector & recv, MPI_Comm comm);
 };
 
 class MultiVector

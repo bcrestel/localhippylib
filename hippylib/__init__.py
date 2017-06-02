@@ -35,7 +35,7 @@ from expression import code_AnisTensor2D, code_Mollifier
 from linalg import MultiVector, MatMvMult, MvDSmatMult, MatMatMult, MatPtAP,\
 MatAtB, Transpose, to_dense, trace, get_diagonal, estimate_diagonal_inv2,\
 randn_perturb, amg_method, Solver2Operator, vector2Function, pointwiseMaxCount,\
-scaledinner
+scaledinner, MPIAllReduceVector
 from pointwiseObservation import assemblePointwiseObservation, exportPointwiseObservation
 from timeDependentVector import TimeDependentVector
 from random import Random

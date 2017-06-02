@@ -16,7 +16,7 @@
 #include <dolfin/la/PETScVector.h>
 #include <dolfin/la/GenericLinearSolver.h>
 #include <dolfin/common/Timer.h>
-#include <dolfin/common/MPI.h>
+#include <mpi.h>
 
 #include <cassert>
 #include <vector>
@@ -136,6 +136,21 @@ int cpp_linalg::pointwiseMaxCount(GenericVector & out, const GenericVector & in,
     int globalcount = MPI::sum(in.mpi_comm(), localcount);
     return globalcount;
 }
+
+void cpp_linalg::MPIAllReduceVector(const GenericVector & send, GenericVector & recv, MPI_Comm comm)
+{
+    assert(send.local_size() == recv.local_size());
+
+    std::vector<double> values_send(send.local_size());
+    std::vector<double> values_recv(recv.local_size());
+    send.get_local(values_send);
+
+    MPI_Allreduce(values_send.data(), values_recv.data(), send.local_size(), MPI_DOUBLE, MPI_SUM, comm);
+    
+    recv.set_local(values_recv);
+    recv.apply("insert");
+}
+
 
 MultiVector::MultiVector()
 {

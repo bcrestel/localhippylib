@@ -258,6 +258,10 @@ def GetFromOwnedGid(v, gid):
 def pointwiseMaxCount(out, inp, radius):
     s = cpp_module.cpp_linalg()
     return s.pointwiseMaxCount(out, inp, radius)
+
+def MPIAllReduceVector(send, recv, comm):
+    s = cpp_module.cpp_linalg()
+    s.MPIAllReduceVector(send, recv, comm)
     
 
 def to_dense(A):
