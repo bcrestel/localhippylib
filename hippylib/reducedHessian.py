@@ -67,10 +67,19 @@ class ReducedHessian:
         Apply the reduced Hessian (or the Gauss Newton approximation) to the vector x
         Return the result in y.
         """
-        if self.gauss_newton_approx:
-            self.GNHessian(x,y)
-        else:
-            self.TrueHessian(x,y)
+        # Interface for fenicstools library:
+        try:
+            self.model.GN = self.gauss_newton_approx
+        except:
+            pass
+        # Default to model.mult if available:
+        try:
+            self.model.mult(x, y)
+        except:
+            if self.gauss_newton_approx:
+                self.GNHessian(x,y)
+            else:
+                self.TrueHessian(x,y)
         
         self.ncalls += 1
     
