@@ -9,6 +9,9 @@ except:
     pass
 
 
+#TODO:
+#   modify mixedfunctionspace to use createMixedFS (fenicstools)
+#   add method 'mult' for reducedHessian to default to
 class JointModel:
     """ This class builds a model for joint inversion in the case of two
     independent physics connected only via the regularization term (or prior) """

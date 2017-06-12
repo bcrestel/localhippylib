@@ -119,7 +119,6 @@ class SteepestDescent:
             
             self.it += 1
                         
-            #TODO: Check with Umbe why we do this instead of ahat=-M^{-1}.mg
             #self.model.Rsolver().solve(ahat, -mg)
             self.model.Prior.Msolver.solve(ahat, -mg)
             
