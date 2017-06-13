@@ -11,10 +11,10 @@ from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.miscfenics import createMixedFS
 
 
-class Acoustic:
+class ModelAcoustic:
 
     def __init__(self, mpicomm_global, acousticwavePDE, sources, \
-    sourcesindex, timestepsindex, atrue=None, regularization=None):
+    sourcesindex, timestepsindex, obsop, atrue=None, regularization=None):
     """
     Arguments:
         - mpicomm_global = MPI communicator to average gradient and Hessian-vect
@@ -25,12 +25,14 @@ class Acoustic:
         - sourcesindex = list of source numbers to be run by this MPI proc
         - timestepsindex = range of time steps to be computed by this MPI proc
           (for gradient and Hessian-vect)
+        - obsop = observation operator
         - atrue: target medium for parameter a
         - regularization: object for regularization/prior
     """
     self.objacoustic = ObjectiveAcoustic(mpicomm_global, acousticwavePDE,\
     sources, sourcesindex, timestepsindex, 'a', None)
     self.objacoustic.alpha_reg = 0.0    # belt AND hangers
+    self.objacoustic.obsop = obsop
 
     self.Prior = regularization
 

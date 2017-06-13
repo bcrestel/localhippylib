@@ -49,6 +49,7 @@ from misfit import Misfit, ContinuousStateObservation, PointwiseStateObservation
 from model import Model
 from modelTemplate import ModelTemplate, modelVerify 
 from jointmodel import JointModel
+from model_acousticinversiona import ModelAcoustic
 
 # hIPPYlib algorithms
 from cgsolverSteihaug import CGSolverSteihaug
