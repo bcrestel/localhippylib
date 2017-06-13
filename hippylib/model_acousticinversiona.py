@@ -15,60 +15,60 @@ class ModelAcoustic:
 
     def __init__(self, mpicomm_global, acousticwavePDE, sources, \
     sourcesindex, timestepsindex, obsop, atrue=None, regularization=None):
-    """
-    Arguments:
-        - mpicomm_global = MPI communicator to average gradient and Hessian-vect
-        contributions
-        - acousticwavePDE = object from fenicstools' class
-        acousticwave.AcousticWave
-        - sources = seismic source for PDE
-        - sourcesindex = list of source numbers to be run by this MPI proc
-        - timestepsindex = range of time steps to be computed by this MPI proc
-          (for gradient and Hessian-vect)
-        - obsop = observation operator
-        - atrue: target medium for parameter a
-        - regularization: object for regularization/prior
-    """
-    self.objacoustic = ObjectiveAcoustic(mpicomm_global, acousticwavePDE,\
-    sources, sourcesindex, timestepsindex, 'a', None)
-    self.objacoustic.alpha_reg = 0.0    # belt AND hangers
-    self.objacoustic.obsop = obsop
+        """
+        Arguments:
+            - mpicomm_global = MPI communicator to average gradient and Hessian-vect
+            contributions
+            - acousticwavePDE = object from fenicstools' class
+            acousticwave.AcousticWave
+            - sources = seismic source for PDE
+            - sourcesindex = list of source numbers to be run by this MPI proc
+            - timestepsindex = range of time steps to be computed by this MPI proc
+              (for gradient and Hessian-vect)
+            - obsop = observation operator
+            - atrue: target medium for parameter a
+            - regularization: object for regularization/prior
+        """
+        self.objacoustic = ObjectiveAcoustic(mpicomm_global, acousticwavePDE,\
+        sources, sourcesindex, timestepsindex, 'a', None)
+        self.objacoustic.alpha_reg = 0.0    # belt AND hangers
+        self.objacoustic.obsop = obsop
 
-    self.Prior = regularization
+        self.Prior = regularization
 
-    Vm = self.objacoustic.PDE.Vm
-    V = self.objacoustic.PDE.V
-    VmVm = createMixedFS(Vm, Vm)
+        Vm = self.objacoustic.PDE.Vm
+        V = self.objacoustic.PDE.V
+        VmVm = createMixedFS(Vm, Vm)
 
-    self.problem.Vh[STATE] = V
-    self.problem.Vh[ADJOINT] = V
-    self.problem.Vh[PARAMETERS] = Vm
+        self.problem.Vh[STATE] = V
+        self.problem.Vh[ADJOINT] = V
+        self.problem.Vh[PARAMETERS] = Vm
 
-    self.M = [None, None, None]
-    test, trial = dl.TestFunction(V), dl.TrialFunction(V)
-    self.M[STATE] = dl.assemble(dl.inner(test, trial)*dl.dx)
-    test, trial = dl.TestFunction(V), dl.TrialFunction(V)
-    self.M[ADJOINT] = dl.assemble(dl.inner(test, trial)*dl.dx)
-    test, trial = dl.TestFunction(Vm), dl.TrialFunction(Vm)
-    self.M[PARAMETER] = dl.assemble(dl.inner(test, trial)*dl.dx)
-    self.Msolver = dl.PETScKrylovSolver('cg', 'jacobi')
-    self.Msolver.parameters["maximum_iterations"] = 2000
-    self.Msolver.parameters["relative_tolerance"] = 1e-24
-    self.Msolver.parameters["absolute_tolerance"] = 1e-24
-    self.Msolver.parameters["error_on_nonconvergence"] = True 
-    self.Msolver.parameters["nonzero_initial_guess"] = False 
-    self.Msolver.set_operator(self.M[PARAMETER])
+        self.M = [None, None, None]
+        test, trial = dl.TestFunction(V), dl.TrialFunction(V)
+        self.M[STATE] = dl.assemble(dl.inner(test, trial)*dl.dx)
+        test, trial = dl.TestFunction(V), dl.TrialFunction(V)
+        self.M[ADJOINT] = dl.assemble(dl.inner(test, trial)*dl.dx)
+        test, trial = dl.TestFunction(Vm), dl.TrialFunction(Vm)
+        self.M[PARAMETER] = dl.assemble(dl.inner(test, trial)*dl.dx)
+        self.Msolver = dl.PETScKrylovSolver('cg', 'jacobi')
+        self.Msolver.parameters["maximum_iterations"] = 2000
+        self.Msolver.parameters["relative_tolerance"] = 1e-24
+        self.Msolver.parameters["absolute_tolerance"] = 1e-24
+        self.Msolver.parameters["error_on_nonconvergence"] = True 
+        self.Msolver.parameters["nonzero_initial_guess"] = False 
+        self.Msolver.set_operator(self.M[PARAMETER])
 
-    self.grad = self.generate_vector(PARAMETER)
-    self.a = dl.Function(Vm)
-    self.x_ab = dl.Function(VmVm)
-    self.y_ab = dl.Function(VmVm)
+        self.grad = self.generate_vector(PARAMETER)
+        self.a = dl.Function(Vm)
+        self.x_ab = dl.Function(VmVm)
+        self.y_ab = dl.Function(VmVm)
 
-    self.atrue = atrue
-    self.btrue = self.objacoustic.PDE.b.copy()
-    self.abtrue = dl.Function(VmVm)
-    self.atruen =\
-    np.sqrt(self.atrue.vector().inner(self.M[PARAMETER]*self.atrue.vector()))
+        self.atrue = atrue
+        self.btrue = self.objacoustic.PDE.b.copy()
+        self.abtrue = dl.Function(VmVm)
+        self.atruen =\
+        np.sqrt(self.atrue.vector().inner(self.M[PARAMETER]*self.atrue.vector()))
 
 
     def generate_vector(self, component = "ALL"):
