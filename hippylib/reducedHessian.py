@@ -35,7 +35,7 @@ class ReducedHessian:
         self.model = model
         self.tol = innerTol
         self.gauss_newton_approx = gauss_newton_approx
-        self.misfit_only=misfit_only
+        self.misfit_only = misfit_only
         self.ncalls = 0
         
         self.rhs_fwd = model.generate_vector(STATE)
@@ -75,6 +75,10 @@ class ReducedHessian:
         # Default to model.mult if available:
         try:
             self.model.mult(x, y)
+
+            if not self.misfit_only:
+                self.model.applyR(x, self.yhelp)
+                y.axpy(1.0, self.yhelp)
         except:
             if self.gauss_newton_approx:
                 self.GNHessian(x,y)
