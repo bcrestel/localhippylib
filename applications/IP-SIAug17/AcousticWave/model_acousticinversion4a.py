@@ -2,15 +2,19 @@
 Define hippylib model for acoustic wave inverse problem with absorbing boundary
 conditions, by wrapping around fenicstools class ObjectiveAcoustic
 """
+import numpy as np
 import dolfin as dl
+
 from variables import STATE, PARAMETER, ADJOINT
+
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
+from fenicstools.miscfenics import createMixedFS
 
 
 class Acoustic:
 
     def __init__(self, mpicomm_global, acousticwavePDE, sources, \
-    sourcesindex, timestepsindex, regularization=None):
+    sourcesindex, timestepsindex, atrue=None, regularization=None):
     """
     Arguments:
         - mpicomm_global = MPI communicator to average gradient and Hessian-vect
@@ -21,15 +25,18 @@ class Acoustic:
         - sourcesindex = list of source numbers to be run by this MPI proc
         - timestepsindex = range of time steps to be computed by this MPI proc
           (for gradient and Hessian-vect)
+        - atrue: target medium for parameter a
         - regularization: object for regularization/prior
     """
     self.objacoustic = ObjectiveAcoustic(mpicomm_global, acousticwavePDE,\
     sources, sourcesindex, timestepsindex, 'a', None)
+    self.objacoustic.alpha_reg = 0.0    # belt AND hangers
 
     self.Prior = regularization
 
     Vm = self.objacoustic.PDE.Vm
     V = self.objacoustic.PDE.V
+    VmVm = createMixedFS(Vm, Vm)
 
     self.problem.Vh[STATE] = V
     self.problem.Vh[ADJOINT] = V
@@ -51,6 +58,15 @@ class Acoustic:
     self.Msolver.set_operator(self.M[PARAMETER])
 
     self.grad = self.generate_vector(PARAMETER)
+    self.a = dl.Function(Vm)
+    self.x_ab = dl.Function(VmVm)
+    self.y_ab = dl.Function(VmVm)
+
+    self.atrue = atrue
+    self.btrue = self.objacoustic.PDE.b.copy()
+    self.abtrue = dl.Function(VmVm)
+    self.atruen =\
+    np.sqrt(self.atrue.vector().inner(self.M[PARAMETER]*self.atrue.vector()))
 
 
     def generate_vector(self, component = "ALL"):
@@ -109,4 +125,52 @@ class Acoustic:
         self.Prior.assemble_hessian(x[PARAMETER])
 
 
-    #TODO: def mult, etc....
+    def mult(self, x, y):
+        """
+        Compute Hessian-vect product with x, and return to y
+        """
+        self.a.vector().zero()
+        self.a.vector().axpy(1.0, x)
+
+        self.x_ab.vector().zero()
+        dl.assign(self.x_ab.sub(0), self.a)
+
+        self.objacoustic.mult(self.x_ab, self.y_ab)
+
+        ya, yb = self.y_ab.split(deepcopy=True)
+        y.zero()
+        y.axpy(1.0, ya.vector())
+
+
+    def applyR(self, da, out):
+        """
+        Apply the regularization R to a (incremental) parameter variable.
+        out = R da
+        Parameters:
+        - da the (incremental) parameter variable
+        - out the action of R on da
+        
+        Note: this routine assumes that out has the correct shape.
+        """
+        out.zero()
+        out.axpy(1.0, self.Prior.hessian(da))
+
+
+    def Rsolver(self):
+        """
+        Return an object Rsovler that is a suitable solver for the regularization
+        operator R.
+        """
+        return self.Prior.getprecond()
+
+
+    def mediummisfit(self, m):
+        if self.atrue == None:
+            return -99, -99
+        else:
+            self.abtrue.vector().zero()
+            dl.assign(self.abtrue.sub(0), self.atrue)
+            dl.assign(self.abtrue.sub(1), self.btrue)
+            mma, mmb = self.objacoustic.mediummisfit(self.abtrue)
+            assert mmb < 1e-24
+            return mma, 100.0*mma/self.atruen
