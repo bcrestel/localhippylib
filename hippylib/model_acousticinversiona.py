@@ -21,7 +21,7 @@ class FakeProblem:
 class ModelAcoustic:
 
     def __init__(self, mpicomm_global, acousticwavePDE, sources, \
-    sourcesindex, timestepsindex, obsop, atrue=None, regularization=None):
+    sourcesindex, timestepsindex, obsop, atrue=None, btrue=None, regularization=None):
         """
         Arguments:
             - mpicomm_global = MPI communicator to average gradient and Hessian-vect
@@ -73,7 +73,7 @@ class ModelAcoustic:
         self.y_ab = dl.Function(VmVm)
 
         self.atrue = atrue
-        self.btrue = self.objacoustic.PDE.b.copy()
+        self.btrue = btrue
         self.abtrue = dl.Function(VmVm)
         self.atruen =\
         np.sqrt(self.atrue.vector().inner(self.M[PARAMETER]*self.atrue.vector()))
@@ -116,10 +116,10 @@ class ModelAcoustic:
         self.objacoustic.solveadj_constructgrad()
 
 
-    def evalGradientParmaeter(self, x, mg, misfit_only=False):
+    def evalGradientParameter(self, x, mg, misfit_only=False):
         mga, mgb = self.objacoustic.MG.split(deepcopy=True)
         mg.zero()
-        mg.axpy(1.0, mga)
+        mg.axpy(1.0, mga.vector())
 
         if not misfit_only:
             mg.axpy(1.0, self.Prior.gradvect(x[PARAMETER]))
@@ -145,7 +145,7 @@ class ModelAcoustic:
         self.x_ab.vector().zero()
         dl.assign(self.x_ab.sub(0), self.a)
 
-        self.objacoustic.mult(self.x_ab, self.y_ab)
+        self.objacoustic.mult(self.x_ab.vector(), self.y_ab.vector())
 
         ya, yb = self.y_ab.split(deepcopy=True)
         y.zero()
@@ -182,5 +182,42 @@ class ModelAcoustic:
             dl.assign(self.abtrue.sub(0), self.atrue)
             dl.assign(self.abtrue.sub(1), self.btrue)
             mma, mmb = self.objacoustic.mediummisfit(self.abtrue)
-            assert mmb < 1e-24
+            assert mmb < 1e-24, mmb
             return mma, 100.0*mma/self.atruen
+
+
+    def generate_synthetic_obs(self, SNRdB=0.0):
+        """
+        Generate synthetic observations at the target parameter
+        """
+        self.objacoustic.update_PDE({'a':self.atrue, 'b':self.btrue})
+        self.objacoustic.solvefwd()
+        DD = self.objacoustic.Bp[:]
+        if SNRdB > 0.0:
+            np.random.seed(11)
+            # Generate random components for all src (even if not owned)
+            RAND = []
+            nbobspt = self.objacoustic.obsop.PtwiseObs.nbPts
+            nbt = self.objacoustic.PDE.Nt + 1
+            Pt = self.objacoustic.fwdsource[1]
+            for ii in range(len(Pt.src_loc)):
+                RAND.append(np.random.randn(nbobspt*nbt).reshape((nbobspt, nbt)))
+            sources = self.objacoustic.srcindex
+            RAND = RAND[sources[0]:sources[-1]+1]
+            mpiglobalrank = dl.MPI.rank(self.objacoustic.mpicomm_global)
+            # Add noise
+            for ii in range(len(DD)):
+                dd = DD[ii]
+                rndnoise = RAND[ii]
+                mu = np.abs(dd).mean(axis=1)
+                sigmas = mu/(10**(SNRdB/10.))
+                DD[ii] = dd + sigmas.reshape((nbobspt,1))*rndnoise
+                print 'source={}, mpiglobalrank={}, sigmas={}, |rndnoise|={}'.format(\
+                ii, mpiglobalrank, sigmas.sum()/len(sigmas), (rndnoise**2).sum().sum())
+                dl.MPI.barrier(dl.mpi_comm_world())
+        self.objacoustic.dd = DD
+
+
+    #TODO: create this
+    def getPDEcounts(self):
+        return 0
