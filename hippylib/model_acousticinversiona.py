@@ -10,6 +10,13 @@ from variables import STATE, PARAMETER, ADJOINT
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.miscfenics import createMixedFS
 
+class FakeProblem:
+    """
+    Implement fake 'problem' class that only has Vh as a member
+    """
+    def __init__(self):
+        self.Vh = [None, None, None]
+
 
 class ModelAcoustic:
 
@@ -40,9 +47,10 @@ class ModelAcoustic:
         V = self.objacoustic.PDE.V
         VmVm = createMixedFS(Vm, Vm)
 
+        self.problem = FakeProblem()
         self.problem.Vh[STATE] = V
         self.problem.Vh[ADJOINT] = V
-        self.problem.Vh[PARAMETERS] = Vm
+        self.problem.Vh[PARAMETER] = Vm
 
         self.M = [None, None, None]
         test, trial = dl.TestFunction(V), dl.TrialFunction(V)
