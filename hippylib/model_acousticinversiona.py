@@ -40,6 +40,7 @@ class ModelAcoustic:
         sources, sourcesindex, timestepsindex, 'a', None)
         self.objacoustic.alpha_reg = 0.0    # belt AND hangers
         self.objacoustic.obsop = obsop
+        self.GN = False
 
         self.Prior = regularization
 
@@ -145,6 +146,7 @@ class ModelAcoustic:
         self.x_ab.vector().zero()
         dl.assign(self.x_ab.sub(0), self.a)
 
+        self.objacoustic.GN = self.GN
         self.objacoustic.mult(self.x_ab.vector(), self.y_ab.vector())
 
         ya, yb = self.y_ab.split(deepcopy=True)
