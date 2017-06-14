@@ -21,10 +21,10 @@ def amg_method():
     Determine which AMG preconditioner to use.
     If avaialable use ML, which is faster than the PETSc one.
     """
-    S = PETScKrylovSolver()
-    for pp in S.preconditioners():
-        if pp[0] == 'ml_amg':
-            return 'ml_amg'
+#    S = PETScKrylovSolver()
+#    for pp in S.preconditioners():
+#        if pp[0] == 'ml_amg':
+#            return 'ml_amg'
         
     return 'petsc_amg'
 
