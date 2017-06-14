@@ -5,6 +5,7 @@ import dolfin as dl
 
 from hippylib.model_acousticinversiona import ModelAcoustic
 from hippylib import ReducedSpaceNewtonCG
+from hippylib import STATE, PARAMETER, ADJOINT
 
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
@@ -83,6 +84,20 @@ timesteps, obsop, at, bt, reg)
 
 if PRINT:   print 'Generate synthetic data'
 model.generate_synthetic_obs(20.0)
+
+out = model.generate_vector(PARAMETER)
+x = model.generate_vector("ALL")
+x[PARAMETER] = a0
+model.solveFwd(out, x)
+_, costreg0, costmisf0 = model.cost(x)
+x[PARAMETER] = at
+model.solveFwd(out, x)
+_, costregt, costmisft = model.cost(x)
+if PRINT:   
+    print 'misfit at target={:.4e}, at initial state={:.4e}'.format(\
+    costmisft, costmisf0)
+    print 'Regularization at target={:.2e}, at initial state={:.2e}'.format(\
+    costregt, costreg0)
 
 if PRINT:   print 'Solve inverse problem'
 solver = ReducedSpaceNewtonCG(model)
