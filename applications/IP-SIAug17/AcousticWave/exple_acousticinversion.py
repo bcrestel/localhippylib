@@ -3,7 +3,7 @@ Solve acoustic wave inverse problem in terms of parameter a only
 """
 import dolfin as dl
 
-from hippylib import *
+from hippylib.model_acousticinversiona import ModelAcoustic
 
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
@@ -68,10 +68,6 @@ mpiworldrank, mpiglobalrank, mpilocalrank, sources,\
 timesteps[0], timesteps[-1])
 
 obspts = [[ii*float(X)/float(Nxy), Y] for ii in range(1,Nxy)]
-#obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
-#[[1.0, ii/10.] for ii in range(1,10)] + \
-#[[ii/10., 0.0] for ii in range(1,10)] + \
-#[[ii/10., 1.0] for ii in range(1,10)]
 tfilterpts = [t0, t1, t2, tf]
 obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
