@@ -122,10 +122,12 @@ mina0 = a0.vector().min()
 maxa0 = a0.vector().max()
 minb0 = b0.vector().min()
 maxb0 = b0.vector().max()
-mina = waveobj.PDE.a.vector().min()
-maxa = waveobj.PDE.a.vector().max()
-minb = waveobj.PDE.b.vector().min()
-maxb = waveobj.PDE.b.vector().max()
+a = model.objacoustic.PDE.a
+b = model.objacoustic.PDE.b
+mina = a.vector().min()
+maxa = a.vector().max()
+minb = b.vector().min()
+maxb = b.vector().max()
 if PRINT:
     print '\ntarget: min(a)={}, max(a)={}'.format(minat, maxat)
     print 'init: min(a)={}, max(a)={}'.format(mina0, maxa0)
