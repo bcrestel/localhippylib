@@ -48,7 +48,6 @@ from prior import _Prior, LaplacianPrior, BiLaplacianPrior, MollifiedBiLaplacian
 from misfit import Misfit, ContinuousStateObservation, PointwiseStateObservation
 from model import Model
 from modelTemplate import ModelTemplate, modelVerify 
-from jointmodel import JointModel
 
 # hIPPYlib algorithms
 from cgsolverSteihaug import CGSolverSteihaug

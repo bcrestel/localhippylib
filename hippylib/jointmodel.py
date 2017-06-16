@@ -3,10 +3,7 @@ import dolfin as dl
 
 from hippylib.linalg import vector2Function
 from hippylib.variables import STATE, ADJOINT, PARAMETER
-try:
-    from fenicstools.linalg.splitandassign import SplitAndAssign
-except:
-    pass
+from fenicstools.linalg.splitandassign import SplitAndAssign
 
 
 #TODO:
