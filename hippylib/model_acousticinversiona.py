@@ -10,6 +10,8 @@ from variables import STATE, PARAMETER, ADJOINT
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.miscfenics import createMixedFS
 
+
+
 class FakeProblem:
     """
     Implement fake 'problem' class that only has Vh as a member
@@ -20,8 +22,8 @@ class FakeProblem:
 
 class ModelAcoustic:
 
-    def __init__(self, mpicomm_global, acousticwavePDE, sources, \
-    sourcesindex, timestepsindex, obsop, atrue=None, btrue=None, regularization=None):
+    def __init__(self, mpicomm_global, acousticwavePDE, sources, sourcesindex,\
+    timestepsindex, obsop, regularization, atrue=None, btrue=None):
         """
         Arguments:
             - mpicomm_global = MPI communicator to average gradient and Hessian-vect

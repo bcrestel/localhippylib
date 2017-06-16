@@ -80,7 +80,7 @@ reg = TVPD({'Vm':Vl, 'eps':1.0, 'k':1e-6, 'print':PRINT})
 
 if PRINT:   print 'Create model'
 model = ModelAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], sources,
-timesteps, obsop, at, bt, reg)
+timesteps, obsop, reg, at, bt)
 
 if PRINT:   print 'Generate synthetic data'
 model.generate_synthetic_obs(20.0)
