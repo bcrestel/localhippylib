@@ -1,14 +1,14 @@
 import numpy as np
 import dolfin as dl
 
-from hippylib.linalg import vector2Function
-from hippylib.variables import STATE, ADJOINT, PARAMETER
+from hippylib import vector2Function
+from hippylib import STATE, ADJOINT, PARAMETER
+from hippylib import ReducedHessian
+
 from fenicstools.linalg.splitandassign import SplitAndAssign
+from fenicstools.miscfenics import createMixedFS
 
 
-#TODO:
-#   modify mixedfunctionspace to use createMixedFS (fenicstools)
-#   add method 'mult' for reducedHessian to default to
 class JointModel:
     """ This class builds a model for joint inversion in the case of two
     independent physics connected only via the regularization term (or prior) """
@@ -26,9 +26,9 @@ class JointModel:
         assert self.model2.Prior.isZeroPrior()
 
         self.Vh = [None, None, None]
-        self.Vh[STATE] = self.model1.problem.Vh[STATE] * self.model2.problem.Vh[STATE]
-        self.Vh[ADJOINT] = self.model1.problem.Vh[ADJOINT] * self.model2.problem.Vh[ADJOINT]
-        self.Vh[PARAMETER] = self.model1.problem.Vh[PARAMETER] * self.model2.problem.Vh[PARAMETER]
+        self.Vh[STATE] = createMixedFS(self.model1.problem.Vh[STATE], self.model2.problem.Vh[STATE])
+        self.Vh[ADJOINT] = createMixedFS(self.model1.problem.Vh[ADJOINT], self.model2.problem.Vh[ADJOINT])
+        self.Vh[PARAMETER] = createMixedFS(self.model1.problem.Vh[PARAMETER], self.model2.problem.Vh[PARAMETER])
 
         self.M = [None, None, None]
         test, trial = dl.TestFunction(self.Vh[STATE]), dl.TrialFunction(self.Vh[STATE])
@@ -45,8 +45,10 @@ class JointModel:
         self.Msolver.parameters["nonzero_initial_guess"] = False 
         self.Msolver.set_operator(self.M[PARAMETER])
 
-        self.Prior = jointregularization
+        self.GN = False
+        self.tol = 1e-9
 
+        self.Prior = jointregularization
         self.alphareg = alphareg
 
         self.parameters = {'print':False, 'splitassign':True}
@@ -225,89 +227,32 @@ class JointModel:
         self.Prior.assemble_hessianab(x1[PARAMETER], x2[PARAMETER])
 
 
-    def solveFwdIncremental(self, sol, rhs, tol):
-        """ Solve the incremental forward problem for a given rhs """
-        sol1, sol2 = self.splitvector(sol, STATE)
-        rhs1, rhs2 = self.splitvector(rhs, STATE)
+    def mult(self, x, y):
+        """
+        Compute Hessian-vector product with x, and save it to y
+        """
+        x1, x2 = self.splitvector(x, PARAMETER)
+        y1, y2 = self.splitvector(y, PARAMETER)
 
-        self.model1.solveFwdIncremental(sol1, rhs1, tol)
-        self.model2.solveFwdIncremental(sol2, rhs2, tol)
-
-        sol.zero()
-        sol.axpy(1.0, self.assignvector(sol1, sol2, STATE))
-
-
-    def solveAdjIncremental(self, sol, rhs, tol):
-        """ Solve the incremental forward problem for a given rhs """
-        sol1, sol2 = self.splitvector(sol, ADJOINT)
-        rhs1, rhs2 = self.splitvector(rhs, ADJOINT)
-
-        self.model1.solveAdjIncremental(sol1, rhs1, tol)
-        self.model2.solveAdjIncremental(sol2, rhs2, tol)
-
-        sol.zero()
-        sol.axpy(1.0, self.assignvector(sol1, sol2, ADJOINT))
-
-
-    def applyC(self, da, out):
-        da1, da2 = self.splitvector(da, PARAMETER)
-        out1, out2 = self.splitvector(out, STATE)
-
-        self.model1.applyC(da1, out1)
-        self.model2.applyC(da2, out2)
-
-        out.zero()
-        out.axpy(1.0, self.assignvector(out1, out2, STATE))
-
-    def applyCt(self, dp, out):
-        dp1, dp2 = self.splitvector(dp, ADJOINT)
-        out1, out2 = self.splitvector(out, PARAMETER)
-
-        self.model1.applyCt(dp1, out1)
-        self.model2.applyCt(dp2, out2)
-
-        out.zero()
-        out.axpy(1.0, self.assignvector(out1, out2, PARAMETER))
-
-    def applyWuu(self, du, out, gn_approx=False):
-        du1, du2 = self.splitvector(du, STATE)
-        out1, out2 = self.splitvector(out, ADJOINT)
-
-        self.model1.applyWuu(du1, out1, gn_approx)
-        self.model2.applyWuu(du2, out2, gn_approx)
-
-        out.zero()
-        out.axpy(1.0, self.assignvector(out1, out2, ADJOINT))
-
-    def applyWua(self, da, out):
-        da1, da2 = self.splitvector(da, PARAMETER)
-        out1, out2 = self.splitvector(out, ADJOINT)
-
-        self.model1.applyWua(da1, out1)
-        self.model2.applyWua(da2, out2)
-
-        out.zero()
-        out.axpy(1.0, self.assignvector(out1, out2, ADJOINT))
-
-    def applyWau(self, du, out):
-        du1, du2 = self.splitvector(du, STATE)
-        out1, out2 = self.splitvector(out, PARAMETER)
-
-        self.model1.applyWau(du1, out1)
-        self.model2.applyWau(du2, out2)
-
-        out.zero()
-        out.axpy(1.0, self.assignvector(out1, out2, PARAMETER))
-
-    def applyRaa(self, da, out):
-        da1, da2 = self.splitvector(da, PARAMETER)
-        out1, out2 = self.splitvector(out, PARAMETER)
-
-        self.model1.applyRaa(da1, out1)
-        self.model2.applyRaa(da2, out2)
-
-        out.zero()
-        out.axpy(1.0, self.assignvector(out1, out2, PARAMETER))
+        # model 1
+        try:
+            self.model1.GN = self.GN
+            self.model1.tol = self.tol
+            self.model1.mult(x1, y1)
+        except:
+            H1 = ReducedHessian(self.model1, self.tol, self.GN, True)
+            H1.mult(x1, y1)
+        # model 2
+        try:
+            self.model2.GN = self.GN
+            self.model2.tol = self.tol
+            self.model2.mult(x2, y2)
+        except:
+            H2 = ReducedHessian(self.model2, self.tol, self.GN, True)
+            H2.mult(x2, y2)
+        # combine them
+        y.zero()
+        y.axpy(1.0, self.assignvector(y1, y2, PARAMETER))
 
 
     def applyR(self, da, out):
@@ -327,4 +272,4 @@ class JointModel:
         return 0.5*(nd1+nd2), 0.5*(nd1p+nd2p)
 
     def getPDEcounts(self):
-        return self.model1.problem.PDEcounts + self.model2.problem.PDEcounts
+        return self.model1.getPDEcounts() + self.model2.getPDEcounts()
