@@ -43,6 +43,7 @@ class ModelAcoustic:
         self.objacoustic.alpha_reg = 0.0    # belt AND hangers
         self.objacoustic.obsop = obsop
         self.GN = False
+        self.tol = 1e-9
 
         self.Prior = regularization
 
