@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import dolfin as dl
 from dolfin import Expression
 
-from hippylib import *
+from hippylib import ZeroPrior, ReducedSpaceNewtonCG, amg_method, Random, Model,\
+STATE, ADJOINT, PARAMETER
+from hippylib.jointmodel import JointModel
 
 from fenicstools.regularization import TV, TVPD
 from fenicstools.jointregularization import \
