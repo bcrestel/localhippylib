@@ -10,7 +10,7 @@ from hippylib import STATE, PARAMETER, ADJOINT
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
-from fenicstools.regularization import TVPD, TV
+from fenicstools.regularization import TVPD
 from fenicstools.mpicomm import create_communicators, partition_work
 from fenicstools.examples.acousticwave.mediumparameters import \
 targetmediumparameters, initmediumparameters, loadparameters
