@@ -18,21 +18,19 @@ import matplotlib.pyplot as plt
 
 import sys, os
 from hippylib import Random, ReducedSpaceNewtonCG, amg_method, Model,\
-STATE, ADJOINT, PARAMETER
+STATE, ADJOINT, PARAMETER, vector2Function
 
 from fenicstools.regularization import TVPD
 from fenicstools.plotfenics import PlotFenics
 
-sys.path.append("../")
-from PoissonPoisson.definePDE import pdes
-from PoissonPoisson.definemisfit import defmisfit
-from fenicstools.examples.acousticwave.mediumparameters import \
-targetmediumparameters, initmediumparameters
+from definePDE import pdes
+from definemisfit import defmisfit
+from targetmedium import targetmediumparameters, initmediumparameters
 
 dl.set_log_active(False)
 
 
-PLOT = False
+PLOT = True
             
 sep = "\n"+"#"*80+"\n"
 ndim = 2
@@ -60,10 +58,10 @@ if rank == 0:
 atrue,_,_,_,_ = targetmediumparameters(Vh[PARAMETER], 1.0)
     
 # Define PDE
-_, pde = pdes(Vh, STATE, amg_method)
+pde = pdes(Vh, STATE, amg_method)
 
 # Define misfit functions
-_, misfit, _, targets = defmisfit(Vh, STATE)
+misfit, targets = defmisfit(Vh, STATE)
 
 # Generate synthetic observations
 rel_noise_level = 0.02
@@ -77,21 +75,21 @@ pde.solveFwd(x[STATE], x, 1e-9)
 noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
 Random.normal(x[STATE], noise_level, False)
 misfit.B.mult(x[STATE], misfit.d)
-misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
+#misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
+misfit.noise_variance = 1.0
 
 # Regularization
-prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-6, 'eps':1e+0, 'print':(not rank)})
+prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-3, 'eps':1e-5, 'print':(not rank)})
 
 if PLOT:
-    PltFen = PlotFenics(os.path.splitext(mesh.mpi_comm(), sys.argv[0])[0] + '/Plots')
+    PltFen = PlotFenics(mesh.mpi_comm(), os.path.splitext(sys.argv[0])[0] + '/Plots')
     suffix = '-c1-k' + str(prior.parameters['k']) + \
     '-e' + str(prior.parameters['eps'])
-if PLOT:
-    PltFen.set_varname('a1')
+    PltFen.set_varname('atrue')
     PltFen.plot_vtk(atrue)
 
 model = Model(pde, prior, misfit, atrue.vector())
-x[STATE].zero()
+model.solveFwd(x[STATE], x, 1e-9)
 c, r, m = model.cost(x)
 if rank == 0:
     print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
@@ -105,14 +103,16 @@ solver.parameters["inner_rel_tolerance"] = 1e-15
 solver.parameters["gda_tolerance"] = 1e-24
 solver.parameters["c_armijo"] = 5e-5
 solver.parameters["max_backtracking_iter"] = 20
-solver.parameters["GN_iter"] = 5
+solver.parameters["GN_iter"] = 10
 solver.parameters["max_iter"] = 2000
 solver.parameters["print_level"] = 0
 if rank != 0:
     solver.parameters["print_level"] = -1
 
-a0 = dl.interpolate(dl.Expression("0.0"), Vh[PARAMETER])
-x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
+#a0,_,_,_,_ = initmediumparameters(Vh[PARAMETER], 1.0)
+a0 = dl.interpolate(dl.Constant('0.0'), Vh[PARAMETER])
+x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[-10, 15])
+#x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
 
 minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
 maxaf = dl.MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
@@ -131,5 +131,5 @@ if rank == 0:
 
 # Plot reconstruction
 if PLOT:
-    PltFen.set_varname('model' + str(SELECTMODEL) + suffix)
+    PltFen.set_varname('aMAP')
     PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))
