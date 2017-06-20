@@ -1,6 +1,7 @@
 """
 Solve acoustic wave inverse problem in terms of parameter a only
 """
+import sys
 import dolfin as dl
 
 from hippylib.model_acousticinversiona import ModelAcoustic
@@ -11,6 +12,7 @@ from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
 from fenicstools.regularization import TVPD
+from fenicstools.plotfenics import PlotFenics
 from fenicstools.mpicomm import create_communicators, partition_work
 from targetmedium import targetmediumparameters, initmediumparameters, loadparameters
 
