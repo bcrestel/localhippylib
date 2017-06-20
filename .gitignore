@@ -17,3 +17,6 @@ teaching/python/ad_diff/results/
 doc/.build
 applications/*/Output*/
 applications/*/old/
+applications/*/old/
+applications/IP-SIAug17/AcousticWave/plotmediumparameters/
+applications/IP-SIAug17/AcousticWave/exple_poisson/
