@@ -10,7 +10,6 @@
 # hIPPYlib is free software; you can redistribute it and/or modify it under the
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
-import sys
 import dolfin as dl
 import math
 import numpy as np
@@ -30,12 +29,23 @@ from targetmedium import targetmediumparameters, initmediumparameters
 dl.set_log_active(False)
 
 
+
+# Command-line argument
+try:
+    k = float(sys.argv[1])
+    eps = float(sys.argv[2])
+except:
+    k = 1e-3
+    eps = 1e-3
+#######################
+
+
 PLOT = True
             
 sep = "\n"+"#"*80+"\n"
 ndim = 2
-nx = 64
-ny = 64
+nx = 50
+ny = 50
 
 mesh = dl.UnitSquareMesh(nx, ny)
 
@@ -79,10 +89,10 @@ misfit.B.mult(x[STATE], misfit.d)
 misfit.noise_variance = 1.0
 
 # Regularization
-prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-3, 'eps':1e-5, 'print':(not rank)})
+prior = TVPD({'Vm':Vh[PARAMETER], 'k':k, 'eps':eps, 'print':(not rank)})
 
 if PLOT:
-    PltFen = PlotFenics(mesh.mpi_comm(), os.path.splitext(sys.argv[0])[0] + '/Plots')
+    PltFen = PlotFenics(mesh.mpi_comm(), os.path.splitext(sys.argv[0])[0] + '/plots')
     suffix = '-c1-k' + str(prior.parameters['k']) + \
     '-e' + str(prior.parameters['eps'])
     PltFen.set_varname('atrue')
@@ -109,10 +119,8 @@ solver.parameters["print_level"] = 0
 if rank != 0:
     solver.parameters["print_level"] = -1
 
-#a0,_,_,_,_ = initmediumparameters(Vh[PARAMETER], 1.0)
 a0 = dl.interpolate(dl.Constant('0.0'), Vh[PARAMETER])
-x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[-10, 15])
-#x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
+x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
 
 minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
 maxaf = dl.MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
@@ -131,5 +139,5 @@ if rank == 0:
 
 # Plot reconstruction
 if PLOT:
-    PltFen.set_varname('aMAP')
+    PltFen.set_varname('poisson-MAP_k' + str(k) + '_e' + str(eps))
     PltFen.plot_vtk(vector2Function(x[PARAMETER], Vh[PARAMETER]))

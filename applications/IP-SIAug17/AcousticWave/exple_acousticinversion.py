@@ -12,11 +12,21 @@ from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
 from fenicstools.regularization import TVPD
 from fenicstools.mpicomm import create_communicators, partition_work
-from fenicstools.examples.acousticwave.mediumparameters import \
-targetmediumparameters, initmediumparameters, loadparameters
+from targetmedium import targetmediumparameters, initmediumparameters, loadparameters
 
 dl.set_log_active(False)
 
+
+# Command-line argument
+try:
+    k = float(sys.argv[1])
+    eps = float(sys.argv[2])
+except:
+    k = 1e-3
+    eps = 1e-3
+#######################
+
+PLOT = True
 
 # Create local and global communicators
 mpicomm_local, mpicomm_global = create_communicators()
@@ -39,7 +49,8 @@ Ricker = RickerWavelet(fpeak, 1e-6)
 r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
 y_src = 0.1 # 1.0->reflection, 0.1->transmission
-#Pt = PointSources(V, [[0.1*ii*X-0.05, y_src] for ii in range(1,11)])
+#Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
+#[0.6,y_src], [0.75,y_src], [0.9,y_src]])
 Pt = PointSources(V, [[0.1,y_src], [0.5,y_src], [0.9,y_src]])
 #Pt = PointSources(V, [[0.5, y_src]])
 srcv = dl.Function(V).vector()
@@ -76,7 +87,7 @@ obspts = [[ii*float(X)/float(Nxy), Y] for ii in range(1,Nxy)]
 tfilterpts = [t0, t1, t2, tf]
 obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
-reg = TVPD({'Vm':Vl, 'eps':1.0, 'k':1e-6, 'print':PRINT})
+reg = TVPD({'Vm':Vl, 'eps':eps, 'k':k, 'print':PRINT})
 
 if PRINT:   print 'Create model'
 model = ModelAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], sources,
@@ -148,3 +159,8 @@ if PRINT:
     print "Termination reason: ", solver.termination_reasons[solver.reason]
     print "Final gradient norm: ", solver.final_grad_norm
     print "Final cost: ", solver.final_cost
+
+    if PLOT:
+        myplot = PlotFenics(comm = mesh.mpi_comm(),\
+        Outputfolder='exple_acousticinversion/plots')
+        waveobj._plotab(myplot, 'acoustic-MAP_k' + str(k) + '_e' + str(eps))
