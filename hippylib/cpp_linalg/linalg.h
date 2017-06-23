@@ -100,4 +100,35 @@ private:
 	std::vector<std::shared_ptr<GenericVector> > mv;
 };
 
+
+
+class RhsIncr
+{
+public:
+    void push_back(GenericVector & vect_in){
+        rhs.push_back(vect_in.copy());
+    }
+
+	std::shared_ptr<const GenericVector> operator[](int i) const{
+        return rhs[i];
+    }
+
+	std::shared_ptr<GenericVector> operator[](int i){
+        return rhs[i];
+    }
+
+	std::shared_ptr<const GenericVector> __getitem__(int i) const
+	{
+		return rhs[i];
+	}
+
+	std::shared_ptr<GenericVector> __setitem__(int i)
+	{
+		return rhs[i];
+	}
+
+private:
+	std::vector< std::shared_ptr<GenericVector> >        rhs;
+};
+
 }

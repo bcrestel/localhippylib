@@ -38,6 +38,13 @@ cpp_module = compile_extension_module(
 code=code, source_directory=sdir, sources=cpp_sources,
 include_dirs=[".",  sdir])
 
+
+class RhsIncr(cpp_module.RhsIncr):
+    def append(self, v):
+        self.push_back(v)
+
+
+
 class MultiVector(cpp_module.MultiVector):
     def dot_v(self, v):
         m = DoubleArray(self.nvec())
