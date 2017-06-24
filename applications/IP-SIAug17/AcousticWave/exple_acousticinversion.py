@@ -19,7 +19,10 @@ from targetmedium import targetmediumparameters, initmediumparameters, loadparam
 dl.set_log_active(False)
 
 
-def model_acoustic(mpicomm_local, mpicomm_global, V, Vl, reg, PRINT=False):
+def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
+    V = Vh[STATE]
+    Vl = Vh[PARAMETER]
+
     # source locations:
     y_src = 0.1 # 1.0->reflection, 0.1->transmission
     #Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
@@ -113,10 +116,14 @@ if __name__ == "__main__":
     Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
     r = 2   # polynomial degree for state and adj
     V = dl.FunctionSpace(mesh, 'Lagrange', r)
+    Vh = [None, None, None]
+    Vh[PARAMETER] = Vl
+    Vh[STATE] = V
+    Vh[ADJOINT] = V
 
     reg = TVPD({'Vm':Vl, 'eps':eps, 'k':k, 'print':PRINT})
 
-    model = model_acoustic(mpicomm_local, mpicomm_global, V, Vl, reg, PRINT)
+    model = model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT)
 
     if PRINT:   print 'Solve inverse problem'
     solver = ReducedSpaceNewtonCG(model)
