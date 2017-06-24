@@ -44,10 +44,11 @@ def model_poisson(Vh, prior, PRINT=False):
     rel_noise_level = 0.02
     utrue = pde.generate_state()
     x = [utrue, atrue.vector(), None]
-    minatrue = dl.MPI.min(mesh.mpi_comm(), np.amin(atrue.vector().array()))
-    maxatrue = dl.MPI.max(mesh.mpi_comm(), np.amax(atrue.vector().array()))
+    mpicomm = Vh[PARAMETER].mesh().mpi_comm()
+    minatrue = dl.MPI.min(mpicomm, np.amin(atrue.vector().array()))
+    maxatrue = dl.MPI.max(mpicomm, np.amax(atrue.vector().array()))
     if PRINT:
-        print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
+        print '[poisson] min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
     pde.solveFwd(x[STATE], x, 1e-9)
     noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
     Random.normal(x[STATE], noise_level, False)
@@ -59,7 +60,7 @@ def model_poisson(Vh, prior, PRINT=False):
     model.solveFwd(x[STATE], x, 1e-9)
     c, r, m = model.cost(x)
     if PRINT:
-        print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
+        print '[poisson] Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
 
     return model
 

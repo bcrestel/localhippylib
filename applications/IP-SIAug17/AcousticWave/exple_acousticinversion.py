@@ -20,6 +20,7 @@ dl.set_log_active(False)
 
 
 def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
+    X, Y = 1.0, 1.0
     V = Vh[STATE]
     Vl = Vh[PARAMETER]
 
@@ -36,26 +37,27 @@ def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
 
     Wave = AcousticWave({'V':V, 'Vm':Vl}, 
     {'print':False, 'lumpM':True, 'timestepper':'backward'})
-    Wave.set_abc(mesh, ABCdom(), lumpD=False)
+    Wave.set_abc(Vl.mesh(), ABCdom(), lumpD=False)
 
-    Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(False)
+    _, Dt, fpeak, t0, t1, t2, tf = loadparameters(False)
     at, bt,_,_,_ = targetmediumparameters(Vl, X)
     a0, _,_,_,_ = initmediumparameters(Vl, X)
     Wave.update({'b':bt, 'a':at, 't0':t0, 'tf':tf, 'Dt':Dt,\
     'u0init':dl.Function(V), 'utinit':dl.Function(V)})
     if PRINT:
-        print 'nb of src={}, nb of timesteps={}'.format(len(Pt.src_loc), Wave.Nt)
+        print '[acoustic] nb of src={}, nb of timesteps={}'.format(len(Pt.src_loc), Wave.Nt)
 
     sources, timesteps = partition_work(mpicomm_local, mpicomm_global, \
     len(Pt.src_loc), Wave.Nt)
 
     mpilocalrank = dl.MPI.rank(mpicomm_local)
     mpiglobalrank = dl.MPI.rank(mpicomm_global)
-    print 'mpiworldrank={}, mpiglobalrank={}, mpilocalrank={}, sources={}, timestep=[{},{}]'.format(\
+    mpiworldrank = dl.MPI.rank(dl.mpi_comm_world())
+    print '[acoustic] mpiworldrank={}, mpiglobalrank={}, mpilocalrank={}, sources={}, timestep=[{},{}]'.format(\
     mpiworldrank, mpiglobalrank, mpilocalrank, sources,\
     timesteps[0], timesteps[-1])
 
-    obspts = [[ii*float(X)/float(Nxy), Y] for ii in range(1,Nxy)]
+    obspts = [[ii*float(X)/20.0, Y] for ii in range(1,20)]
     tfilterpts = [t0, t1, t2, tf]
     obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
@@ -77,9 +79,9 @@ def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
     model.solveFwd(out, x)
     _, costregt, costmisft = model.cost(x)
     if PRINT:   
-        print 'misfit at target={:.4e}, at initial state={:.4e}'.format(\
+        print '[acoustic] misfit at target={:.4e}, at initial state={:.4e}'.format(\
         costmisft, costmisf0)
-        print 'Regularization at target={:.2e}, at initial state={:.2e}'.format(\
+        print '[acoustic] Regularization at target={:.2e}, at initial state={:.2e}'.format(\
         costregt, costreg0)
 
     return model
@@ -111,7 +113,6 @@ if __name__ == "__main__":
         print 'Nxy={} (h={}), Dt={}, fpeak={}, t0,t1,t2,tf={}'.format(\
         Nxy, h, Dt, fpeak, [t0,t1,t2,tf])
 
-    X, Y = 1.0, 1.0
     mesh = dl.UnitSquareMesh(mpicomm_local, Nxy, Nxy)
     Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
     r = 2   # polynomial degree for state and adj
@@ -140,7 +141,7 @@ if __name__ == "__main__":
 
     at = model.atrue
     bt = model.btrue
-    a0, _,_,_,_ = initmediumparameters(Vl, X)
+    a0, _,_,_,_ = initmediumparameters(Vl, 1.0)
     b0 = bt
     x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
 

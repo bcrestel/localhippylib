@@ -218,7 +218,7 @@ class ModelAcoustic:
                 mu = np.abs(dd).mean(axis=1)
                 sigmas = mu/(10**(SNRdB/10.))
                 DD[ii] = dd + sigmas.reshape((nbobspt,1))*rndnoise
-                print 'source={}, mpiglobalrank={}, sigmas={}, |rndnoise|={}'.format(\
+                print '[ModelAcoustic] source={}, mpiglobalrank={}, sigmas={}, |rndnoise|={}'.format(\
                 ii, mpiglobalrank, sigmas.sum()/len(sigmas), (rndnoise**2).sum().sum())
                 dl.MPI.barrier(dl.mpi_comm_world())
         self.objacoustic.dd = DD
