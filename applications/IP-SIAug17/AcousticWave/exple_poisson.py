@@ -85,8 +85,8 @@ pde.solveFwd(x[STATE], x, 1e-9)
 noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
 Random.normal(x[STATE], noise_level, False)
 misfit.B.mult(x[STATE], misfit.d)
-#misfit.noise_variance = np.sqrt(targets.shape[0])   # hack to compare both models
-misfit.noise_variance = 1.0
+misfit.noise_variance = 1e4 # hack to compare elliptic and acoustic
+#misfit.noise_variance = 1.0
 
 # Regularization
 prior = TVPD({'Vm':Vh[PARAMETER], 'k':k, 'eps':eps, 'print':(not rank)})
