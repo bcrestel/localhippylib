@@ -35,7 +35,8 @@ class ModelAcoustic:
             - timestepsindex = range of time steps to be computed by this MPI proc
               (for gradient and Hessian-vect)
             - obsop = observation operator
-            - atrue: target medium for parameter a
+            - atrue: target medium for parameter a (Function)
+            - btrue: target medium for parameter b (Function)
             - regularization: object for regularization/prior
         """
         self.objacoustic = ObjectiveAcoustic(mpicomm_global, acousticwavePDE,\
