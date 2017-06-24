@@ -121,7 +121,7 @@ solver.parameters["gda_tolerance"] = 1e-24
 solver.parameters["c_armijo"] = 5e-5
 solver.parameters["max_backtracking_iter"] = 20
 solver.parameters["GN_iter"] = 20
-solver.parameters["max_iter"] = 500
+solver.parameters["max_iter"] = 60
 solver.parameters["print_level"] = 0
 if not PRINT:   solver.parameters["print_level"] = -1
 
@@ -165,4 +165,4 @@ if PRINT:
     if PLOT:
         myplot = PlotFenics(comm = mesh.mpi_comm(),\
         Outputfolder='exple_acousticinversion/plots')
-        waveobj._plotab(myplot, 'acoustic-MAP_k' + str(k) + '_e' + str(eps))
+        model.objacoustic._plotab(myplot, 'acoustic-MAP_k' + str(k) + '_e' + str(eps))
