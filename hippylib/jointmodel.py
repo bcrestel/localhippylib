@@ -62,14 +62,14 @@ class JointModel:
                     self.model1.problem.Vh[cc], self.model2.problem.Vh[cc], \
                     self.M[cc].mpi_comm())
                 if self.parameters['print']:
-                    print 'Using SplitAndAssign'
+                    print '[JointModel] Using SplitAndAssign'
             except:
                 self.parameters['splitassign'] = False
                 if self.parameters['print']:
-                    print 'NOT using SplitAndAssign'
+                    print '[JointModel] NOT using SplitAndAssign'
         else:
             if self.parameters['print']:
-                print 'NOT using SplitAndAssign'
+                print '[JointModel] NOT using SplitAndAssign'
 
 
     def splitvector(self, x, component="ALL"):
