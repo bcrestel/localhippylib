@@ -26,9 +26,9 @@ def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
 
     # source locations:
     y_src = 0.1 # 1.0->reflection, 0.1->transmission
-    #Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
-    #[0.6,y_src], [0.75,y_src], [0.9,y_src]])
-    Pt = PointSources(V, [[0.1,y_src], [0.5,y_src], [0.9,y_src]])
+    Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
+    [0.6,y_src], [0.75,y_src], [0.9,y_src]])
+    #Pt = PointSources(V, [[0.1,y_src], [0.5,y_src], [0.9,y_src]])
 
     # Absorbing Boundary Conditions on left, bott, & right:
     class ABCdom(dl.SubDomain):
