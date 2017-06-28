@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import dolfin as dl
 from dolfin import Expression
 
-from hippylib import *
+from hippylib import Random, ZeroPrior, Model, ReducedSpaceNewtonCG, BFGS,\
+STATE, ADJOINT, PARAMETER, amg_method
+from hippylib.jointmodel import JointModel
 
 from fenicstools.regularization import TV, TVPD
 from fenicstools.jointregularization import \
@@ -15,12 +17,19 @@ from targetmedium_coincide2 import targetmedium
 from definePDE import pdes
 from definemisfit import defmisfit
 
-PLOT = False
-SOLVER = 'BFGS'
+PLOT = True
+SOLVER = 'Newton'
 suffix = '-c2'
 
 if __name__ == "__main__":
     dl.set_log_active(False)
+
+    try:
+        k = float(sys.argv[1])
+    except:
+        k = 1e-7
+
+
     nx = 64
     ny = 64
     mesh = dl.UnitSquareMesh(nx, ny)
@@ -38,7 +47,8 @@ if __name__ == "__main__":
     # Target medium parameters
     a1true, a2true = targetmedium(Vh, PARAMETER)
     if PLOT:
-        PltFen = PlotFenics(Outputfolder=os.path.splitext(sys.argv[0])[0] + '/Plots', 
+        #PltFen = PlotFenics(Outputfolder=os.path.splitext(sys.argv[0])[0] + '/Plots', 
+        PltFen = PlotFenics(Outputfolder='output/plots', 
         comm=mesh.mpi_comm())
         PltFen.set_varname('model1' + suffix)
         PltFen.plot_vtk(a1true)
@@ -89,9 +99,9 @@ if __name__ == "__main__":
         'GNhessian':True, 'print':(not rank)})
         reg2 = TV({'Vm':Vh[PARAMETER], 'eps':1e-3, 'k':4e-7, 
         'GNhessian':True, 'print':(not rank)})
-    jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), 
+    jointregul = SumRegularization(reg1, reg2, 
     coeff_cg=0.0,
-    coeff_ncg=1e-6, parameters_ncg={'eps':1e-6},
+    coeff_ncg=k, parameters_ncg={'eps':1e-5},
     coeff_vtv=0.0, parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0},
     isprint=(not rank))
     suffix += '-TV-e' + str(reg1.parameters['eps']) \
@@ -134,7 +144,7 @@ if __name__ == "__main__":
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 25 # !!! very large
     solver.parameters["GN_iter"] = 10
-    solver.parameters["max_iter"] = 100000
+    solver.parameters["max_iter"] = 10000
     solver.parameters["print_level"] = 0
     if rank != 0:
         solver.parameters["print_level"] = -1
