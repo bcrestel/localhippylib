@@ -1,11 +1,10 @@
 import sys, os
 import numpy as np
-import matplotlib.pyplot as plt
 import dolfin as dl
-from dolfin import Expression
+from dolfin import Constant
 
 from hippylib import Random, ZeroPrior, Model, ReducedSpaceNewtonCG, BFGS,\
-STATE, ADJOINT, PARAMETER, amg_method
+STATE, ADJOINT, PARAMETER, amg_method, vector2Function
 from hippylib.jointmodel import JointModel
 
 from fenicstools.regularization import TV, TVPD
@@ -149,7 +148,7 @@ if __name__ == "__main__":
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    a0 = dl.interpolate(dl.Expression(("0.0","0.0")),jointmodel.Vh[PARAMETER])
+    a0 = dl.interpolate(dl.Constant(("0.0","0.0")),jointmodel.Vh[PARAMETER])
 
     if SOLVER == 'Newton':
         x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[-10., 10.])
