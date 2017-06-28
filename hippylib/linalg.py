@@ -12,6 +12,7 @@
 # Software Foundation) version 3.0 dated June 2007.
 
 from dolfin import compile_extension_module, Vector, PETScKrylovSolver, Function, MPI, DoubleArray, File, la_index_dtype
+from dolfin import __version__ as versiondolfin
 from random import Random
 import os
 import numpy as np
@@ -26,7 +27,12 @@ def amg_method():
 #        if pp[0] == 'ml_amg':
 #            return 'ml_amg'
         
-    return 'petsc_amg'
+    if versiondolfin.split('.')[0] == '2016':
+        print '[amg_method] Fenics.2016 - using hypre_amg'
+        return 'hypre_amg'
+    else:
+        print '[amg_method] using petsc_amg'
+        return 'petsc_amg'
 
 abspath = os.path.dirname( os.path.abspath(__file__) )
 sdir = os.path.join(abspath,"cpp_linalg")
