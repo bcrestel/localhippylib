@@ -228,7 +228,7 @@ class ReducedSpaceNewtonCG:
                 a1, a2 = a0fun.split(deepcopy=True)
                 mgfun = vector2Function(mg, self.model.Vh[PARAMETER])
                 mg1, mg2 = mgfun.split(deepcopy=True)
-                plt = PlotFenics('Output-failure-NewtonCG')
+                plt = PlotFenics(a0.mpi_comm(), 'Output-failure-NewtonCG')
                 plt.set_varname('a1')
                 plt.plot_vtk(a1)
                 plt.set_varname('a2')
