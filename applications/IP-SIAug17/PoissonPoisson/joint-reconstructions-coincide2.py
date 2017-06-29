@@ -49,10 +49,10 @@ if __name__ == "__main__":
         #PltFen = PlotFenics(Outputfolder=os.path.splitext(sys.argv[0])[0] + '/Plots', 
         PltFen = PlotFenics(Outputfolder='output/plots', 
         comm=mesh.mpi_comm())
-        PltFen.set_varname('model1' + suffix)
-        PltFen.plot_vtk(a1true)
-        PltFen.set_varname('model2' + suffix)
-        PltFen.plot_vtk(a2true)
+        #PltFen.set_varname('model1' + suffix)
+        #PltFen.plot_vtk(a1true)
+        #PltFen.set_varname('model2' + suffix)
+        #PltFen.plot_vtk(a2true)
 
     # Define PDE
     pde1, pde2 = pdes(Vh, STATE, amg_method)
