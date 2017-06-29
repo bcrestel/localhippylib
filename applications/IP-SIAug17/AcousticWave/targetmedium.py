@@ -7,46 +7,46 @@ import dolfin as dl
 
 def createparam(Vl, DD, Vt, Vb, Vp):
     c = dl.interpolate(dl.Expression('\
-    (x[0]>=LL1)*(x[0]<=RR1)*(x[1]>=BB)*(x[1]<=TT)*vp\
-    + (x[0]>=LL2)*(x[0]<=RR2)*(x[1]>=BB)*(x[1]<=TT)*vp\
-    + (1.0-(x[0]>=LL1)*(x[0]<=RR1)*(x[1]>=BB)*(x[1]<=TT)\
-    -(x[0]>=LL2)*(x[0]<=RR2)*(x[1]>=BB)*(x[1]<=TT))*\
+    (x[0]>=LL)*(x[0]<=RRR)*(x[1]>=BB)*(x[1]<=TT)*vp\
+    + (1.0-(x[0]>=LL)*(x[0]<=RRR)*(x[1]>=BB)*(x[1]<=TT))*\
     (vt*(x[1]>=0.5) + vb*(x[1]<0.5))',\
-    LL1=0.5-1.5*DD, RR1=0.5-0.5*DD, \
-    LL2=0.5+0.5*DD, RR2=0.5+1.5*DD, \
-    BB=0.5-0.5*DD, TT=0.5+0.5*DD,\
+    LL=0.5-0.5*DD, RRR=0.5+0.5*DD, \
+    BB=0.5, TT=0.7,\
     vp=Vp, vt=Vt, vb=Vb, degree=10), Vl)
     return c
 
-DD = 0.1
+DD = 0.5
 # medium parameters:
 CC = [2.0, 3.0, 2.5]
 RR = [1.0, 1.0, 1.0]    # inversion for single param
-LL, AA, BB = [], [], []
-for cc, rr in zip(CC, RR):
-    ll = rr*cc*cc
-    LL.append(ll)
-    AA.append(1./ll)
-    BB.append(1./rr)
 
-def targetmediumparameters(Vl, X, myplot=None):
+def targetmediumparameters(Vl, X=1.0, myplot=None):
     """
     Arguments:
         Vl = function space
         X = x dimension of domain
     """
+    cc = [CC[0], CC[1], X*CC[2]+(1.0-X)*CC[0]]
+    rr = [RR[0], RR[1], X*RR[2]+(1.0-X)*RR[0]]
     # velocity is in [km/s]
-    c = createparam(Vl, DD, CC[0], CC[1], CC[2])
+    c = createparam(Vl, DD, cc[0], cc[1], cc[2])
     if not myplot == None:
         myplot.set_varname('c_target')
         myplot.plot_vtk(c)
     # density is in [10^12 kg/km^3]=[g/cm^3]
     # assume rocks shale-sand-shale + salt inside small rectangle
     # see Marmousi2 print-out
-    rho = createparam(Vl, DD, RR[0], RR[1], RR[2])
+    rho = createparam(Vl, DD, rr[0], rr[1], rr[2])
     if not myplot == None:
         myplot.set_varname('rho_target')
         myplot.plot_vtk(rho)
+    #
+    LL, AA, BB = [], [], []
+    for cci, rri in zip(cc, rr):
+        ll = rri*cci*cci
+        LL.append(ll)
+        AA.append(1./ll)
+        BB.append(1./rri)
     # bulk modulus is in [10^12 kg/km.s^2]=[GPa]
     lam = createparam(Vl, DD, LL[0], LL[1], LL[2])
     if not myplot == None:
@@ -76,10 +76,19 @@ def targetmediumparameters(Vl, X, myplot=None):
 def smoothstart(Vl, top, bott):
     return dl.interpolate(dl.Expression('\
     tp*(x[1]>=TT) + (tp + (bt-tp)*(TT-x[1])/dd)*(x[1]<TT)*(x[1]>BB) + bt*(x[1]<=BB)',\
-    bt=bott, tp=top, TT=0.5+0.5*DD, BB=0.5-0.5*DD, dd=DD, degree=10), Vl)
+    bt=bott, tp=top, TT=0.7, BB=0.5, dd=DD, degree=10), Vl)
 
 
-def initmediumparameters(Vl, X, myplot=None):
+def initmediumparameters(Vl, X=1.0, myplot=None):
+    cc = [CC[0], CC[1], X*CC[2]+(1.0-X)*CC[0]]
+    rr = [RR[0], RR[1], X*RR[2]+(1.0-X)*RR[0]]
+    #
+    LL, AA, BB = [], [], []
+    for cci, rri in zip(cc, rr):
+        ll = rri*cci*cci
+        LL.append(ll)
+        AA.append(1./ll)
+        BB.append(1./rri)
     a0 = smoothstart(Vl, AA[0], AA[1])
     if not myplot == None:
         myplot.set_varname('alpha_init')

@@ -10,10 +10,10 @@ from fenicstools.plotfenics import PlotFenics
 from targetmedium import \
 targetmediumparameters, initmediumparameters, loadparameters
 
-LARGE = True
+LARGE = False
 Nxy, Dt, fpeak,_,_,_,tf = loadparameters(LARGE)
 
-X, Y = 1, 1
+X, Y = 1.0, 1.0
 mesh = dl.UnitSquareMesh(Nxy, Nxy)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 
