@@ -76,7 +76,7 @@ def targetmediumparameters(Vl, X=1.0, myplot=None):
 def smoothstart(Vl, top, bott):
     return dl.interpolate(dl.Expression('\
     tp*(x[1]>=TT) + (tp + (bt-tp)*(TT-x[1])/dd)*(x[1]<TT)*(x[1]>BB) + bt*(x[1]<=BB)',\
-    bt=bott, tp=top, TT=0.7, BB=0.5, dd=DD, degree=10), Vl)
+    bt=bott, tp=top, TT=0.7, BB=0.5, dd=0.2, degree=10), Vl)
 
 
 def initmediumparameters(Vl, X=1.0, myplot=None):
