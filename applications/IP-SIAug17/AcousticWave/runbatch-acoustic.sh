@@ -8,7 +8,7 @@ echo 'eps='$parameps
 for paramk in $paramks
 do
     echo 'k='$paramk
-    mpirun -n 36 python exple_acousticinversion.py $paramk $parameps > 'exple_acousticinversion/k'$paramk'_e'$parameps
+    mpirun -n 30 python exple_acousticinversion.py $paramk $parameps > 'exple_acousticinversion/k'$paramk'_e'$parameps
 done
 
 echo Bash completed for acoustic
