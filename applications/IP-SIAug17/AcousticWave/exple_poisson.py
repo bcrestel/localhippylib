@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import sys, os
-from hippylib import Random, ReducedSpaceNewtonCG, amg_method, Model,\
+from hippylib import ReducedSpaceNewtonCG, amg_method, Model,\
 STATE, ADJOINT, PARAMETER, vector2Function
 
 from fenicstools.regularization import TVPD
@@ -43,6 +43,7 @@ def model_poisson(Vh, prior, PRINT=False):
     # Generate synthetic observations
     rel_noise_level = 0.02
     utrue = pde.generate_state()
+    rnd_v = pde.generate_state()
     x = [utrue, atrue.vector(), None]
     mpicomm = Vh[PARAMETER].mesh().mpi_comm()
     minatrue = dl.MPI.min(mpicomm, np.amin(atrue.vector().array()))
@@ -51,7 +52,10 @@ def model_poisson(Vh, prior, PRINT=False):
         print '[poisson] min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
     pde.solveFwd(x[STATE], x, 1e-9)
     noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
-    Random.normal(x[STATE], noise_level, False)
+    np.random.seed(1111)
+    rnd = np.random.randn(x[STATE].local_size())
+    rnd_v[:] = rnd
+    x[STATE].axpy(noise_level, rnd_v)
     misfit.B.mult(x[STATE], misfit.d)
     misfit.noise_variance = 1e4 # hack to compare elliptic and acoustic
     #misfit.noise_variance = 1.0
@@ -93,9 +97,6 @@ if __name__ == "__main__":
     nproc = dl.MPI.size(mesh.mpi_comm())
     PRINT = (rank == 0)
 
-    if nproc > 1:
-        Random.split(rank, nproc, 1000000, 1)
-        
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
