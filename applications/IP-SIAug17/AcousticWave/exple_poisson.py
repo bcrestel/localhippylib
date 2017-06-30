@@ -41,7 +41,7 @@ def model_poisson(Vh, prior, PRINT=False):
     misfit,_ = defmisfit(Vh, STATE)
 
     # Generate synthetic observations
-    rel_noise_level = 0.02
+    rel_noise_level = 0.01
     utrue = pde.generate_state()
     rnd_v = pde.generate_state()
     x = [utrue, atrue.vector(), None]
