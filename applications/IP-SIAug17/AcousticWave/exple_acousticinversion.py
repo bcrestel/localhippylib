@@ -18,6 +18,8 @@ from targetmedium import targetmediumparameters, initmediumparameters, loadparam
 
 dl.set_log_active(False)
 
+LARGELOADPARAMETERS=True
+
 
 def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
     X, Y = 1.0, 1.0
@@ -39,7 +41,7 @@ def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
     {'print':False, 'lumpM':True, 'timestepper':'backward'})
     Wave.set_abc(Vl.mesh(), ABCdom(), lumpD=False)
 
-    _, Dt, fpeak, t0, t1, t2, tf = loadparameters(False)
+    _, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGELOADPARAMETERS)
     at, bt,_,_,_ = targetmediumparameters(Vl, X)
     a0, _,_,_,_ = initmediumparameters(Vl, X)
     Wave.update({'b':bt, 'a':at, 't0':t0, 'tf':tf, 'Dt':Dt,\
@@ -107,7 +109,7 @@ if __name__ == "__main__":
     PRINT = (mpiworldrank == 0)
     mpicommbarrier = dl.mpi_comm_world()
 
-    Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(False)
+    Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGELOADPARAMETERS)
     h = 1./Nxy
     if PRINT:
         print 'Nxy={} (h={}), Dt={}, fpeak={}, t0,t1,t2,tf={}'.format(\
@@ -135,15 +137,17 @@ if __name__ == "__main__":
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 20
     solver.parameters["GN_iter"] = 20
-    solver.parameters["max_iter"] = 60
+    solver.parameters["max_iter"] = 5000
     solver.parameters["print_level"] = 0
     if not PRINT:   solver.parameters["print_level"] = -1
 
     at = model.atrue
     bt = model.btrue
-    a0, _,_,_,_ = initmediumparameters(Vl, 1.0)
+    #a0, _,_,_,_ = initmediumparameters(Vl, 1.0)
+    a0 = dl.interpolate(dl.Constant('0.25'), Vh[PARAMETER])
     b0 = bt
-    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
+    #x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
+    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 100.])
 
     minat = at.vector().min()
     maxat = at.vector().max()
@@ -183,4 +187,4 @@ if __name__ == "__main__":
         if PLOT:
             myplot = PlotFenics(comm = mesh.mpi_comm(),\
             Outputfolder='exple_acousticinversion/plots')
-            model.objacoustic._plotab(myplot, 'acoustic-MAP_k' + str(k) + '_e' + str(eps))
+            model.objacoustic._plotab(myplot, 'acoustic4Hz-MAP_k' + str(k) + '_e' + str(eps))

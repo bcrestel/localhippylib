@@ -104,9 +104,9 @@ def initmediumparameters(Vl, X=1.0, myplot=None):
 
 def loadparameters(LARGE):
     if LARGE:
-        Nxy = 50
-        Dt = 5.0e-4   #Dt = h/(r*alpha)
-        fpeak = 5.0
+        Nxy = 20
+        Dt = 1.0e-3
+        fpeak = 4.0
         t0, t1, t2, tf = 0.0, 0.1, 0.9, 1.0
     else:
         Nxy = 20
