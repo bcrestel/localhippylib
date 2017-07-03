@@ -4,7 +4,8 @@ import dolfin as dl
 from dolfin import Constant
 
 from hippylib import Random, ZeroPrior, Model, ReducedSpaceNewtonCG, BFGS,\
-STATE, ADJOINT, PARAMETER, amg_method, vector2Function
+STATE, ADJOINT, PARAMETER, amg_method, vector2Function,\
+MultiVector, doublePassG, ReducedHessian
 from hippylib.jointmodel import JointModel
 
 from fenicstools.regularization import TV, TVPD
@@ -17,6 +18,7 @@ from definePDE import pdes
 from definemisfit import defmisfit
 
 PLOT = True
+EIG = False
 SOLVER = 'Newton'
 suffix = '-c2'
 
@@ -100,7 +102,7 @@ if __name__ == "__main__":
         'GNhessian':True, 'print':(not rank)})
     jointregul = SumRegularization(reg1, reg2, 
     coeff_cg=0.0,
-    coeff_ncg=k, parameters_ncg={'eps':1e-5},
+    coeff_ncg=k, parameters_ncg={'eps':1e-8},
     coeff_vtv=0.0, parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0},
     isprint=(not rank))
     suffix += '-TV-e' + str(reg1.parameters['eps']) \
@@ -183,3 +185,19 @@ if __name__ == "__main__":
         PltFen.plot_vtk(vector2Function(x2[PARAMETER], Vh[PARAMETER]))
 
 
+    if EIG:
+        jointmodel.setPointForHessianEvaluations(x)
+        H = ReducedHessian(jointmodel, solver.parameters["inner_rel_tolerance"], 
+        gauss_newton_approx=False, misfit_only=False)
+        k = x[PARAMETER].size()
+        p = 20
+        if rank == 0:
+            print "Double Pass Algorithm. Requested eigenvectors: {0}; Oversampling {1}.".format(k,p)
+
+        Omega = MultiVector(x[PARAMETER], k+p)
+        for i in range(k+p):
+            Random.normal(Omega[i], 1., True)
+
+        d, U = doublePassG(H, jointmodel.M[PARAMETER], jointmodel.Msolver, Omega, k, s=1, check=False)
+        if rank == 0:
+            np.savetxt('eigenvaluesatMAP' + suffix + '.txt', d)

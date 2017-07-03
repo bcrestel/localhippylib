@@ -135,7 +135,7 @@ if __name__ == "__main__":
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 20
     solver.parameters["GN_iter"] = 20
-    solver.parameters["max_iter"] = 60
+    solver.parameters["max_iter"] = 70
     solver.parameters["print_level"] = 0
     if not PRINT:   solver.parameters["print_level"] = -1
 

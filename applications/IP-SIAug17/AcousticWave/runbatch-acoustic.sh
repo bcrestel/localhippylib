@@ -1,7 +1,7 @@
 #!/bin/bash
 
 parameps=1e-3
-paramks='5e-7 4e-7 3e-7 2e-7 1e-7 9e-8 8e-8'
+paramks='9e-7 8e-7 7e-7 6e-7'
 
 echo 'eps='$parameps
 
