@@ -11,9 +11,7 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 import dolfin as dl
-import math
 import numpy as np
-import matplotlib.pyplot as plt
 
 import sys, os
 from hippylib import ReducedSpaceNewtonCG, amg_method, Model,\
