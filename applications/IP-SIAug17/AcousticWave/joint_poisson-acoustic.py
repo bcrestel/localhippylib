@@ -8,6 +8,7 @@ from targetmedium import targetmediumparameters, initmediumparameters
 from fenicstools.mpicomm import create_communicators
 from fenicstools.regularization import TVPD
 from fenicstools.jointregularization import SumRegularization, V_TVPD
+from fenicstools.plotfenics import PlotFenics
 
 from hippylib import ZeroPrior, ReducedSpaceNewtonCG,\
 STATE, ADJOINT, PARAMETER
