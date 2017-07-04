@@ -70,10 +70,12 @@ solver.parameters["max_iter"] = 500
 solver.parameters["print_level"] = 0
 if not PRINT:   solver.parameters["print_level"] = -1
 
-a0 = dl.interpolate(dl.Constant(("0.1","0.25")), jointmodel.Vh[PARAMETER])
-#a0acoustic, _,_,_,_ = initmediumparameters(Vh[PARAMETER], 1.0)
-#dl.assign(a0.sub(1), a0acoustic)
-x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
+a0poisson,_ = initmediumparameters(Vh[PARAMETER], 0.0)
+a0acoustic,_ = initmediumparameters(Vh[PARAMETER], 1.0)
+a0 = dl.interpolate(dl.Constant(("0.0","0.0")), jointmodel.Vh[PARAMETER])
+dl.assign(a0.sub(0), a0poisson)
+dl.assign(a0.sub(1), a0acoustic)
+x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 10.0])
 
 xP, xAW = jointmodel.splitvector(x)
 minxP = xP[PARAMETER].min()
@@ -82,14 +84,18 @@ mmfP, mmfPperc = modelpoisson.mediummisfit(xP[PARAMETER])
 minxAW = xAW[PARAMETER].min()
 maxxAW = xAW[PARAMETER].max()
 mmfAW, mmfAWperc = modelacoustic.mediummisfit(xAW[PARAMETER])
-at, bt,_,_,_ = targetmediumparameters(Vh[PARAMETER], 1.0)
-minat = at.vector().min()
-maxat = at.vector().max()
+atP, btP = targetmediumparameters(Vh[PARAMETER], 0.0)
+minatP = atP.vector().min()
+maxatP = atP.vector().max()
+atA, btA = targetmediumparameters(Vh[PARAMETER], 1.0)
+minatA = atA.vector().min()
+maxatA = atA.vector().max()
 if PRINT:
-    print '\ntarget: min(a)={}, max(a)={}'.format(minat, maxat)
-    print '\nMAP-poisson: min(a)={}, max(a)={}'.format(minxP, maxxP)
+    print '\ntarget: min(a)={}, max(a)={}'.format(minatP, maxatP)
+    print 'MAP-poisson: min(a)={}, max(a)={}'.format(minxP, maxxP)
     print 'medmisfit={:e} ({:.1f}%)'.format(mmfP, mmfPperc)
-    print '\nMAP-acoustic: min(a)={}, max(a)={}'.format(minxAW, maxxAW)
+    print '\ntarget: min(a)={}, max(a)={}'.format(minatA, maxatA)
+    print 'MAP-acoustic: min(a)={}, max(a)={}'.format(minxAW, maxxAW)
     print 'medmisfit={:e} ({:.1f}%)'.format(mmfAW, mmfAWperc)
 
     if solver.converged:

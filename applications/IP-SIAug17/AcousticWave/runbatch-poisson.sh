@@ -1,7 +1,7 @@
 #!/bin/bash
 
-parameps=1e-3
-paramks='1e-6 5e-7 3e-7 2e-7 1e-7 9e-8 8e-8 5e-8 1e-8'
+parameps=1e-4
+paramks='1e-11 1e-10 1e-9 1e-8 1e-7 1e-6 1e-5'
 
 for paramk in $paramks
 do

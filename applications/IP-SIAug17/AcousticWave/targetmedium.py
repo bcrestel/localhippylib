@@ -18,87 +18,42 @@ def createparam(Vl, DD, Vt, Vb, Vp):
 DD = 0.5
 # medium parameters:
 CC = [2.0, 3.0, 2.5]
-RR = [1.0, 1.0, 1.0]    # inversion for single param
+AAa = []
+for cc in CC:
+    AAa.append(1./cc**2)
+fact = 10.0
+AAp = [fact*AAa[0], AAa[1], fact*AAa[0]]
 
 def targetmediumparameters(Vl, X=1.0, myplot=None):
     """
     Arguments:
         Vl = function space
-        X = x dimension of domain
+        X = 0.0->elliptic, 1.0->acoustic
     """
-    cc = [CC[0], CC[1], X*CC[2]+(1.0-X)*CC[0]]
-    rr = [RR[0], RR[1], X*RR[2]+(1.0-X)*RR[0]]
-    # velocity is in [km/s]
-    c = createparam(Vl, DD, cc[0], cc[1], cc[2])
-    if not myplot == None:
-        myplot.set_varname('c_target')
-        myplot.plot_vtk(c)
-    # density is in [10^12 kg/km^3]=[g/cm^3]
-    # assume rocks shale-sand-shale + salt inside small rectangle
-    # see Marmousi2 print-out
-    rho = createparam(Vl, DD, rr[0], rr[1], rr[2])
-    if not myplot == None:
-        myplot.set_varname('rho_target')
-        myplot.plot_vtk(rho)
-    #
-    LL, AA, BB = [], [], []
-    for cci, rri in zip(cc, rr):
-        ll = rri*cci*cci
-        LL.append(ll)
-        AA.append(1./ll)
-        BB.append(1./rri)
-    # bulk modulus is in [10^12 kg/km.s^2]=[GPa]
-    lam = createparam(Vl, DD, LL[0], LL[1], LL[2])
-    if not myplot == None:
-        myplot.set_varname('lambda_target')
-        myplot.plot_vtk(lam)
-    #
+    if X > 0.5: AA = AAa
+    else:   AA = AAp
+
     af = createparam(Vl, DD, AA[0], AA[1], AA[2])
     if not myplot == None:
-        myplot.set_varname('alpha_target')
+        myplot.set_varname('alpha_target_X'+ str(X))
         myplot.plot_vtk(af)
-    bf = createparam(Vl, DD, BB[0], BB[1], BB[2])
-    if not myplot == None:
-        myplot.set_varname('beta_target')
-        myplot.plot_vtk(bf)
-    # Check:
-    ones = dl.interpolate(dl.Constant('1.0'), Vl)
-    check1 = af.vector() * lam.vector()
-    erra = dl.norm(check1 - ones.vector())
-    assert erra < 1e-16
-    check2 = bf.vector() * rho.vector()
-    errb = dl.norm(check2 - ones.vector())
-    assert errb < 1e-16
+    
+    bf = dl.interpolate(dl.Constant('1.0'), Vl)
 
-    return af, bf, c, lam, rho
-
-
-def smoothstart(Vl, top, bott):
-    return dl.interpolate(dl.Expression('\
-    tp*(x[1]>=TT) + (tp + (bt-tp)*(TT-x[1])/dd)*(x[1]<TT)*(x[1]>BB) + bt*(x[1]<=BB)',\
-    bt=bott, tp=top, TT=0.7, BB=0.5, dd=0.2, degree=10), Vl)
+    return af, bf
 
 
 def initmediumparameters(Vl, X=1.0, myplot=None):
-    cc = [CC[0], CC[1], X*CC[2]+(1.0-X)*CC[0]]
-    rr = [RR[0], RR[1], X*RR[2]+(1.0-X)*RR[0]]
-    #
-    LL, AA, BB = [], [], []
-    for cci, rri in zip(cc, rr):
-        ll = rri*cci*cci
-        LL.append(ll)
-        AA.append(1./ll)
-        BB.append(1./rri)
-    a0 = smoothstart(Vl, AA[0], AA[1])
-    if not myplot == None:
-        myplot.set_varname('alpha_init')
-        myplot.plot_vtk(a0)
-    b0 = smoothstart(Vl, BB[0], BB[1])
-    if not myplot == None:
-        myplot.set_varname('beta_init')
-        myplot.plot_vtk(b0)
+    if X > 0.5: AA = AAa
+    else:   AA = AAp
 
-    return a0, b0, None, None, None
+    a0 = dl.interpolate(dl.Constant(str(AA[0])), Vl)
+    if not myplot == None:
+        myplot.set_varname('alpha_init_X'+ str(X))
+        myplot.plot_vtk(a0)
+    b0 = dl.interpolate(dl.Constant('1.0'), Vl)
+
+    return a0, b0
 
 
 

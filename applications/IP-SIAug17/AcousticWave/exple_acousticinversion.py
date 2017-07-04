@@ -43,8 +43,8 @@ def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
     Wave.set_abc(Vl.mesh(), ABCdom(), lumpD=False)
 
     _, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGELOADPARAMETERS)
-    at, bt,_,_,_ = targetmediumparameters(Vl, X)
-    a0, _,_,_,_ = initmediumparameters(Vl, X)
+    at, bt = targetmediumparameters(Vl, 1.0)
+    a0,_ = initmediumparameters(Vl, 1.0)
     Wave.update({'b':bt, 'a':at, 't0':t0, 'tf':tf, 'Dt':Dt,\
     'u0init':dl.Function(V), 'utinit':dl.Function(V)})
     if PRINT:
@@ -144,11 +144,8 @@ if __name__ == "__main__":
 
     at = model.atrue
     bt = model.btrue
-    #a0, _,_,_,_ = initmediumparameters(Vl, 1.0)
-    a0 = dl.interpolate(dl.Constant('0.25'), Vh[PARAMETER])
-    b0 = bt
-    #x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
-    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 100.])
+    a0, b0 = initmediumparameters(Vl, 1.0)
+    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
 
     minat = at.vector().min()
     maxat = at.vector().max()

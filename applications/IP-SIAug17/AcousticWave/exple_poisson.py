@@ -30,7 +30,7 @@ dl.set_log_active(False)
 
 def model_poisson(Vh, prior, PRINT=False):
     # Target medium parameters
-    atrue,_,_,_,_ = targetmediumparameters(Vh[PARAMETER], 0.0)
+    atrue,_ = targetmediumparameters(Vh[PARAMETER], 0.0)
 
     # Define PDE
     pde = pdes(Vh, STATE, amg_method)
@@ -131,8 +131,8 @@ if __name__ == "__main__":
     if not PRINT:
         solver.parameters["print_level"] = -1
 
-    a0 = dl.interpolate(dl.Constant('0.1'), Vh[PARAMETER])
-    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
+    a0,_ = initmediumparameters(Vh[PARAMETER], 0.0)
+    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 100.0])
 
     minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
     maxaf = dl.MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))

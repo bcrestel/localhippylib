@@ -13,7 +13,6 @@ targetmediumparameters, initmediumparameters, loadparameters
 LARGE = False
 Nxy, Dt, fpeak,_,_,_,tf = loadparameters(LARGE)
 
-X, Y = 1.0, 1.0
 mesh = dl.UnitSquareMesh(Nxy, Nxy)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 
@@ -25,5 +24,7 @@ if mpirank == 0:
 MPI.barrier(mpicomm)
 myplot = PlotFenics(mpicomm, filename)
 
-at, bt, c, lam, rho = targetmediumparameters(Vl, X, myplot)
-a0, b0,_,_,_ = initmediumparameters(Vl, X, myplot)
+at, bt = targetmediumparameters(Vl, 1.0, myplot)
+a0, b0 = initmediumparameters(Vl, 1.0, myplot)
+at, bt = targetmediumparameters(Vl, 0.0, myplot)
+a0, b0 = initmediumparameters(Vl, 0.0, myplot)
