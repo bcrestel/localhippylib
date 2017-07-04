@@ -11,12 +11,10 @@
 # terms of the GNU General Public License (as published by the Free
 # Software Foundation) version 3.0 dated June 2007.
 import dolfin as dl
-import math
 import numpy as np
-import matplotlib.pyplot as plt
 
 import sys, os
-from hippylib import Random, ReducedSpaceNewtonCG, amg_method, Model,\
+from hippylib import ReducedSpaceNewtonCG, amg_method, Model,\
 STATE, ADJOINT, PARAMETER, vector2Function
 
 from fenicstools.regularization import TVPD
@@ -32,7 +30,7 @@ dl.set_log_active(False)
 
 def model_poisson(Vh, prior, PRINT=False):
     # Target medium parameters
-    atrue,_,_,_,_ = targetmediumparameters(Vh[PARAMETER], 1.0)
+    atrue,_,_,_,_ = targetmediumparameters(Vh[PARAMETER], 0.0)
 
     # Define PDE
     pde = pdes(Vh, STATE, amg_method)
@@ -41,8 +39,9 @@ def model_poisson(Vh, prior, PRINT=False):
     misfit,_ = defmisfit(Vh, STATE)
 
     # Generate synthetic observations
-    rel_noise_level = 0.02
+    rel_noise_level = 0.01
     utrue = pde.generate_state()
+    rnd_v = pde.generate_state()
     x = [utrue, atrue.vector(), None]
     mpicomm = Vh[PARAMETER].mesh().mpi_comm()
     minatrue = dl.MPI.min(mpicomm, np.amin(atrue.vector().array()))
@@ -51,7 +50,10 @@ def model_poisson(Vh, prior, PRINT=False):
         print '[poisson] min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
     pde.solveFwd(x[STATE], x, 1e-9)
     noise_level = rel_noise_level * x[STATE].norm("l2") / np.sqrt(Vh[PARAMETER].dim())
-    Random.normal(x[STATE], noise_level, False)
+    np.random.seed(1111)
+    rnd = np.random.randn(x[STATE].local_size())
+    rnd_v[:] = rnd
+    x[STATE].axpy(noise_level, rnd_v)
     misfit.B.mult(x[STATE], misfit.d)
     misfit.noise_variance = 1e4 # hack to compare elliptic and acoustic
     #misfit.noise_variance = 1.0
@@ -79,23 +81,20 @@ if __name__ == "__main__":
     #######################
 
 
-    PLOT = False
+    PLOT = True
                 
     sep = "\n"+"#"*80+"\n"
 
     ndim = 2
 
-    nx = 50
-    ny = 50
+    nx = 20
+    ny = 20
     mesh = dl.UnitSquareMesh(nx, ny)
 
     rank = dl.MPI.rank(mesh.mpi_comm())
     nproc = dl.MPI.size(mesh.mpi_comm())
     PRINT = (rank == 0)
 
-    if nproc > 1:
-        Random.split(rank, nproc, 1000000, 1)
-        
     Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vh1 = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
@@ -132,7 +131,7 @@ if __name__ == "__main__":
     if not PRINT:
         solver.parameters["print_level"] = -1
 
-    a0 = dl.interpolate(dl.Constant('0.0'), Vh[PARAMETER])
+    a0 = dl.interpolate(dl.Constant('0.1'), Vh[PARAMETER])
     x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
 
     minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
