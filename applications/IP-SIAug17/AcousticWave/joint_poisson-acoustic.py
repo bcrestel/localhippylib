@@ -7,7 +7,7 @@ from targetmedium import targetmediumparameters, initmediumparameters
 
 from fenicstools.mpicomm import create_communicators
 from fenicstools.regularization import TVPD
-from fenicstools.jointregularization import SumRegularization
+from fenicstools.jointregularization import SumRegularization, V_TVPD
 
 from hippylib import ZeroPrior, ReducedSpaceNewtonCG,\
 STATE, ADJOINT, PARAMETER
@@ -16,6 +16,12 @@ from hippylib.jointmodel import JointModel
 dl.set_log_active(False)
 
 
+# Command-line argument
+try:
+    k = float(sys.argv[1])
+except:
+    k = 1e-7
+#######################
 
 
 mpicomm_local, mpicomm_global = create_communicators()
@@ -38,12 +44,15 @@ ZeroPrior(Vh[PARAMETER]), PRINT)
 
 # regularization
 eps = 1e-3
-regpoisson = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':eps, 'print':PRINT})
-regacoustic = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':eps, 'print':PRINT})
-jointregul = SumRegularization(regpoisson, regacoustic, \
-coeff_cg=0.0,\
-coeff_ncg=0.0, parameters_ncg={'eps':1e-5},\
-coeff_vtv=0.0, isprint=PRINT)
+#regpoisson = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':eps, 'print':PRINT})
+#regacoustic = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':eps, 'print':PRINT})
+#jointregul = SumRegularization(regpoisson, regacoustic, \
+#coeff_cg=0.0,\
+#coeff_ncg=0.0, parameters_ncg={'eps':1e-5},\
+#coeff_vtv=0.0, isprint=PRINT)
+jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps,\
+'rescaledradiusdual':1.0, 'print':PRINT})
+
 
 jointmodel = JointModel(modelpoisson, modelacoustic, jointregul,\
 parameters={'print':PRINT, 'splitassign':True})
@@ -57,13 +66,13 @@ solver.parameters["gda_tolerance"] = 1e-24
 solver.parameters["c_armijo"] = 5e-5
 solver.parameters["max_backtracking_iter"] = 20
 solver.parameters["GN_iter"] = 20
-solver.parameters["max_iter"] = 60
+solver.parameters["max_iter"] = 500
 solver.parameters["print_level"] = 0
 if not PRINT:   solver.parameters["print_level"] = -1
 
-a0 = dl.interpolate(dl.Constant(("0.01","0.0")), jointmodel.Vh[PARAMETER])
-a0acoustic, _,_,_,_ = initmediumparameters(Vh[PARAMETER], 1.0)
-dl.assign(a0.sub(1), a0acoustic)
+a0 = dl.interpolate(dl.Constant(("0.1","0.25")), jointmodel.Vh[PARAMETER])
+#a0acoustic, _,_,_,_ = initmediumparameters(Vh[PARAMETER], 1.0)
+#dl.assign(a0.sub(1), a0acoustic)
 x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
 
 xP, xAW = jointmodel.splitvector(x)
