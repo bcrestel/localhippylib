@@ -44,7 +44,6 @@ def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
 
     _, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGELOADPARAMETERS)
     at, bt = targetmediumparameters(Vl, 1.0)
-    a0,_ = initmediumparameters(Vl, 1.0)
     Wave.update({'b':bt, 'a':at, 't0':t0, 'tf':tf, 'Dt':Dt,\
     'u0init':dl.Function(V), 'utinit':dl.Function(V)})
     if PRINT:
@@ -75,6 +74,7 @@ def model_acoustic(mpicomm_local, mpicomm_global, Vh, reg, PRINT=False):
 
     out = model.generate_vector(PARAMETER)
     x = model.generate_vector("ALL")
+    a0,_ = initmediumparameters(Vl, 1.0)
     x[PARAMETER] = a0
     model.solveFwd(out, x)
     _, costreg0, costmisf0 = model.cost(x)
@@ -142,11 +142,11 @@ if __name__ == "__main__":
     solver.parameters["print_level"] = 0
     if not PRINT:   solver.parameters["print_level"] = -1
 
-    at = model.atrue
-    bt = model.btrue
     a0, b0 = initmediumparameters(Vl, 1.0)
     x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
 
+    at = model.atrue
+    bt = model.btrue
     minat = at.vector().min()
     maxat = at.vector().max()
     minbt = bt.vector().min()
@@ -185,4 +185,7 @@ if __name__ == "__main__":
         if PLOT:
             myplot = PlotFenics(comm = mesh.mpi_comm(),\
             Outputfolder='exple_acousticinversion/plots')
-            model.objacoustic._plotab(myplot, 'acoustic1src2Hz-MAP_k' + str(k) + '_e' + str(eps))
+            if LARGELOADPARAMETERS: suff = '4Hz'
+            else:   suff = '2Hz'
+            model.objacoustic._plotab(myplot, \
+            'acoustic' + suff + '-MAP_k' + str(k) + '_e' + str(eps))
