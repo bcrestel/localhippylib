@@ -380,8 +380,6 @@ class BFGS:
 
 
     def compareparam(self, a0):
-        mpisize = dl.MPI.size(self.mpicomm_global)
-        if self.parameters["print_level"] == 0: print mpisize
         a0_recv = a0.copy()
         a0_recv.zero()
         na0 = np.linalg.norm(a0.array())

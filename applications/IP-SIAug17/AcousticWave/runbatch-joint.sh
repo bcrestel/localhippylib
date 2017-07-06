@@ -1,6 +1,6 @@
 #!/bin/bash
 
-paramks='2e-8 1e-8 3e-8 5e-8 5e-9'
+paramks='2e-8 1e-8 3e-8 5e-8 5e-9 1e-9 1e-7 1e-6 1e-5'
 
 
 for paramk in $paramks

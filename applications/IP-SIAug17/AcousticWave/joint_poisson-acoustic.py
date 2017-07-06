@@ -12,7 +12,7 @@ SumRegularization, V_TVPD, NuclearNormSVD2D
 from fenicstools.plotfenics import PlotFenics
 
 from hippylib import ZeroPrior, ReducedSpaceNewtonCG, BFGS,\
-STATE, ADJOINT, PARAMETER
+STATE, ADJOINT, PARAMETER, vector2Function
 from hippylib.jointmodel import JointModel
 
 dl.set_log_active(False)
@@ -77,7 +77,7 @@ solver.parameters["abs_tolerance"] = 1e-12
 solver.parameters["inner_rel_tolerance"] = 1e-15
 solver.parameters["gda_tolerance"] = 1e-24
 solver.parameters["c_armijo"] = 5e-5
-solver.parameters["max_backtracking_iter"] = 20
+solver.parameters["max_backtracking_iter"] = 30
 solver.parameters["GN_iter"] = 20
 solver.parameters["check_param"] = 10
 solver.parameters["max_iter"] = 5000
