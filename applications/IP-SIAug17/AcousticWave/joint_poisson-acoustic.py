@@ -11,7 +11,7 @@ from fenicstools.jointregularization import \
 SumRegularization, V_TVPD, NuclearNormSVD2D
 from fenicstools.plotfenics import PlotFenics
 
-from hippylib import ZeroPrior, ReducedSpaceNewtonCG,\
+from hippylib import ZeroPrior, ReducedSpaceNewtonCG, BFGS,\
 STATE, ADJOINT, PARAMETER
 from hippylib.jointmodel import JointModel
 
@@ -46,24 +46,31 @@ ZeroPrior(Vh[PARAMETER]), PRINT)
 
 # regularization
 eps = 1e-3
-regpoisson = TVPD({'Vm':Vh[PARAMETER], 'k':2e-8, 'eps':eps, 'print':PRINT})
-regacoustic = TVPD({'Vm':Vh[PARAMETER], 'k':2e-8, 'eps':eps, 'print':PRINT})
-jointregul = SumRegularization(regpoisson, regacoustic, \
-coeff_cg=k,\
-coeff_ncg=0.0, parameters_ncg={'eps':1e-5},\
-coeff_vtv=0.0, isprint=PRINT)
+#regpoisson = TVPD({'Vm':Vh[PARAMETER], 'k':2e-8, 'eps':eps, 'print':PRINT})
+#regacoustic = TVPD({'Vm':Vh[PARAMETER], 'k':2e-8, 'eps':eps, 'print':PRINT})
+#jointregul = SumRegularization(regpoisson, regacoustic, \
+#coeff_cg=k,\
+#coeff_ncg=0.0, parameters_ncg={'eps':1e-5},\
+#coeff_vtv=0.0, isprint=PRINT)
+#prefix = 'SumRegul'
 
 #jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps,\
 #'rescaledradiusdual':1.0, 'print':PRINT})
+#prefix = 'VTV'
 
-#jointregul = NuclearNormSVD2D(mesh, {'eps':eps, 'k':k}, isprint=PRINT)
+jointregul = NuclearNormSVD2D(mesh, {'eps':eps, 'k':k}, isprint=PRINT)
+prefix = 'NN'
 
 
 jointmodel = JointModel(modelpoisson, modelacoustic, jointregul,\
 parameters={'print':PRINT, 'splitassign':True})
 
 if PRINT:   print '\nSolve joint inverse problem'
-solver = ReducedSpaceNewtonCG(jointmodel)
+if prefix == 'NN':
+    solver = BFGS(jointmodel)
+    solver.parameters["H0inv"] = 'd0'
+else:
+    solver = ReducedSpaceNewtonCG(jointmodel)
 solver.mpicomm_global = mpicomm_global
 solver.parameters["rel_tolerance"] = 1e-10
 solver.parameters["abs_tolerance"] = 1e-12
@@ -73,7 +80,7 @@ solver.parameters["c_armijo"] = 5e-5
 solver.parameters["max_backtracking_iter"] = 20
 solver.parameters["GN_iter"] = 20
 solver.parameters["check_param"] = 10
-solver.parameters["max_iter"] = 500
+solver.parameters["max_iter"] = 5000
 solver.parameters["print_level"] = 0
 if not PRINT:   solver.parameters["print_level"] = -1
 
@@ -82,7 +89,10 @@ a0acoustic,_ = initmediumparameters(Vh[PARAMETER], 1.0)
 a0 = dl.interpolate(dl.Constant(("0.0","0.0")), jointmodel.Vh[PARAMETER])
 dl.assign(a0.sub(0), a0poisson)
 dl.assign(a0.sub(1), a0acoustic)
-x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 10.0])
+if prefix == 'NN':
+    x = solver.solve(a0.vector(), bounds_xPARAM=[1e-8, 10.0])
+else:
+    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 10.0])
 
 xP, xAW = jointmodel.splitvector(x)
 minxP = xP[PARAMETER].min()
@@ -116,7 +126,7 @@ if PRINT:
 
     myplot = PlotFenics(comm = mesh.mpi_comm(),\
     Outputfolder='joint_poisson-acoustic/plots')
-    myplot.set_varname('poisson-MAP_k' + str(k) + '_e' + str(eps))
+    myplot.set_varname(prefix+'-poisson-MAP_k' + str(k) + '_e' + str(eps))
     myplot.plot_vtk(vector2Function(xP[PARAMETER], Vh[PARAMETER]))
-    myplot.set_varname('acoustic-MAP_k' + str(k) + '_e' + str(eps))
+    myplot.set_varname(prefix+'-acoustic-MAP_k' + str(k) + '_e' + str(eps))
     myplot.plot_vtk(vector2Function(xAW[PARAMETER], Vh[PARAMETER]))
