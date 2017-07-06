@@ -5,7 +5,7 @@ import numpy as np
 
 import math
 from variables import PARAMETER
-from linalg import vector2Function
+from linalg import vector2Function, MPIAllReduceVector
 
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.linalg.miscroutines import compute_eigfenics
@@ -190,6 +190,7 @@ class BFGS:
         self.parameters["c_armijo"]              = 1e-4
         self.parameters["max_backtracking_iter"] = 10
         self.parameters["print_level"]           = 0
+        self.parameters["check_param"]           = 10
         self.parameters['BFGS_damping']          = 0.2
         self.parameters['memory_limit']          = np.inf
         self.parameters['H0inv']                 = 'Rinv'
@@ -217,6 +218,7 @@ class BFGS:
         c_armijo = self.parameters["c_armijo"]
         max_backtracking_iter = self.parameters["max_backtracking_iter"]
         print_level = self.parameters["print_level"]
+        check_param = self.parameters["check_param"]
 
         H0inv = self.parameters['H0inv']
         self.BFGSop.parameters["BFGS_damping"] = self.parameters["BFGS_damping"]
@@ -348,6 +350,9 @@ class BFGS:
                     n_backtrack += 1
                     alpha *= 0.5
 
+            if self.it % check_param == 0:
+                self.compareparam(a0)
+
             if self.mm:
                 medmisf, perc = self.model.mediummisfit(a)
             else:
@@ -371,3 +376,17 @@ class BFGS:
         self.final_grad_norm = gradnorm
         self.final_cost      = cost_new
         return [u,a0,p]
+
+
+
+    def compareparam(self, a0):
+        mpisize = dl.MPI.size(self.mpicomm_global)
+        if self.parameters["print_level"] == 0: print mpisize
+        a0_recv = a0.copy()
+        a0_recv.zero()
+        na0 = np.linalg.norm(a0.array())
+        MPIAllReduceVector(a0, a0_recv, self.mpicomm_global)
+        a0_recv /= dl.MPI.size(self.mpicomm_global)
+        diff = a0_recv - a0
+        reldiff = np.linalg.norm(diff.array())/na0
+        assert reldiff < 2e-16, 'Diff in a0 across proc: {:.2e}'.format(reldiff)
