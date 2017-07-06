@@ -7,7 +7,8 @@ from targetmedium import targetmediumparameters, initmediumparameters
 
 from fenicstools.mpicomm import create_communicators
 from fenicstools.regularization import TVPD
-from fenicstools.jointregularization import SumRegularization, V_TVPD
+from fenicstools.jointregularization import \
+SumRegularization, V_TVPD, NuclearNormSVD2D
 from fenicstools.plotfenics import PlotFenics
 
 from hippylib import ZeroPrior, ReducedSpaceNewtonCG,\
@@ -21,7 +22,7 @@ dl.set_log_active(False)
 try:
     k = float(sys.argv[1])
 except:
-    k = 1e-7
+    k = 2e-8
 #######################
 
 
@@ -45,14 +46,17 @@ ZeroPrior(Vh[PARAMETER]), PRINT)
 
 # regularization
 eps = 1e-3
-#regpoisson = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':eps, 'print':PRINT})
-#regacoustic = TVPD({'Vm':Vh[PARAMETER], 'k':2e-7, 'eps':eps, 'print':PRINT})
-#jointregul = SumRegularization(regpoisson, regacoustic, \
-#coeff_cg=0.0,\
-#coeff_ncg=0.0, parameters_ncg={'eps':1e-5},\
-#coeff_vtv=0.0, isprint=PRINT)
-jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps,\
-'rescaledradiusdual':1.0, 'print':PRINT})
+regpoisson = TVPD({'Vm':Vh[PARAMETER], 'k':2e-8, 'eps':eps, 'print':PRINT})
+regacoustic = TVPD({'Vm':Vh[PARAMETER], 'k':2e-8, 'eps':eps, 'print':PRINT})
+jointregul = SumRegularization(regpoisson, regacoustic, \
+coeff_cg=k,\
+coeff_ncg=0.0, parameters_ncg={'eps':1e-5},\
+coeff_vtv=0.0, isprint=PRINT)
+
+#jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps,\
+#'rescaledradiusdual':1.0, 'print':PRINT})
+
+#jointregul = NuclearNormSVD2D(mesh, {'eps':eps, 'k':k}, isprint=PRINT)
 
 
 jointmodel = JointModel(modelpoisson, modelacoustic, jointregul,\

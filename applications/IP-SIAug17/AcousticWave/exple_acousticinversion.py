@@ -98,7 +98,7 @@ if __name__ == "__main__":
         k = float(sys.argv[1])
         eps = float(sys.argv[2])
     except:
-        k = 2e-7
+        k = 2e-8
         eps = 1e-3
     #######################
 
