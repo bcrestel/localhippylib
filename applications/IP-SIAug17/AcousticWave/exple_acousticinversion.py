@@ -143,7 +143,7 @@ if __name__ == "__main__":
     if not PRINT:   solver.parameters["print_level"] = -1
 
     a0, b0 = initmediumparameters(Vl, 1.0)
-    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-4, 1.0])
+    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-6, 1.0])
 
     at = model.atrue
     bt = model.btrue
