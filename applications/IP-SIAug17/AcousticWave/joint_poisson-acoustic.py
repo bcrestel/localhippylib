@@ -60,6 +60,7 @@ parameters={'print':PRINT, 'splitassign':True})
 
 if PRINT:   print '\nSolve joint inverse problem'
 solver = ReducedSpaceNewtonCG(jointmodel)
+solver.mpicomm_global = mpicomm_global
 solver.parameters["rel_tolerance"] = 1e-10
 solver.parameters["abs_tolerance"] = 1e-12
 solver.parameters["inner_rel_tolerance"] = 1e-15
@@ -67,6 +68,7 @@ solver.parameters["gda_tolerance"] = 1e-24
 solver.parameters["c_armijo"] = 5e-5
 solver.parameters["max_backtracking_iter"] = 20
 solver.parameters["GN_iter"] = 20
+solver.parameters["check_param"] = 10
 solver.parameters["max_iter"] = 500
 solver.parameters["print_level"] = 0
 if not PRINT:   solver.parameters["print_level"] = -1

@@ -13,12 +13,13 @@
 
 import sys
 import dolfin as dl
-
+import numpy as np
 import math
+
 from variables import PARAMETER
 from cgsolverSteihaug import CGSolverSteihaug
 from reducedHessian import ReducedHessian
-from linalg import vector2Function
+from linalg import vector2Function, MPIAllReduceVector
 from bfgs import BFGS_operator
 
 from fenicstools.plotfenics import PlotFenics
@@ -95,6 +96,7 @@ class ReducedSpaceNewtonCG:
         self.parameters["max_backtracking_iter"] = 10
         self.parameters["print_level"]           = 0
         self.parameters["GN_iter"]               = 5
+        self.parameters["check_param"]           = 10
         self.parameters["cg_coarse_tolerance"]   = .5
         self.parameters['PC']                    = 'prior' 
         # BFGS parameters:
@@ -107,6 +109,7 @@ class ReducedSpaceNewtonCG:
         self.ncalls = 0
         self.reason = 0
         self.final_grad_norm = 0
+        self.mpicomm_global = dl.mpi_comm_self()
         
     # add callback function for ReducedHessian (allow user-defined)
     def solve(self, a0, InexactCG=0, GN=False, bounds_xPARAM=None):
@@ -126,6 +129,7 @@ class ReducedSpaceNewtonCG:
         max_backtracking_iter = self.parameters["max_backtracking_iter"]
         print_level = self.parameters["print_level"]
         GN_iter = self.parameters["GN_iter"]
+        check_param = self.parameters["check_param"]
         cg_coarse_tolerance = self.parameters["cg_coarse_tolerance"]
         PC = self.parameters['PC']
 
@@ -306,6 +310,9 @@ class ReducedSpaceNewtonCG:
                     n_backtrack += 1
                     alpha *= 0.5
 
+            if self.it % check_param == 0:
+                self.compareparam(a0)
+
             # for primal-dual Newton method only:
             if self.model.Prior.isPD():
                 self.model.Prior.update_w(ahat, alpha)
@@ -332,3 +339,14 @@ class ReducedSpaceNewtonCG:
         self.final_grad_norm = gradnorm
         self.final_cost      = cost_new
         return [u,a0,p]
+
+
+    def compareparam(self, a0):
+        a0_recv = a0.copy()
+        a0_recv.zero()
+        na0 = np.linalg.norm(a0.array())
+        MPIAllReduceVector(a0, a0_recv, self.mpicomm_global)
+        a0_recv /= dl.MPI.size(self.mpicomm_global)
+        diff = a0_recv - a0
+        reldiff = np.linalg.norm(diff.array())/na0
+        assert reldiff < 2e-16, 'Diff in a0 across proc: {:.2e}'.format(reldiff)

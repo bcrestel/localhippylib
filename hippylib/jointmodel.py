@@ -234,6 +234,7 @@ class JointModel:
         x1, x2 = self.splitvector(x, PARAMETER)
         y1, y2 = self.splitvector(y, PARAMETER)
 
+        #TODO: do not need the try-except; already handled in ReducedHessian
         # model 1
         try:
             self.model1.GN = self.GN
