@@ -21,8 +21,8 @@ CC = [2.0, 3.0, 2.5]
 AAa = []
 for cc in CC:
     AAa.append(1./cc**2)
-fact = 2.0
-AAp = [fact*AAa[0], AAa[1], fact*AAa[0]]
+fact = 2.5
+AAp = [fact*AAa[0], AAa[1], 0.8*fact*AAa[0]]
 
 def targetmediumparameters(Vl, X=1.0, myplot=None):
     """
