@@ -55,7 +55,7 @@ def model_poisson(Vh, prior, PRINT=False):
     rnd_v[:] = rnd
     x[STATE].axpy(noise_level, rnd_v)
     misfit.B.mult(x[STATE], misfit.d)
-    misfit.noise_variance = 1e5 # hack to compare elliptic and acoustic
+    misfit.noise_variance = 1e4 # hack to compare elliptic and acoustic
     #misfit.noise_variance = 1.0
 
     model = Model(pde, prior, misfit, atrue.vector())

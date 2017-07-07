@@ -1,12 +1,12 @@
 #!/bin/bash
 
-parameps=1e-4
-paramks='1e-11 1e-10 1e-9 1e-8 1e-7 1e-6 1e-5'
+parameps=1e-3
+paramks='9e-9 1e-8 2e-8 3e-8 4e-8'
 
 for paramk in $paramks
 do
     echo 'paramk='$paramk
-    nohup python exple_poisson.py $paramk $parameps > 'exple_poisson/k'$paramk'_e'$parameps &
+    nohup python exple_poisson.py $paramk $parameps > 'exple_poisson/k'$paramk'_e'$parameps'.out' &
 done
 
 echo Bash completed for poisson
