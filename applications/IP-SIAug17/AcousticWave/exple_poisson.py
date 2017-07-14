@@ -15,7 +15,7 @@ import numpy as np
 
 import sys, os
 from hippylib import ReducedSpaceNewtonCG, amg_method, Model,\
-STATE, ADJOINT, PARAMETER, vector2Function
+STATE, ADJOINT, PARAMETER, vector2Function, BFGS
 
 from fenicstools.regularization import TVPD
 from fenicstools.plotfenics import PlotFenics
@@ -81,7 +81,7 @@ if __name__ == "__main__":
     #######################
 
 
-    PLOT = True
+    PLOT = False
                 
     sep = "\n"+"#"*80+"\n"
 
@@ -116,9 +116,16 @@ if __name__ == "__main__":
         PltFen.set_varname('atrue')
         PltFen.plot_vtk(vector2Function(model.atrue, Vh[PARAMETER]))
 
+    SOLVER = 'BFGS'
+
     if PRINT:
         print sep, "Find the MAP point", sep
-    solver = ReducedSpaceNewtonCG(model)
+    if SOLVER == 'BFGS':
+        solver = BFGS(model)
+        solver.parameters["H0inv"] = 'Rinv'
+    else:
+        solver = ReducedSpaceNewtonCG(model)
+    solver.mpicomm_global = dl.mpi_comm_world()
     solver.parameters["rel_tolerance"] = 1e-12
     solver.parameters["abs_tolerance"] = 1e-14
     solver.parameters["inner_rel_tolerance"] = 1e-15
@@ -132,7 +139,10 @@ if __name__ == "__main__":
         solver.parameters["print_level"] = -1
 
     a0,_ = initmediumparameters(Vh[PARAMETER], 0.0)
-    x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 100.0])
+    if SOLVER == 'BFGS':
+        x = solver.solve(a0.vector(), bounds_xPARAM=[1e-8, 100.0])
+    else:
+        x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 100.0])
 
     minaf = dl.MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
     maxaf = dl.MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))

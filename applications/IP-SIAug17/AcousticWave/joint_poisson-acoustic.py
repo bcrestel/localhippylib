@@ -46,29 +46,30 @@ ZeroPrior(Vh[PARAMETER]), PRINT)
 
 # regularization
 eps = 1e-3
-regpoisson = TVPD({'Vm':Vh[PARAMETER], 'k':2e-8, 'eps':eps, 'print':PRINT})
-regacoustic = TVPD({'Vm':Vh[PARAMETER], 'k':3e-8, 'eps':eps, 'print':PRINT})
-jointregul = SumRegularization(regpoisson, regacoustic, \
-coeff_cg=k,\
-coeff_ncg=0.0, parameters_ncg={'eps':1e-5},\
-coeff_vtv=0.0, isprint=PRINT)
-prefix = 'TV+CG'
+#regpoisson = TVPD({'Vm':Vh[PARAMETER], 'k':2e-8, 'eps':eps, 'print':PRINT})
+#regacoustic = TVPD({'Vm':Vh[PARAMETER], 'k':3e-8, 'eps':eps, 'print':PRINT})
+#jointregul = SumRegularization(regpoisson, regacoustic, \
+#coeff_cg=0.0,\
+#coeff_ncg=k, parameters_ncg={'eps':1e-5},\
+#coeff_vtv=0.0, isprint=PRINT)
+#prefix = 'TV+NCG'
 
-#jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps,\
-#'rescaledradiusdual':1.0, 'print':PRINT})
-#prefix = 'VTV'
+jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps,\
+'rescaledradiusdual':1.0, 'print':PRINT})
+prefix = 'VTV-BFGSRinv'
 
 #jointregul = NuclearNormSVD2D(mesh, {'eps':eps, 'k':k}, isprint=PRINT)
 #prefix = 'NN'
 
+SOLVER = 'BFGS' # 'BFGS' or 'Newton'
 
 jointmodel = JointModel(modelpoisson, modelacoustic, jointregul,\
 parameters={'print':PRINT, 'splitassign':True})
 
 if PRINT:   print '\nSolve joint inverse problem'
-if prefix == 'NN':
+if SOLVER == 'BFGS':
     solver = BFGS(jointmodel)
-    solver.parameters["H0inv"] = 'd0'
+    solver.parameters["H0inv"] = 'Rinv'
 else:
     solver = ReducedSpaceNewtonCG(jointmodel)
 solver.mpicomm_global = mpicomm_global
@@ -89,7 +90,7 @@ a0acoustic,_ = initmediumparameters(Vh[PARAMETER], 1.0)
 a0 = dl.interpolate(dl.Constant(("0.0","0.0")), jointmodel.Vh[PARAMETER])
 dl.assign(a0.sub(0), a0poisson)
 dl.assign(a0.sub(1), a0acoustic)
-if prefix == 'NN':
+if SOLVER == 'BFGS':
     x = solver.solve(a0.vector(), bounds_xPARAM=[1e-8, 10.0])
 else:
     x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[1e-8, 10.0])
