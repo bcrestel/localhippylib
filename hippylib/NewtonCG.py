@@ -110,6 +110,7 @@ class ReducedSpaceNewtonCG:
         self.reason = 0
         self.final_grad_norm = 0
         self.mpicomm_global = dl.mpi_comm_self()
+        self.bfgsPC = None
         
     # add callback function for ReducedHessian (allow user-defined)
     def solve(self, a0, InexactCG=0, GN=False, bounds_xPARAM=None):
@@ -142,8 +143,8 @@ class ReducedSpaceNewtonCG:
             self.mm = False
 
         if PC == 'BFGS':
-            bfgsPC = BFGS_operator(self.parameters)
-            H0inv = bfgsPC.parameters['H0inv']
+            self.bfgsPC = BFGS_operator(self.parameters)
+            H0inv = self.bfgsPC.parameters['H0inv']
 
         [u,a,p] = self.model.generate_vector()
         self.model.solveFwd(u, [u, a0, p], innerTol)
@@ -179,14 +180,14 @@ class ReducedSpaceNewtonCG:
                 if self.it > 0:
                     s = ahat * alpha
                     y = mg - mg_old
-                    theta = bfgsPC.update(s, y)
+                    theta = self.bfgsPC.update(s, y)
                 else:
                     theta = 1.0
                 # update H0
                 if H0inv == 'Rinv':
-                    bfgsPC.set_H0inv(self.model.Prior.getprecond())
+                    self.bfgsPC.set_H0inv(self.model.Prior.getprecond())
                 elif H0inv == 'Minv':
-                    bfgsPC.set_H0inv(self.model.Prior.Msolver)
+                    self.bfgsPC.set_H0inv(self.model.Prior.Msolver)
 
             if self.it == 0:
                 gradnorm_ini = gradnorm
@@ -216,7 +217,7 @@ class ReducedSpaceNewtonCG:
             if PC == 'prior':
                 solver.set_preconditioner(self.model.Rsolver())
             elif PC == 'BFGS':
-                solver.set_preconditioner(bfgsPC)
+                solver.set_preconditioner(self.bfgsPC)
             solver.parameters["rel_tolerance"] = tolcg
             solver.parameters["zero_initial_guess"] = True
             solver.parameters["print_level"] = print_level-1
