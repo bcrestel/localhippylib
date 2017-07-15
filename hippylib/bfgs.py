@@ -77,8 +77,8 @@ class BFGS_operator:
         out = self.H0inv.solve(x, x_copy)     # x = H0 * x_copy
 
         for s, y, r, a in zip(self.S, self.Y, self.R, reversed(A)):
-            b = r * y.inner(x)
-            x.axpy(a - b, s)
+            bb = r * y.inner(x)
+            x.axpy(a - bb, s)
 
         return out
 
