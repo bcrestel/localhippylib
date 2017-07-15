@@ -32,7 +32,7 @@ class BFGS_operator:
 
         self.H0inv = H0invdefault()
         self.isH0invdefault = True
-        self.updated0 = True
+        self.isupdated0 = True
 
         self.parameters = {}
         self.parameters['BFGS_damping']     = 0.2
@@ -117,17 +117,21 @@ class BFGS_operator:
             self.S.pop(0)
             self.Y.pop(0)
             self.R.pop(0)
-            self.updated0 = True
+            self.isupdated0 = True
 
         # re-scale H0 based on earliest secant information
-        if self.isH0invdefault and self.updated0:
-            s0  = self.S[0]
-            y0 = self.Y[0]
-            d0 = s0.inner(y0) / y0.inner(y0)
-            self.H0inv.d0 = d0
-            self.udpated0 = False
+        if self.isH0invdefault and self.isupdated0:
+            self.updated0()
+            self.isupdated0 = False
 
         return theta
+
+
+    def updated0(self):
+        s0  = self.S[0]
+        y0 = self.Y[0]
+        d0 = s0.inner(y0) / y0.inner(y0)
+        self.H0inv.d0 = d0
 
 
 
