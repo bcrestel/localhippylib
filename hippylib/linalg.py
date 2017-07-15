@@ -28,10 +28,8 @@ def amg_method():
 #            return 'ml_amg'
         
     if versiondolfin.split('.')[0] == '2016':
-        print '[amg_method] Fenics.2016 - using hypre_amg'
         return 'hypre_amg'
     else:
-        print '[amg_method] using petsc_amg'
         return 'petsc_amg'
 
 abspath = os.path.dirname( os.path.abspath(__file__) )

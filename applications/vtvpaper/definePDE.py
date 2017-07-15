@@ -21,12 +21,12 @@ def pdes(Vh, STATE, amg_method):
     pde1 = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
     pde2 = PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
     for pde in [pde1, pde2]:
-        pde.solver = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver = dl.PETScKrylovSolver("cg", amg_method)
         pde.solver.parameters["relative_tolerance"] = 1e-15
         pde.solver.parameters["absolute_tolerance"] = 1e-20
-        pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver_fwd_inc = dl.PETScKrylovSolver("cg", amg_method)
         pde.solver_fwd_inc.parameters = pde.solver.parameters
-        pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method())
+        pde.solver_adj_inc = dl.PETScKrylovSolver("cg", amg_method)
         pde.solver_adj_inc.parameters = pde.solver.parameters
 
     return pde1, pde2
