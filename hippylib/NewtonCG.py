@@ -110,6 +110,7 @@ class ReducedSpaceNewtonCG:
         self.reason = 0
         self.final_grad_norm = 0
         self.mpicomm_global = dl.mpi_comm_self()
+        self.bfgsPC = None
         
     # add callback function for ReducedHessian (allow user-defined)
     def solve(self, a0, InexactCG=0, GN=False, bounds_xPARAM=None):
@@ -142,8 +143,8 @@ class ReducedSpaceNewtonCG:
             self.mm = False
 
         if PC == 'BFGS':
-            bfgsPC = BFGS_operator(self.parameters)
-            H0inv = bfgsPC.parameters['H0inv']
+            self.bfgsPC = BFGS_operator(self.parameters)
+            H0inv = self.bfgsPC.parameters['H0inv']
 
         [u,a,p] = self.model.generate_vector()
         self.model.solveFwd(u, [u, a0, p], innerTol)
@@ -156,6 +157,8 @@ class ReducedSpaceNewtonCG:
         mg = self.model.generate_vector(PARAMETER)
         
         cost_old, reg_old, misfit_old = self.model.cost([u,a0,p])
+        c, r, m = cost_old, reg_old, misfit_old
+        alpha = 0.0
 
         if self.mm:
             medmisf, perc = self.model.mediummisfit(a0)
@@ -164,8 +167,8 @@ class ReducedSpaceNewtonCG:
         if(print_level >= 0):
             print "\n {:3} {:5} {:5} {:15} {:15} {:15} {:15} {:14} {:14} {:14} {:14}".format(
             "It", "cg_it", "nbPDE", "cost", "misfit", "reg", "(g,da)", "||g||L2", "alpha", "tolcg", "medmisf")
-            print "{:3d} {:5} {:3d} {:15e} {:15e} {:15e} {:15} {:14} {:14} {:14} {:14e} ({:3.1f}%)".format(
-            self.it, "", self.model.getPDEcounts(), cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
+            #print "{:3d} {:5} {:3d} {:15e} {:15e} {:15e} {:15} {:14} {:14} {:14} {:14e} ({:3.1f}%)".format(
+            #self.it, "", self.model.getPDEcounts(), cost_old, misfit_old, reg_old, "", "", "", "", medmisf, perc)
         
         while (self.it < max_iter) and (self.converged == False):
             self.model.solveAdj(p, [u,a0,p], innerTol)
@@ -179,14 +182,14 @@ class ReducedSpaceNewtonCG:
                 if self.it > 0:
                     s = ahat * alpha
                     y = mg - mg_old
-                    theta = bfgsPC.update(s, y)
+                    theta = self.bfgsPC.update(s, y)
                 else:
                     theta = 1.0
                 # update H0
                 if H0inv == 'Rinv':
-                    bfgsPC.set_H0inv(self.model.Prior.getprecond())
+                    self.bfgsPC.set_H0inv(self.model.Prior.getprecond())
                 elif H0inv == 'Minv':
-                    bfgsPC.set_H0inv(self.model.Prior.Msolver)
+                    self.bfgsPC.set_H0inv(self.model.Prior.Msolver)
 
             if self.it == 0:
                 gradnorm_ini = gradnorm
@@ -196,9 +199,15 @@ class ReducedSpaceNewtonCG:
             if (gradnorm < tol) and (self.it > 0):
                 self.converged = True
                 self.reason = 1
+                if self.mm:
+                    medmisf, perc = self.model.mediummisfit(a0)
+                else:
+                    medmisf, perc = -99, -99
+                if print_level >= 0:
+                    print "{:3d} {:5} {:3d} {:15e} {:15e} {:15e} {:15} {:14e} {:14e} {:14} {:14e} ({:3.1f}%)".format(
+                    self.it, "", self.model.getPDEcounts(), 
+                    c, m, r, "", gradnorm, alpha, "", medmisf, perc)
                 break
-            
-            self.it += 1
             
             if InexactCG==1:
                 tolcg = min(cg_coarse_tolerance, math.sqrt(gradnorm/gradnorm_ini))
@@ -216,7 +225,7 @@ class ReducedSpaceNewtonCG:
             if PC == 'prior':
                 solver.set_preconditioner(self.model.Rsolver())
             elif PC == 'BFGS':
-                solver.set_preconditioner(bfgsPC)
+                solver.set_preconditioner(self.bfgsPC)
             solver.parameters["rel_tolerance"] = tolcg
             solver.parameters["zero_initial_guess"] = True
             solver.parameters["print_level"] = print_level-1
@@ -246,12 +255,20 @@ class ReducedSpaceNewtonCG:
                 'Output-failure-NewtonCG/eigvaluesPrecond.txt')
                 sys.exit(1)
             self.total_cg_iter += HessApply.ncalls
+            mg_ahat = mg.inner(ahat)
+
+            if self.mm:
+                medmisf, perc = self.model.mediummisfit(a0)
+            else:
+                medmisf, perc = -99, -99
+            if print_level >= 0:
+                print "{:3d} {:5d} {:3d} {:15e} {:15e} {:15e} {:15e} {:14e} {:14e} {:14e} {:14e} ({:3.1f}%)".format(
+                self.it, HessApply.ncalls, self.model.getPDEcounts(), 
+                c, m, r, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
             
             alpha = 1.0
             descent = 0
             n_backtrack = 0
-            
-            mg_ahat = mg.inner(ahat)
             
             while descent == 0 and n_backtrack < max_backtracking_iter:
                 # update a and u
@@ -299,6 +316,7 @@ class ReducedSpaceNewtonCG:
                     sys.exit(1)
 
                 cost_new, reg_new, misfit_new = self.model.cost([u,a,p])
+                c, r, m = cost_new, reg_new, misfit_new
                 
                 # Check if armijo conditions are satisfied
                 if (cost_new < cost_old + alpha * c_armijo * mg_ahat) or (-mg_ahat <= self.parameters["gda_tolerance"]):
@@ -313,19 +331,12 @@ class ReducedSpaceNewtonCG:
             if self.it % check_param == 0:
                 self.compareparam(a0)
 
+            self.it += 1
+
             # for primal-dual Newton method only:
             if self.model.Prior.isPD():
                 self.model.Prior.update_w(ahat, alpha)
 
-            if self.mm:
-                medmisf, perc = self.model.mediummisfit(a)
-            else:
-                medmisf, perc = -99, -99
-            if print_level >= 0:
-                print "{:3d} {:5d} {:3d} {:15e} {:15e} {:15e} {:15e} {:14e} {:14e} {:14e} {:14e} ({:3.1f}%)".format(
-                self.it, HessApply.ncalls, self.model.getPDEcounts(), 
-                cost_new, misfit_new, reg_new, mg_ahat, gradnorm, alpha, tolcg, medmisf, perc)
-                
             if n_backtrack == max_backtracking_iter:
                 self.converged = False
                 self.reason = 2
