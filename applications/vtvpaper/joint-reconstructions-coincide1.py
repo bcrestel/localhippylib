@@ -17,7 +17,7 @@ from definePDE import pdes
 from definemisfit import defmisfit
 
 PLOT = True
-TESTPC = True
+TESTPC = False
 EIG = False
 
 if __name__ == "__main__":
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         PltFen.plot_vtk(a2true)
 
     # Define PDE
-    pde1, pde2 = pdes(Vh, STATE, amg_method)
+    pde1, pde2 = pdes(Vh, STATE, amg_method())
  
     # Define misfit functions
     misfit1, misfit2, targets1, targets2 = defmisfit(Vh, STATE)
@@ -92,12 +92,10 @@ if __name__ == "__main__":
         print 'Cost @ MAP for m2: cost={}, misfit={}, reg={}'.format(c2, m2, r2)
 
     ############ Regularization #############
-
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps, \
+    jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps, 'amg':'default',\
     'rescaledradiusdual':1.0, 'print':PRINT, 'PCGN':False})
     filename = 'joint_coincide1-k' + str(k) + '_e' + str(eps)
     filename += '-VTVPD'
-
     #########################################
 
     jointmodel = JointModel(model1, model2, jointregul,
@@ -120,18 +118,20 @@ if __name__ == "__main__":
 
     solver.parameters["rel_tolerance"] = 1e-12
     solver.parameters["abs_tolerance"] = 1e-14
-    solver.parameters["inner_rel_tolerance"] = 1e-15
+    solver.parameters["inner_rel_tolerance"] = 1e-15 ## or 1e-24
     solver.parameters["gda_tolerance"] = 1e-24
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 25 
     solver.parameters["GN_iter"] = 10
-    solver.parameters["max_iter"] = 100000
+    solver.parameters["max_iter"] = 500
     solver.parameters["print_level"] = 0
     if not PRINT:
         solver.parameters["print_level"] = -1
+
+    pde1.PDEcounts = 0
+    pde2.PDEcounts = 0
     
     a0 = dl.interpolate(dl.Constant(("0.0","0.0")),jointmodel.Vh[PARAMETER])
-
     if SOLVER == 'Newton':
         x = solver.solve(a0.vector(), InexactCG=1, GN=False, bounds_xPARAM=[-10., 20.])
     elif SOLVER == 'BFGS':
@@ -157,6 +157,7 @@ if __name__ == "__main__":
         print "Termination reason: ", solver.termination_reasons[solver.reason]
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
+
     
     if PLOT:
         PltFen.set_varname('joint-model1' + filename)
@@ -164,14 +165,21 @@ if __name__ == "__main__":
         PltFen.set_varname('joint-model2' + filename)
         PltFen.plot_vtk(vector2Function(x2[PARAMETER], Vh[PARAMETER]))
 
+
     if TESTPC:
-        print '\n\nCompare different preconditioners at MAP point'
+        if PRINT:
+            print '\n\nCompare different preconditioners at MAP point'
+
+        dl.MPI.barrier(dl.mpi_comm_world())
+        # BFGS-Rinv
+        if PRINT:
+            print '\nPreconditioner: BFGS_H0=Rinv'
         ahat = jointmodel.generate_vector(PARAMETER)
         mg = jointmodel.generate_vector(PARAMETER)
+        jointmodel.solveFwd(x[STATE], x, solver.parameters["inner_rel_tolerance"])
+        jointmodel.solveAdj(x[ADJOINT], x, solver.parameters["inner_rel_tolerance"])
         jointmodel.setPointForHessianEvaluations(x)
         gradnorm = jointmodel.evalGradientParameter(x, mg)
-
-        # BFGS-Rinv
         bfgsPC = solver.bfgsPC
         bfgsPC.set_H0inv(jointmodel.Prior.getprecond())
         H = ReducedHessian(jointmodel, solver.parameters["inner_rel_tolerance"], 
@@ -179,67 +187,94 @@ if __name__ == "__main__":
         solvercg = CGSolverSteihaug()
         solvercg.set_operator(H)
         solvercg.set_preconditioner(bfgsPC)
-        solvercg.parameters["rel_tolerance"] = 1e-12
+        solvercg.parameters["rel_tolerance"] = 1e-24
         solvercg.parameters["zero_initial_guess"] = True
         solvercg.parameters["max_iter"] = 5000
-        solvercg.parameters["print_level"] = 0
+        solvercg.parameters["print_level"] = 1
         if not PRINT:
             solvercg.parameters["print_level"] = -1
+        ahat.zero()
         solvercg.solve(ahat, -mg)
+        c, r, m = jointmodel.cost(x)
         normahat = ahat.norm('l2')
         normmg = mg.norm('l2')
         if PRINT:
-            print '\nPreconditioner: BFGS_H0=Rinv'
             print 'Nb of Hessian-vect={}'.format(H.ncalls)
-            print 'check--|ahat|={}, |mg|={}'.format(normahat, normmg)
+            print 'check--|ahat|={}, |mg|={}, gradnorm={}'.format(normahat, normmg, gradnorm)
+            print 'check--c={}, r={}, m={}'.format(c, r, m)
 
-        # BFGS-d0
-        bfgsPC = solver.bfgsPC
-        bfgsPC.isH0invdefault = True
-        bfgsPC.updated0 = True
-        bfgsPC.H0inv = H0invdefault()
-        bfgsPC.solve(ahat, -mg) # necessary to update d0
-        H = ReducedHessian(jointmodel, solver.parameters["inner_rel_tolerance"], 
-        gauss_newton_approx=False, misfit_only=False)
-        solvercg = CGSolverSteihaug()
-        solvercg.set_operator(H)
-        solvercg.set_preconditioner(bfgsPC)
-        solvercg.parameters["rel_tolerance"] = 1e-12
-        solvercg.parameters["zero_initial_guess"] = True
-        solvercg.parameters["max_iter"] = 5000
-        solvercg.parameters["print_level"] = 0
-        if not PRINT:
-            solvercg.parameters["print_level"] = -1
-        solvercg.solve(ahat, -mg)
-        normahat = ahat.norm('l2')
-        normmg = mg.norm('l2')
-        if PRINT:
-            print '\nPreconditioner: BFGS_H0=d0.I'
-            print 'Nb of Hessian-vect={}'.format(H.ncalls)
-            print 'check--|ahat|={}, |mg|={}'.format(normahat, normmg)
 
+        dl.MPI.barrier(dl.mpi_comm_world())
         # Prior-preconditioned
+        if PRINT:
+            print '\nPreconditioner: prior'
+        ahat = jointmodel.generate_vector(PARAMETER)
+        mg = jointmodel.generate_vector(PARAMETER)
+        jointmodel.solveFwd(x[STATE], x, solver.parameters["inner_rel_tolerance"])
+        jointmodel.solveAdj(x[ADJOINT], x, solver.parameters["inner_rel_tolerance"])
+        jointmodel.setPointForHessianEvaluations(x)
+        gradnorm = jointmodel.evalGradientParameter(x, mg)
         H = ReducedHessian(jointmodel, solver.parameters["inner_rel_tolerance"], 
         gauss_newton_approx=False, misfit_only=False)
         solvercg = CGSolverSteihaug()
         solvercg.set_operator(H)
         solvercg.set_preconditioner(jointmodel.Rsolver())
-        solvercg.parameters["rel_tolerance"] = 1e-12
+        solvercg.parameters["rel_tolerance"] = 1e-24
         solvercg.parameters["zero_initial_guess"] = True
         solvercg.parameters["max_iter"] = 5000
-        solvercg.parameters["print_level"] = 0
+        solvercg.parameters["print_level"] = 1
         if not PRINT:
             solvercg.parameters["print_level"] = -1
-        if PRINT:
-            print '\nPreconditioner: prior'
-            print 'Nb of Hessian-vect={}'.format(H.ncalls)
+        ahat.zero()
         solvercg.solve(ahat, -mg)
+        c, r, m = jointmodel.cost(x)
         normahat = ahat.norm('l2')
         normmg = mg.norm('l2')
         if PRINT:
-            print '\nPreconditioner: prior'
             print 'Nb of Hessian-vect={}'.format(H.ncalls)
-            print 'check--|ahat|={}, |mg|={}'.format(normahat, normmg)
+            print 'check--|ahat|={}, |mg|={}, gradnorm={}'.format(normahat, normmg, gradnorm)
+            print 'check--c={}, r={}, m={}'.format(c, r, m)
+
+
+        dl.MPI.barrier(dl.mpi_comm_world())
+        # BFGS-d0
+        if PRINT:
+            print '\nPreconditioner: BFGS_H0=d0.I'
+        ahat = jointmodel.generate_vector(PARAMETER)
+        mg = jointmodel.generate_vector(PARAMETER)
+        jointmodel.solveFwd(x[STATE], x, solver.parameters["inner_rel_tolerance"])
+        jointmodel.solveAdj(x[ADJOINT], x, solver.parameters["inner_rel_tolerance"])
+        jointmodel.setPointForHessianEvaluations(x)
+        gradnorm = jointmodel.evalGradientParameter(x, mg)
+        bfgsPC = solver.bfgsPC
+        bfgsPC.isH0invdefault = True
+        bfgsPC.H0inv = H0invdefault()
+        if PRINT:
+            print 'd0={}'.format(bfgsPC.H0inv.d0)
+        bfgsPC.updated0()
+        bfgsPC.isupdated0 = False
+        if PRINT:
+            print 'd0={}'.format(bfgsPC.H0inv.d0)
+        H = ReducedHessian(jointmodel, solver.parameters["inner_rel_tolerance"], 
+        gauss_newton_approx=False, misfit_only=False)
+        solvercg = CGSolverSteihaug()
+        solvercg.set_operator(H)
+        solvercg.set_preconditioner(bfgsPC)
+        solvercg.parameters["rel_tolerance"] = 1e-24
+        solvercg.parameters["zero_initial_guess"] = True
+        solvercg.parameters["max_iter"] = 5000
+        solvercg.parameters["print_level"] = 1
+        if not PRINT:
+            solvercg.parameters["print_level"] = -1
+        ahat.zero()
+        solvercg.solve(ahat, -mg)
+        c, r, m = jointmodel.cost(x)
+        normahat = ahat.norm('l2')
+        normmg = mg.norm('l2')
+        if PRINT:
+            print 'Nb of Hessian-vect={}'.format(H.ncalls)
+            print 'check--|ahat|={}, |mg|={}, gradnorm={}'.format(normahat, normmg, gradnorm)
+            print 'check--c={}, r={}, m={}'.format(c, r, m)
 
 
 
