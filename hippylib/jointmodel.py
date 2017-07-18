@@ -234,23 +234,12 @@ class JointModel:
         x1, x2 = self.splitvector(x, PARAMETER)
         y1, y2 = self.splitvector(y, PARAMETER)
 
-        #TODO: do not need the try-except; already handled in ReducedHessian
         # model 1
-        try:
-            self.model1.GN = self.GN
-            self.model1.tol = self.tol
-            self.model1.mult(x1, y1)
-        except:
-            H1 = ReducedHessian(self.model1, self.tol, self.GN, True)
-            H1.mult(x1, y1)
+        H1 = ReducedHessian(self.model1, self.tol, self.GN, True)
+        H1.mult(x1, y1)
         # model 2
-        try:
-            self.model2.GN = self.GN
-            self.model2.tol = self.tol
-            self.model2.mult(x2, y2)
-        except:
-            H2 = ReducedHessian(self.model2, self.tol, self.GN, True)
-            H2.mult(x2, y2)
+        H2 = ReducedHessian(self.model2, self.tol, self.GN, True)
+        H2.mult(x2, y2)
         # combine them
         y.zero()
         y.axpy(1.0, self.assignvector(y1, y2, PARAMETER))
