@@ -16,7 +16,7 @@ from targetmedium_coincide1 import targetmedium
 from definePDE import pdes
 from definemisfit import defmisfit
 
-PLOT = True
+PLOT = False
 TESTPC = False
 EIG = False
 
@@ -59,7 +59,8 @@ if __name__ == "__main__":
         PltFen.plot_vtk(a2true)
 
     # Define PDE
-    pde1, pde2 = pdes(Vh, STATE, amg_method())
+    amg_pde = amg_method()
+    pde1, pde2 = pdes(Vh, STATE, amg_pde)
  
     # Define misfit functions
     misfit1, misfit2, targets1, targets2 = defmisfit(Vh, STATE)
@@ -92,7 +93,8 @@ if __name__ == "__main__":
         print 'Cost @ MAP for m2: cost={}, misfit={}, reg={}'.format(c2, m2, r2)
 
     ############ Regularization #############
-    jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps, 'amg':'default',\
+    amg_vtv = 'default'
+    jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps, 'amg':amg_vtv,\
     'rescaledradiusdual':1.0, 'print':PRINT, 'PCGN':False})
     filename = 'joint_coincide1-k' + str(k) + '_e' + str(eps)
     filename += '-VTVPD'
@@ -122,6 +124,7 @@ if __name__ == "__main__":
     solver.parameters["gda_tolerance"] = 1e-24
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 25 
+    solver.parameters["cg_coarse_tolerance"] = 0.5
     solver.parameters["GN_iter"] = 10
     solver.parameters["max_iter"] = 500
     solver.parameters["print_level"] = 0
