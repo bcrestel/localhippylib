@@ -283,7 +283,7 @@ class JointModeli:
 
         # individual models shall not have their own regularization!
         for model in self.models:
-            assert self.model.Prior.isZeroPrior()
+            assert model.Prior.isZeroPrior()
 
         Vhstate, Vhadj, Vhparam = [], [], []
         for model in self.models:
@@ -419,7 +419,7 @@ class JointModeli:
         xs = self.splitvector(x, "ALL")
 
         for modelii, outii, xsii in zip(self.models, outs, xs):
-            self.modelii.solveFwd(outii, xsii, tol)
+            modelii.solveFwd(outii, xsii, tol)
     
         out.zero()
         out.axpy(1.0, self.assignvector(outs, STATE))
@@ -431,7 +431,7 @@ class JointModeli:
         xs = self.splitvector(x, "ALL")
 
         for modelii, outii, xsii in zip(self.models, outs, xs):
-            self.modelii.solveAdj(outii, xsii, tol)
+            modelii.solveAdj(outii, xsii, tol)
     
         out.zero()
         out.axpy(1.0, self.assignvector(outs, ADJOINT))
@@ -451,10 +451,10 @@ class JointModeli:
         misfit = 0.0
 
         for modelii, xsii in zip(self.models, xs):
-            _, _, misfitii = self.modelii.cost(xsii)
+            _, _, misfitii = modelii.cost(xsii)
             misfit += misfitii
 
-        reg = self.Prior.costabvect(x[PARAMETER])
+        reg = self.Prior.costabvecti(x[PARAMETER])
 
         return misfit + self.alphareg*reg, reg, misfit
 
@@ -481,7 +481,7 @@ class JointModeli:
 
         mg.zero()
         mg.axpy(1.0, self.assignvector(mgs, PARAMETER))
-        mg.axpy(self.alphareg, self.Prior.gradabvect(xs[PARAMETER])
+        mg.axpy(self.alphareg, self.Prior.gradabvecti(xs[PARAMETER]))
 
         g = self.generate_vector(PARAMETER)
         self.Msolver.solve(g, mg)
@@ -499,7 +499,7 @@ class JointModeli:
         for modelii, xsii in zip(self.models, xs):
             modelii.setPointForHessianEvaluations(xsii)
 
-        self.Prior.assemble_hessianab(xs[PARAMETER])
+        self.Prior.assemble_hessianabi(xs[PARAMETER])
 
 
     def mult(self, x, y):
@@ -520,7 +520,7 @@ class JointModeli:
 
     def applyR(self, da, out):
         out.zero()
-        out.axpy(self.alphareg, self.Prior.hessianab(da))
+        out.axpy(self.alphareg, self.Prior.hessianabi(da))
 
         
     def Rsolver(self):        
@@ -539,7 +539,7 @@ class JointModeli:
 
 
     def getPDEcounts(self):
-        PDEc = 0.0
+        PDEc = 0
         for modelii in self.models:
             PDEc += modelii.getPDEcounts()
         return PDEc
