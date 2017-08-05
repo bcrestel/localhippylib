@@ -94,10 +94,11 @@ if __name__ == "__main__":
 
     ############ Regularization #############
     amg_vtv = 'default'
-    #jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps, 'amg':amg_vtv,\
-    #'rescaledradiusdual':1.0, 'print':PRINT, 'PCGN':False})
-    jointregul = V_TV(Vh[PARAMETER], {'k':k, 'eps':eps, 'amg':amg_vtv,\
-    'GNhessian':True, 'print':PRINT, 'use_i':True})
+    jointregul = V_TVPD(Vh[PARAMETER], {'k':k, 'eps':eps, 'amg':amg_vtv,\
+    'nb_param':2, 'use_i':True,\
+    'rescaledradiusdual':1.0, 'print':PRINT, 'PCGN':False})
+    #jointregul = V_TV(Vh[PARAMETER], {'k':k, 'eps':eps, 'amg':amg_vtv,\
+    #'GNhessian':True, 'print':PRINT, 'use_i':True})
     filename = 'joint_coincide1-k' + str(k) + '_e' + str(eps)
     filename += '-VTV'
     #########################################

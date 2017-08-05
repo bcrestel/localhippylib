@@ -267,6 +267,13 @@ def GetFromOwnedGid(v, gid):
     return s.GetFromOwnedGid(v, gid)
 
 def pointwiseMaxCount(out, inp, radius):
+    """
+    Inputs:
+        out, inp = Vector()
+        radius = double
+    compute max(inp, radius) entrywise and store it in out
+    returns nb of times inp > radius
+    """
     s = cpp_module.cpp_linalg()
     return s.pointwiseMaxCount(out, inp, radius)
 

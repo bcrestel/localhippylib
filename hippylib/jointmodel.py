@@ -511,7 +511,6 @@ class JointModeli:
 
         for modelii, xsii, ysii in zip(self.models, xs, ys):
             Hii = ReducedHessian(modelii, self.tol, self.GN, True)
-            #TODO: check that ysii is updated
             Hii.mult(xsii, ysii)
 
         y.zero()
