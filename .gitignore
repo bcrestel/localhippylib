@@ -22,5 +22,6 @@ applications/IP-SIAug17/AcousticWave/plotmediumparameters/
 applications/IP-SIAug17/AcousticWave/exple_*/
 applications/IP-SIAug17/AcousticWave/joint_*/
 applications/IP-SIAug17/AcousticWave/archive*/
+applications/IP-SIAug17/AcousticWave/joint_poisson-acoustic/
 applications/IP-SIAug17/PoissonPoisson/output/
 applications/vtvpaper/*-reconstructions-*/
